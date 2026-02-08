@@ -20,10 +20,10 @@ describe('AppComponent', () => {
     expect(app.title).toEqual('portfolio');
   });
 
-  it('should render title', () => {
+  it('should render hero component', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, portfolio');
+    expect(compiled.querySelector('app-hero')).toBeTruthy();
   });
 });
