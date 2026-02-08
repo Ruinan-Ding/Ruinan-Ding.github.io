@@ -1,0 +1,25 @@
+@import "tailwindcss" layer(base, components, utilities);
+
+@theme {
+  --color-void-black: #0a0a0a;
+  --color-void-black-50: #1a1a1a;
+  --color-void-black-100: #151515;
+  --color-void-black-200: #101010;
+  --color-void-black-300: #0d0d0d;
+  --color-void-black-400: #0a0a0a;
+  --color-void-black-500: #070707;
+  --color-void-black-600: #050505;
+  --color-void-black-700: #030303;
+  --color-void-black-800: #020202;
+  --color-void-black-900: #000000;
+
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-family-mono);
+    background-color: var(--color-void-black);
+    color: rgb(243 244 246);
+  }
+}
