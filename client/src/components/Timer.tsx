@@ -25,7 +25,7 @@ const PRESETS_STORAGE_KEY = 'timerAppPresets';
 
 export default function Timer() {
   const [seconds, setSeconds] = useState(1 * 60 + 5);
-  const [milliseconds, setMilliseconds] = useState(0);  // Start at 0; first tick will initialize to 1000
+  const [milliseconds, setMilliseconds] = useState(1000);  // Start at 1000 for decrement logic
   
   // Configured time (independent, doesn't change with countdown)
   const [hours, setHours] = useState(0);
@@ -89,8 +89,6 @@ export default function Timer() {
   const lastIsRunningRef = useRef(isRunning);
   const lastIsPausedRef = useRef(isPaused);
   const promptShownInStateRef = useRef(false); // Track if prompt was shown in current running/paused state
-  const startedSecondsRef = useRef(0); // Track the time when timer was started
-  const shouldIgnoreUpdatesRef = useRef(false); // Flag to ignore state updates during stop/reset
   const initialTotalSeconds = 1 * 60 + 5; // 1 minute 5 seconds
 
   // Load state from localStorage on mount
@@ -100,12 +98,12 @@ export default function Timer() {
     
     if (savedState) {
       try {
-        const { seconds: savedSeconds } = JSON.parse(savedState);
+        const { seconds: savedSeconds, isPaused: wasPaused } = JSON.parse(savedState);
         setSeconds(savedSeconds);
-        setMilliseconds(0);  // Always reset milliseconds to 0 when loading
-        // Don't auto-resume - always start paused on page load
-        setIsPaused(true);
-        setIsRunning(false);
+        if (wasPaused || (savedSeconds > 0 && savedSeconds !== initialTotalSeconds)) {
+          setIsPaused(true);
+          setIsRunning(true);
+        }
       } catch (e) {
         console.error('Failed to load timer state:', e);
       }
@@ -152,54 +150,29 @@ export default function Timer() {
     if (!isRunning || isPaused) return;
 
     let lastTime = Date.now();
-    let isFirstTick = true;
-    let transitionedToNegative = false;
-    
     intervalRef.current = setInterval(() => {
-      // Skip if we're in the process of stopping/resetting
-      if (shouldIgnoreUpdatesRef.current) return;
-      
       const now = Date.now();
       const elapsed = now - lastTime;
       lastTime = now;
 
-      let shouldDecrementSeconds = false;
-      
-      setMilliseconds((prevMs) => {
-        // On first tick, initialize milliseconds to 1000 so decrement works correctly
-        const startMs = isFirstTick ? 1000 : prevMs;
-        isFirstTick = false;
-        
-        const newMs = startMs - elapsed;  // DECREMENT elapsed time
+      setMilliseconds((prev) => {
+        const newMs = prev - elapsed;  // DECREMENT elapsed time
         if (newMs < 0) {  // Only when milliseconds go BELOW 0, not equal to 0
-          shouldDecrementSeconds = true;
+          setSeconds((prevSecs) => {
+            // Decrement seconds when milliseconds wrap
+            const nextSecs = prevSecs - 1;
+            // Stop at -99:59:59 (which is -359999 seconds)
+            if (nextSecs <= -359999) {
+              if (intervalRef.current) clearInterval(intervalRef.current);
+              return -359999;
+            }
+            return nextSecs;
+          });
           // When milliseconds go negative, add 1000 to wrap to next second
           return newMs + 1000;
         }
         return newMs;
       });
-      
-      // Decrement seconds only when milliseconds wrapped
-      if (shouldDecrementSeconds) {
-        setSeconds((prevSecs) => {
-          // Check if we're transitioning from 0 to negative
-          if (prevSecs === 0 && !transitionedToNegative) {
-            transitionedToNegative = true;
-            // Reset milliseconds to 0 for clean display at -00:00.00
-            setMilliseconds(0);
-            return -1;  // Transition to -1
-          }
-          
-          // Normal decrement
-          const nextSecs = prevSecs - 1;
-          // Stop at -99:59:59 (which is -359999 seconds)
-          if (nextSecs <= -359999) {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            return -359999;
-          }
-          return nextSecs;
-        });
-      }
     }, 10);
 
     return () => {
@@ -377,8 +350,7 @@ export default function Timer() {
     };
     setHistory((prev) => [entry, ...prev].slice(0, 20));
 
-    startedSecondsRef.current = totalToStart;  // Save the time we're starting from
-    setMilliseconds(0);  // Start at 0; first tick will initialize to 1000
+    setMilliseconds(0);
     setIsRunning(true);
     setIsPaused(false);
 
@@ -392,29 +364,20 @@ export default function Timer() {
   };
 
   const handleStopClick = () => {
-    if (seconds < 0 && !isPaused) {
-      // If beeping (and not paused), stop immediately without confirmation
-      shouldIgnoreUpdatesRef.current = true;  // Prevent interval from updating state
-      // Clear intervals FIRST
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+    if (seconds < 0) {
+      // If beeping, stop immediately without confirmation
       if (beepIntervalRef.current) {
         clearInterval(beepIntervalRef.current);
-        beepIntervalRef.current = null;
       }
-      // Reset to the time we started from
-      setSeconds(startedSecondsRef.current);
-      setMilliseconds(0);
+      const newTotalSeconds = minutes * 60 + timerSeconds;
+      setSeconds(newTotalSeconds);
       setIsRunning(false);
   
       setIsPaused(false);
       historyRecordedRef.current = false;
-      shouldIgnoreUpdatesRef.current = false;  // Re-enable updates
       return;
     }
-    // Otherwise, show confirmation (including when paused)
+    // Otherwise, show confirmation
     openDialog('stop');
   };
 
@@ -422,46 +385,32 @@ export default function Timer() {
     if (!isSilentMode) {
       beep(800, 100); // Different tone for stop confirmation
     }
-    shouldIgnoreUpdatesRef.current = true;  // Prevent interval from updating state
-    // Clear intervals FIRST before updating state
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
     if (beepIntervalRef.current) {
       clearInterval(beepIntervalRef.current);
-      beepIntervalRef.current = null;
     }
-    // Reset to the time we started from
-    setSeconds(startedSecondsRef.current);
+    // Reset to configured hours, minutes, and seconds
+    const newTotalSeconds = hours * 3600 + minutes * 60 + timerSeconds;
+    setSeconds(newTotalSeconds);
     setMilliseconds(0);
     setIsRunning(false);
     setIsPaused(false);
 
     historyRecordedRef.current = false;
-    shouldIgnoreUpdatesRef.current = false;  // Re-enable updates
     closeDialog();
   };
 
   const handleResetClick = () => {
     // If finished, auto-restart without confirmation
     if (seconds < 0) {
-      shouldIgnoreUpdatesRef.current = true;  // Prevent interval from updating state
-      // Clear intervals FIRST
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+
       if (beepIntervalRef.current) {
         clearInterval(beepIntervalRef.current);
-        beepIntervalRef.current = null;
       }
       const newTotalSeconds = hours * 3600 + minutes * 60 + timerSeconds;
       setSeconds(newTotalSeconds);
       setMilliseconds(0);
   
       historyRecordedRef.current = false;
-      shouldIgnoreUpdatesRef.current = false;  // Re-enable updates
       
       // Record to history when resetting from finished state
       const entry: HistoryEntry = {
@@ -483,16 +432,6 @@ export default function Timer() {
 
   const handleConfirmReset = () => {
     beep(700, 100); // Different tone for reset confirmation
-    shouldIgnoreUpdatesRef.current = true;  // Prevent interval from updating state
-    // Clear intervals FIRST before updating state
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if (beepIntervalRef.current) {
-      clearInterval(beepIntervalRef.current);
-      beepIntervalRef.current = null;
-    }
     const newTotalSeconds = hours * 3600 + minutes * 60 + timerSeconds;
     setSeconds(newTotalSeconds);
     setMilliseconds(0);
@@ -500,7 +439,6 @@ export default function Timer() {
     setIsRunning(false);
     setIsPaused(false);
     historyRecordedRef.current = false;
-    shouldIgnoreUpdatesRef.current = false;  // Re-enable updates
     
     // Record to history when resetting from running state
     const entry: HistoryEntry = {
