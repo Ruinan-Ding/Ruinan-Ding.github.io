@@ -1,6 +1,8 @@
+import { useCallback } from 'react';
+
 /**
  * useBeep Hook - Generate beeping sounds
- * 
+ *
  * Uses Web Audio API to create beeping tones without external audio files
  * IMPORTANT: Uses a singleton AudioContext to avoid browser limits
  */
@@ -21,7 +23,8 @@ const getAudioContext = (): AudioContext => {
 };
 
 export const useBeep = () => {
-  const beep = (frequency: number = 800, duration: number = 200) => {
+  // Stable identities so components can safely use these in effect deps
+  const beep = useCallback((frequency: number = 800, duration: number = 200) => {
     try {
       const audioContext = getAudioContext();
       
@@ -50,14 +53,14 @@ export const useBeep = () => {
     } catch (e) {
       console.error('Beep failed:', e);
     }
-  };
+  }, []);
 
-  const beepSequence = async (count: number = 3, frequency: number = 800, duration: number = 200, interval: number = 300) => {
+  const beepSequence = useCallback(async (count: number = 3, frequency: number = 800, duration: number = 200, interval: number = 300) => {
     for (let i = 0; i < count; i++) {
       beep(frequency, duration);
       await new Promise(resolve => setTimeout(resolve, interval));
     }
-  };
+  }, [beep]);
 
   return { beep, beepSequence };
 };

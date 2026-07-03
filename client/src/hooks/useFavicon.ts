@@ -7,7 +7,7 @@ import { useEffect } from 'react';
  * - Green triangle when running (solid)
  * - Yellow bars fading slowly when paused
  * - Red square fading quickly when finished
- * - ST (Study Timer) when stopped
+ * - FT (Flash Timer) when stopped
  */
 
 export const useFavicon = (
@@ -61,12 +61,12 @@ export const useFavicon = (
         ctx.fillStyle = '#f87171'; // Brighter red
         ctx.fillRect(8, 8, 48, 48);
       } else if (shape === 'default') {
-        // ST (Study Timer) text - maximized, darker on gray
+        // FT (Flash Timer) text - maximized, darker on gray
         ctx.fillStyle = '#1a1a1a'; // Darker for better contrast
         ctx.font = 'bold 48px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('ST', 32, 32);
+        ctx.fillText('FT', 32, 32);
       }
     };
 
@@ -90,7 +90,7 @@ export const useFavicon = (
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
         opacity = cycle === 0 ? progress : 1 - progress;
-        document.title = `${timeDisplay} - Study Timer`;
+        document.title = `${timeDisplay} - Flash Timer`;
         drawFavicon('square', opacity);
       } else if (isPaused) {
         // Yellow bars fade slowly (1000ms cycle)
@@ -98,15 +98,15 @@ export const useFavicon = (
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
         opacity = cycle === 0 ? progress : 1 - progress;
-        document.title = `${timeDisplay} - Study Timer`;
+        document.title = `${timeDisplay} - Flash Timer`;
         drawFavicon('bars', opacity);
       } else if (isRunning) {
         // Green triangle (solid, no fade)
-        document.title = `${timeDisplay} - Study Timer`;
+        document.title = `${timeDisplay} - Flash Timer`;
         drawFavicon('triangle', 1);
       } else {
         // Default state - ST favicon
-        document.title = `Study Timer`;
+        document.title = `Flash Timer`;
         drawFavicon('default', 1);
       }
 

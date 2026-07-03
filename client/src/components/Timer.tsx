@@ -6,15 +6,18 @@ import { useBeep } from '@/hooks/useBeep';
 
 interface HistoryEntry {
   id: string;
+  hours?: number;
   minutes: number;
   seconds: number;
   timestamp: number;
 }
 
+const MAX_PRESETS = 20;
+
 const DEFAULT_PRESETS: HistoryEntry[] = [
-  { id: 'preset-1', minutes: 1, seconds: 5, timestamp: 0 },
-  { id: 'preset-2', minutes: 5, seconds: 35, timestamp: 0 },
-  { id: 'preset-3', minutes: 30, seconds: 35, timestamp: 0 },
+  { id: 'preset-1', hours: 0, minutes: 1, seconds: 5, timestamp: 0 },
+  { id: 'preset-2', hours: 0, minutes: 5, seconds: 35, timestamp: 0 },
+  { id: 'preset-3', hours: 0, minutes: 30, seconds: 35, timestamp: 0 },
 ];
 
 const STORAGE_KEY = 'timerAppState';
@@ -25,7 +28,7 @@ const PRESETS_STORAGE_KEY = 'timerAppPresets';
 
 export default function Timer() {
   const [seconds, setSeconds] = useState(1 * 60 + 5);
-  const [milliseconds, setMilliseconds] = useState(1000);  // Start at 1000 for decrement logic
+  const [milliseconds, setMilliseconds] = useState(0);
   
   // Configured time (independent, doesn't change with countdown)
   const [hours, setHours] = useState(0);
@@ -42,7 +45,18 @@ export default function Timer() {
   });
   const [presets, setPresets] = useState<HistoryEntry[]>(() => {
     const saved = localStorage.getItem(PRESETS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : DEFAULT_PRESETS;
+    if (!saved) return DEFAULT_PRESETS;
+    try {
+      const parsed: HistoryEntry[] = JSON.parse(saved);
+      // Older saves packed hours into minutes (hh * 60 + mm); unpack them
+      return parsed.map((p) => ({
+        ...p,
+        hours: (p.hours ?? 0) + Math.floor(p.minutes / 60),
+        minutes: p.minutes % 60,
+      }));
+    } catch {
+      return DEFAULT_PRESETS;
+    }
   });
   const [newPresetInput, setNewPresetInput] = useState('');
   
@@ -82,14 +96,13 @@ export default function Timer() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const greenFlashTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const historyRecordedRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lineCounterRef = useRef<HTMLDivElement | null>(null);
 
   const lastIsRunningRef = useRef(isRunning);
   const lastIsPausedRef = useRef(isPaused);
   const promptShownInStateRef = useRef(false); // Track if prompt was shown in current running/paused state
-  const initialTotalSeconds = 1 * 60 + 5; // 1 minute 5 seconds
+  const configuredTotalSeconds = hours * 3600 + minutes * 60 + timerSeconds;
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -98,12 +111,14 @@ export default function Timer() {
     
     if (savedState) {
       try {
-        const { seconds: savedSeconds, isPaused: wasPaused } = JSON.parse(savedState);
-        setSeconds(savedSeconds);
-        if (wasPaused || (savedSeconds > 0 && savedSeconds !== initialTotalSeconds)) {
-          setIsPaused(true);
-          setIsRunning(true);
-        }
+        const parsed = JSON.parse(savedState);
+        if (typeof parsed.seconds === 'number') setSeconds(parsed.seconds);
+        if (typeof parsed.hours === 'number') setHours(parsed.hours);
+        if (typeof parsed.minutes === 'number') setMinutes(parsed.minutes);
+        if (typeof parsed.timerSeconds === 'number') setTimerSeconds(parsed.timerSeconds);
+        // Always load paused and not running with fresh milliseconds;
+        // the user must press START to resume
+        setMilliseconds(0);
       } catch (e) {
         console.error('Failed to load timer state:', e);
       }
@@ -120,12 +135,12 @@ export default function Timer() {
 
   // Save all state to localStorage
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ seconds, isPaused, isRunning }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ seconds, isPaused, isRunning, hours, minutes, timerSeconds }));
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
     localStorage.setItem(WORD_COUNTER_KEY, wordText);
     localStorage.setItem(SILENT_MODE_KEY, JSON.stringify(isSilentMode));
     localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
-  }, [seconds, isPaused, isRunning, history, wordText, isSilentMode, presets]);
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, wordText, isSilentMode, presets]);
 
   // Reset confirmation flag when running/paused state changes
   useEffect(() => {
@@ -137,7 +152,16 @@ export default function Timer() {
     }
   }, [isRunning, isPaused]);
 
-  useFavicon(isRunning, isPaused, seconds < 0, minutes, timerSeconds, hours);
+  // Show the remaining time (not the configured time) in the tab title/favicon
+  const remainingWholeSeconds = Math.floor(Math.abs(seconds * 1000 + milliseconds) / 1000);
+  useFavicon(
+    isRunning,
+    isPaused,
+    seconds < 0,
+    Math.floor((remainingWholeSeconds % 3600) / 60),
+    remainingWholeSeconds % 60,
+    Math.floor(remainingWholeSeconds / 3600)
+  );
   const { beep: beepRaw } = useBeep();
   
   // Memoize beep function to prevent unnecessary effect re-runs
@@ -158,16 +182,8 @@ export default function Timer() {
       setMilliseconds((prev) => {
         const newMs = prev - elapsed;  // DECREMENT elapsed time
         if (newMs < 0) {  // Only when milliseconds go BELOW 0, not equal to 0
-          setSeconds((prevSecs) => {
-            // Decrement seconds when milliseconds wrap
-            const nextSecs = prevSecs - 1;
-            // Stop at -99:59:59 (which is -359999 seconds)
-            if (nextSecs <= -359999) {
-              if (intervalRef.current) clearInterval(intervalRef.current);
-              return -359999;
-            }
-            return nextSecs;
-          });
+          // Decrement seconds when milliseconds wrap, clamped at -99:59:59
+          setSeconds((prevSecs) => Math.max(prevSecs - 1, -359999));
           // When milliseconds go negative, add 1000 to wrap to next second
           return newMs + 1000;
         }
@@ -180,45 +196,33 @@ export default function Timer() {
     };
   }, [isRunning, isPaused]);
 
-
-  // Beeping when timer reaches 0 and counts into negative time
+  // Freeze the clock once it hits the -99:59:59 floor (the alarm keeps sounding)
   useEffect(() => {
-    // Only beep if: timer is running, not paused, seconds < 0 (negative time), and not in silent mode
-    const shouldBeep = isRunning && !isPaused && seconds < 0 && !isSilentMode;
-    
-    if (shouldBeep) {
-      if (!beepIntervalRef.current) {
-        beepIntervalRef.current = setInterval(() => {
-          beep();
-        }, 200);
+    if (seconds <= -359999) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
-      
-      // Record history only once when first reaching 0
-      if (!historyRecordedRef.current && seconds === 0) {
-        const entry: HistoryEntry = {
-          id: Date.now().toString(),
-          minutes,
-          seconds: timerSeconds,
-          timestamp: Date.now(),
-        };
-        setHistory((prev) => [entry, ...prev].slice(0, 20));
-        historyRecordedRef.current = true;
-      }
-    } else {
-      // Stop beeping if conditions are not met
-      if (beepIntervalRef.current) {
-        clearInterval(beepIntervalRef.current);
-        beepIntervalRef.current = null;
-      }
+      setMilliseconds(0);
     }
-    
+  }, [seconds]);
+
+
+  // Alarm when the timer counts into negative time:
+  // 600Hz beep for 200ms, repeating every 500ms (200ms beep + 300ms silence)
+  const isAlarmActive = isRunning && !isPaused && seconds < 0 && !isSilentMode;
+  useEffect(() => {
+    if (!isAlarmActive) return;
+
+    beep(600, 200);
+    const id = setInterval(() => beep(600, 200), 500);
+    beepIntervalRef.current = id;
+
     return () => {
-      if (beepIntervalRef.current) {
-        clearInterval(beepIntervalRef.current);
-        beepIntervalRef.current = null;
-      }
+      clearInterval(id);
+      beepIntervalRef.current = null;
     };
-  }, [isRunning, isPaused, seconds, isSilentMode]);
+  }, [isAlarmActive, beep]);
 
   const triggerGreenFlash = () => {
     setShowGreenFlash(true);
@@ -232,65 +236,25 @@ export default function Timer() {
 
 
 
-  // Spacebar controls for start/pause/resume/stop-during-beep
+  // Spacebar mirrors the on-screen controls: START when idle, PAUSE/RESUME otherwise
+  // (including the alarm). Re-registered every render so the handlers stay fresh.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
-        // Don't intercept spacebar if typing in textarea
-        if (e.target instanceof HTMLTextAreaElement) {
+        // Don't intercept spacebar if typing in a text field
+        if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
           return;
         }
         e.preventDefault();
 
-        // If beeping (finished), pause/resume the alarm
-        if (seconds < 0) {
-          setIsPaused((prev) => {
-            const nextIsPaused = !prev;
-            // Play different beeps for pause vs resume
-            if (!isSilentMode) {
-              if (nextIsPaused) {
-                // Pause: lower frequency (400Hz)
-                beep(400, 150);
-              } else {
-                // Resume: higher frequency (600Hz)
-                beep(600, 150);
-              }
-            }
-            if (!nextIsPaused) {
-              triggerGreenFlash();
-            }
-            return nextIsPaused;
-          });
-          return;
-        }
-
-        // If running, pause/resume
+        // If running (or alarming), pause/resume
         if (isRunning) {
-          setIsPaused((prev) => {
-            const nextIsPaused = !prev;
-            // Play different beeps for pause vs resume
-            if (!isSilentMode) {
-              if (nextIsPaused) {
-                // Pause: lower frequency (400Hz)
-                beep(400, 150);
-              } else {
-                // Resume: higher frequency (600Hz)
-                beep(600, 150);
-              }
-            }
-            if (!nextIsPaused) {
-              triggerGreenFlash();
-            }
-            return nextIsPaused;
-          });
+          togglePause();
           return;
         }
 
-        // If not running, start
-        setIsRunning(true);
-        setIsPaused(false);
-        historyRecordedRef.current = false;
-        triggerGreenFlash();
+        // If not running, start (same path as the START button)
+        handleStart();
       }
     };
 
@@ -298,26 +262,20 @@ export default function Timer() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isRunning, isPaused, seconds, initialTotalSeconds]);
+  });
 
   const formatTime = (totalSeconds: number, ms: number = 0) => {
-    // Show negative sign if seconds < 0 (we're in negative time)
-    const isNegative = totalSeconds < 0;
-    const absTotalSeconds = Math.abs(totalSeconds);
+    // Combine seconds and milliseconds into one signed value: internally the
+    // remaining time is totalSeconds + ms/1000 (ms always in [0, 1000)), so
+    // formatting them independently double-counts around the zero crossing
+    const totalMs = totalSeconds * 1000 + ms;
+    const isNegative = totalMs < 0;
+    const absMs = Math.abs(totalMs);
+    const absTotalSeconds = Math.floor(absMs / 1000);
     const hrs = Math.floor(absTotalSeconds / 3600);
     const mins = Math.floor((absTotalSeconds % 3600) / 60);
     const secs = absTotalSeconds % 60;
-    
-    // Handle milliseconds: ensure they're in range 0-999
-    let normalizedMs = ms;
-    if (normalizedMs < 0) {
-      normalizedMs = 1000 + normalizedMs;  // Wrap negative ms to positive
-    }
-    if (normalizedMs >= 1000) {
-      normalizedMs = normalizedMs % 1000;  // Wrap large ms values
-    }
-    
-    const displayMs = Math.floor(normalizedMs / 10); // Convert to centiseconds (0-99)
+    const displayMs = Math.floor((absMs % 1000) / 10); // centiseconds (0-99)
     const negativePrefix = isNegative ? '-' : '';
 
     if (hrs > 0) {
@@ -332,31 +290,58 @@ export default function Timer() {
     };
   };
 
-  const handleStart = () => {
-    let totalToStart = seconds;
-    // If seconds is 0 or less, reset to the configured time
-    if (totalToStart <= 0) {
-      totalToStart = hours * 3600 + minutes * 60 + timerSeconds;
-      setSeconds(totalToStart);
-    }
-    
-    // Allow starting even with 0 seconds
-    // Record to history when timer starts
+  const formatEntryLabel = (h: number | undefined, m: number, s: number) => {
+    const hh = h ?? 0;
+    return hh > 0
+      ? `${hh}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${m}:${String(s).padStart(2, '0')}`;
+  };
+
+  const recordHistory = (h: number, m: number, s: number) => {
     const entry: HistoryEntry = {
       id: Date.now().toString(),
-      minutes,
-      seconds: timerSeconds,
+      hours: h,
+      minutes: m,
+      seconds: s,
       timestamp: Date.now(),
     };
     setHistory((prev) => [entry, ...prev].slice(0, 20));
+  };
+
+  const togglePause = () => {
+    setIsPaused((prev) => {
+      const nextIsPaused = !prev;
+      // Play different beeps for pause vs resume
+      if (!isSilentMode) {
+        if (nextIsPaused) {
+          // Pause: lower frequency (400Hz)
+          beep(400, 150);
+        } else {
+          // Resume: higher frequency (600Hz)
+          beep(600, 150);
+        }
+      }
+      if (!nextIsPaused) {
+        triggerGreenFlash();
+      }
+      return nextIsPaused;
+    });
+  };
+
+  const handleStart = () => {
+    // If the timer is at 0 or in negative time, restart from the configured time
+    if (seconds <= 0) {
+      setSeconds(configuredTotalSeconds);
+    }
+
+    // Record to history when timer starts
+    recordHistory(hours, minutes, timerSeconds);
 
     setMilliseconds(0);
     setIsRunning(true);
     setIsPaused(false);
-
-    historyRecordedRef.current = false;
     triggerGreenFlash();
-    
+
     // Play start sound
     if (!isSilentMode) {
       beep(600, 150);
@@ -364,17 +349,25 @@ export default function Timer() {
   };
 
   const handleStopClick = () => {
-    if (seconds < 0) {
-      // If beeping, stop immediately without confirmation
+    // Only an actively-beeping alarm stops without confirmation;
+    // a paused alarm asks first, like any other stop
+    if (seconds < 0 && isRunning && !isPaused) {
+      // Clear intervals before touching state
       if (beepIntervalRef.current) {
         clearInterval(beepIntervalRef.current);
+        beepIntervalRef.current = null;
       }
-      const newTotalSeconds = minutes * 60 + timerSeconds;
-      setSeconds(newTotalSeconds);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (!isSilentMode) {
+        beep(800, 100);
+      }
+      setSeconds(configuredTotalSeconds);
+      setMilliseconds(0);
       setIsRunning(false);
-  
       setIsPaused(false);
-      historyRecordedRef.current = false;
       return;
     }
     // Otherwise, show confirmation
@@ -385,42 +378,36 @@ export default function Timer() {
     if (!isSilentMode) {
       beep(800, 100); // Different tone for stop confirmation
     }
+    // Clear intervals before touching state
     if (beepIntervalRef.current) {
       clearInterval(beepIntervalRef.current);
+      beepIntervalRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
     // Reset to configured hours, minutes, and seconds
-    const newTotalSeconds = hours * 3600 + minutes * 60 + timerSeconds;
-    setSeconds(newTotalSeconds);
+    setSeconds(configuredTotalSeconds);
     setMilliseconds(0);
     setIsRunning(false);
     setIsPaused(false);
-
-    historyRecordedRef.current = false;
     closeDialog();
   };
 
   const handleResetClick = () => {
     // If finished, auto-restart without confirmation
     if (seconds < 0) {
-
       if (beepIntervalRef.current) {
         clearInterval(beepIntervalRef.current);
+        beepIntervalRef.current = null;
       }
-      const newTotalSeconds = hours * 3600 + minutes * 60 + timerSeconds;
-      setSeconds(newTotalSeconds);
+      setSeconds(configuredTotalSeconds);
       setMilliseconds(0);
-  
-      historyRecordedRef.current = false;
-      
-      // Record to history when resetting from finished state
-      const entry: HistoryEntry = {
-        id: Date.now().toString(),
-        minutes,
-        seconds: timerSeconds,
-        timestamp: Date.now(),
-      };
-      setHistory((prev) => [entry, ...prev].slice(0, 20));
-      
+
+      // Record to history when restarting from finished state
+      recordHistory(hours, minutes, timerSeconds);
+
       setIsRunning(true);
       setIsPaused(false);
       triggerGreenFlash();
@@ -431,24 +418,26 @@ export default function Timer() {
   };
 
   const handleConfirmReset = () => {
-    beep(700, 100); // Different tone for reset confirmation
-    const newTotalSeconds = hours * 3600 + minutes * 60 + timerSeconds;
-    setSeconds(newTotalSeconds);
+    if (!isSilentMode) {
+      beep(700, 100); // Different tone for reset confirmation
+    }
+    // Clear intervals before touching state
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current);
+      beepIntervalRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setSeconds(configuredTotalSeconds);
     setMilliseconds(0);
-
     setIsRunning(false);
     setIsPaused(false);
-    historyRecordedRef.current = false;
-    
+
     // Record to history when resetting from running state
-    const entry: HistoryEntry = {
-      id: Date.now().toString(),
-      minutes,
-      seconds: timerSeconds,
-      timestamp: Date.now(),
-    };
-    setHistory((prev) => [entry, ...prev].slice(0, 20));
-    
+    recordHistory(hours, minutes, timerSeconds);
+
     closeDialog();
   };
 
@@ -506,9 +495,11 @@ export default function Timer() {
     
     setSeconds(newTotalSeconds);
     
-    // If adjustment resulted in 0 or negative, trigger alarm immediately
+    // If adjustment resulted in 0, trigger the alarm immediately: keep the
+    // timer running (resumed) so it crosses into negative time on the next tick
     if (newTotalSeconds <= 0 && (isRunning || isPaused)) {
-      setIsRunning(false);
+      setMilliseconds(0);
+      setIsPaused(false);
     }
     
     closeDialog();
@@ -522,29 +513,35 @@ export default function Timer() {
     const newTotalSeconds = dialog.data * 3600 + minutes * 60 + timerSeconds;
     setSeconds(newTotalSeconds);
     
-    // If adjustment resulted in 0 or negative, trigger alarm immediately
+    // If adjustment resulted in 0, trigger the alarm immediately: keep the
+    // timer running (resumed) so it crosses into negative time on the next tick
     if (newTotalSeconds <= 0 && (isRunning || isPaused)) {
-      setIsRunning(false);
+      setMilliseconds(0);
+      setIsPaused(false);
     }
     
     closeDialog();
 
   };
 
+  // Apply a preset/history entry as the configured time (including hours)
+  const loadEntry = (h: number, m: number, s: number) => {
+    setHours(h);
+    setMinutes(m);
+    setTimerSeconds(s);
+    setSeconds(h * 3600 + m * 60 + s);
+    setMilliseconds(0);
+  };
+
   const handleHistoryClick = (entry: HistoryEntry) => {
     // If timer is running, ask for confirmation
     if (isRunning) {
-      openDialog('switch', { minutes: entry.minutes, seconds: entry.seconds });
+      openDialog('switch', { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds });
       return;
     }
-    
-    setMinutes(entry.minutes);
-    setTimerSeconds(entry.seconds);
-    const newTotalSeconds = entry.minutes * 60 + entry.seconds;
-    setSeconds(newTotalSeconds);
 
+    loadEntry(entry.hours ?? 0, entry.minutes, entry.seconds);
     setIsPaused(false);
-    historyRecordedRef.current = false;
   };
 
   const handleRemovePreset = (id: string) => {
@@ -553,22 +550,25 @@ export default function Timer() {
 
   const handleAddPreset = () => {
     if (!newPresetInput || newPresetInput === '') return;
-    
+    if (presets.length >= MAX_PRESETS) return;
+
     // Apply validation before adding
     const digitsOnly = newPresetInput.replace(/[^0-9]/g, '');
+    if (digitsOnly.length === 0) return;
     const padded = digitsOnly.padEnd(6, '0');
     let hhVal = parseInt(padded.slice(0, 2), 10);
     let mmVal = parseInt(padded.slice(2, 4), 10);
     let ssVal = parseInt(padded.slice(4, 6), 10);
-    
-    // Auto-correct MM and SS to 59 if exceeded
+
+    // Auto-correct HH, MM and SS if exceeded
+    hhVal = Math.min(hhVal, 99);
     mmVal = Math.min(mmVal, 59);
     ssVal = Math.min(ssVal, 59);
-    
-    const totalMinutes = hhVal * 60 + mmVal;
+
     const newPreset: HistoryEntry = {
       id: `preset-${Date.now()}`,
-      minutes: totalMinutes,
+      hours: hhVal,
+      minutes: mmVal,
       seconds: ssVal,
       timestamp: 0,
     };
@@ -627,25 +627,14 @@ export default function Timer() {
 
   const handleConfirmSwitch = () => {
     if (!dialog.data) return;
-    
-    setMinutes(dialog.data.minutes);
-    setTimerSeconds(dialog.data.seconds);
-    const newTotalSeconds = dialog.data.minutes * 60 + dialog.data.seconds;
-    setSeconds(newTotalSeconds);
 
+    loadEntry(dialog.data.hours ?? 0, dialog.data.minutes, dialog.data.seconds);
     setIsPaused(false);
     setIsRunning(false);
-    historyRecordedRef.current = false;
-    
+
     // Record to history
-    const entry: HistoryEntry = {
-      id: Date.now().toString(),
-      minutes: dialog.data.minutes,
-      seconds: dialog.data.seconds,
-      timestamp: Date.now(),
-    };
-    setHistory((prev) => [entry, ...prev].slice(0, 20));
-    
+    recordHistory(dialog.data.hours ?? 0, dialog.data.minutes, dialog.data.seconds);
+
     closeDialog();
   };
 
@@ -711,14 +700,16 @@ export default function Timer() {
                   className="flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0"
                   style={{ fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.375rem, 1vw, 0.5rem)', fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)' }}
                 >
-                  {preset.minutes}:{String(preset.seconds).padStart(2, '0')}
+                  {formatEntryLabel(preset.hours, preset.minutes, preset.seconds)}
                 </button>
               </div>
             ))}
             <div className="flex items-center gap-2 mt-2">
               <button
                 onClick={handleAddPreset}
-                className="border-2 border-green-500 text-green-500 font-bold hover:bg-green-500 hover:text-white transition-colors flex-shrink-0"
+                disabled={presets.length >= MAX_PRESETS}
+                title={presets.length >= MAX_PRESETS ? `Preset limit reached (${MAX_PRESETS})` : 'Add preset'}
+                className="border-2 border-green-500 text-green-500 font-bold hover:bg-green-500 hover:text-white transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ padding: 'clamp(0.25rem, 0.5vw, 0.375rem)', fontSize: 'clamp(0.7rem, 1.2vw, 0.875rem)', minWidth: 'clamp(1.5rem, 3vw, 2rem)' }}
               >
                 +
@@ -801,7 +792,7 @@ export default function Timer() {
                   className="border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 text-left"
                   style={{ fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.375rem, 1vw, 0.5rem)', fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)' }}
                 >
-                  {entry.minutes}:{String(entry.seconds).padStart(2, '0')}
+                  {formatEntryLabel(entry.hours, entry.minutes, entry.seconds)}
                 </button>
               ))
             )}
@@ -814,11 +805,8 @@ export default function Timer() {
         {/* Speaker Button - Top Left */}
         <button
           onClick={() => {
-            if (isSilentMode) {
-              // Playing two beeps to confirm unmuting (turning sound back ON)
-              setTimeout(() => beep(600, 150), 0);
-              setTimeout(() => beep(600, 150), 250);
-            }
+            // Single confirmation beep for the toggle (500Hz, 100ms)
+            beep(500, 100);
             setIsSilentMode(!isSilentMode);
           }}
           className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
@@ -853,11 +841,17 @@ export default function Timer() {
           <div className="flex flex-col items-center justify-center flex-shrink min-w-0 gap-1">
             {/* Label showing the configured timer */}
             <div className="text-white opacity-75" style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.875rem)', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.05em' }}>
-              {formatTime(initialTotalSeconds).main}
+              {formatTime(configuredTotalSeconds).main}
             </div>
             
             <div
-              className={`font-bold tracking-wider transition-all duration-200 ${isRunning && !isPaused ? 'text-black bg-green-500 animate-none' : 'text-white'} ${isRunning && isPaused ? 'animate-pauseFlash' : seconds < 0 ? 'animate-finishFlash' : ''}`}
+              className={`font-bold tracking-wider transition-all duration-200 ${
+                seconds < 0
+                  ? `text-white ${isPaused ? 'animate-pauseFlash' : 'animate-finishFlash'}`
+                  : isRunning && !isPaused
+                    ? 'text-black bg-green-500 animate-none'
+                    : `text-white ${isRunning && isPaused ? 'animate-pauseFlash' : ''}`
+              }`}
               style={{ fontSize: 'clamp(2.5rem, 12vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
             >
               <div className="flex items-baseline gap-1">
@@ -881,22 +875,7 @@ export default function Timer() {
 
               {isRunning && (
                 <button
-                  onClick={() => {
-                    setIsPaused((prev) => {
-                      const nextIsPaused = !prev;
-                      // Play different beeps for pause vs resume
-                      if (!isSilentMode) {
-                        if (nextIsPaused) {
-                          // Pause: lower frequency (400Hz)
-                          beep(400, 150);
-                        } else {
-                          // Resume: higher frequency (600Hz)
-                          beep(600, 150);
-                        }
-                      }
-                      return nextIsPaused;
-                    });
-                  }}
+                  onClick={togglePause}
                   className="border-4 font-bold hover:opacity-80 transition-all duration-200"
                   style={{ fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1vw, 1rem) clamp(1rem, 2vw, 2rem)', fontSize: 'clamp(0.75rem, 1.5vw, 1.25rem)', borderColor: isPaused ? '#22c55e' : '#eab308', color: isPaused ? '#22c55e' : '#eab308', backgroundColor: 'transparent', minWidth: 'clamp(5rem, 12vw, 8rem)' }}
                 >
@@ -906,7 +885,7 @@ export default function Timer() {
 
               <button
                 onClick={handleStopClick}
-                disabled={!isRunning && seconds >= 0 && seconds === initialTotalSeconds}
+                disabled={!isRunning && seconds >= 0 && seconds === configuredTotalSeconds}
                 className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1vw, 1rem) clamp(1rem, 2vw, 2rem)', fontSize: 'clamp(0.75rem, 1.5vw, 1.25rem)', borderColor: '#ef4444', color: '#ef4444', backgroundColor: 'transparent', minWidth: 'clamp(5rem, 12vw, 8rem)' }}
               >
@@ -925,12 +904,12 @@ export default function Timer() {
             {/* Status Indicator and Spacebar Hint */}
             <div className="flex flex-col items-center gap-1 mt-2">
               {/* Status Indicator */}
-              <div className="font-bold tracking-wider" style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)', color: isRunning && !isPaused ? '#22c55e' : isRunning && isPaused ? '#eab308' : seconds < 0 ? '#ef4444' : '#ffffff' }}>
-                {!isRunning && seconds === initialTotalSeconds && seconds >= 0 && 'READY'}
-                {isRunning && !isPaused && seconds >= 0 && 'RUNNING'}
-                {isRunning && isPaused && 'PAUSED'}
-                {!isRunning && seconds !== initialTotalSeconds && seconds > 0 && 'STOPPED'}
-                {seconds < 0 && 'FINISHED'}
+              <div className="font-bold tracking-wider" style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)', color: seconds < 0 ? (isPaused ? '#eab308' : '#ef4444') : isRunning ? (isPaused ? '#eab308' : '#22c55e') : '#ffffff' }}>
+                {seconds < 0
+                  ? (isPaused ? 'PAUSED' : 'FINISHED')
+                  : isRunning
+                    ? (isPaused ? 'PAUSED' : 'RUNNING')
+                    : (seconds === configuredTotalSeconds ? 'READY' : 'STOPPED')}
               </div>
 
               {/* Spacebar Hint */}
@@ -939,9 +918,9 @@ export default function Timer() {
                   Spacebar disabled for timer
                 </div>
               )}
-              {(isRunning || seconds < 0) && !isWordCounterFocused && (
+              {isRunning && !isWordCounterFocused && (
                 <div className="text-white opacity-75 tracking-wider" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 1rem)' }}>
-                  Press SPACE to {seconds < 0 ? 'STOP the alarm' : isPaused ? 'RESUME the timer' : 'PAUSE the timer'}
+                  Press SPACE to {isPaused ? 'RESUME' : 'PAUSE'} the {seconds < 0 ? 'alarm' : 'timer'}
                 </div>
               )}
             </div>
@@ -1129,11 +1108,13 @@ export default function Timer() {
 
           {/* Word Counter */}
           <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isWordCounterFocused ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
-                <div className="flex justify-between items-center px-3 pt-3">
-              <div className="text-white font-bold flex gap-1" style={{ fontSize: 'clamp(0.55rem, 1.3vw, 0.75rem)' }}>
-                <div className="flex-1 border-2 border-white text-center px-1 py-1">L</div>
-                <div className="flex-1 border-2 border-white text-center px-1 py-1">W</div>
-                <div className="flex-1 border-2 border-white text-center px-1 py-1">C</div>
+            <div className="flex justify-between items-center px-3 pt-3">
+              {/* Header uses the same width and 3-column grid as the per-line
+                  counter below so the L/W/C labels sit over their columns */}
+              <div className="text-white font-bold grid grid-cols-3 text-center flex-shrink-0" style={{ fontSize: 'clamp(0.55rem, 1.3vw, 0.75rem)', width: 'clamp(6rem, 12vw, 8rem)' }}>
+                <div className="border-2 border-white px-1 py-1">L</div>
+                <div className="border-2 border-white px-1 py-1">W</div>
+                <div className="border-2 border-white px-1 py-1">C</div>
               </div>
               {isWordCounterFocused && (
                 <span className="text-green-500 opacity-75" style={{ fontSize: 'clamp(0.875rem, 2vw, 1.25rem)' }}>Spacebar disabled for timer</span>
@@ -1141,26 +1122,26 @@ export default function Timer() {
             </div>
             <div className="flex flex-col gap-2 px-3 pb-3 flex-1 overflow-hidden min-h-0">
               <div className="flex gap-2 flex-1 overflow-hidden min-h-0">
-                <div className="flex flex-col flex-shrink-0" style={{ minWidth: 'clamp(6rem, 12vw, 8rem)' }}>
+                <div className="flex flex-col flex-shrink-0" style={{ width: 'clamp(6rem, 12vw, 8rem)' }}>
                   <div ref={lineCounterRef} className="overflow-auto flex-1" onScroll={() => {
                     if (textareaRef.current && lineCounterRef.current) {
                       textareaRef.current.scrollTop = lineCounterRef.current.scrollTop;
                     }
                   }}>
-                    <table className="border-collapse text-white font-bold w-full" style={{ fontSize: 'clamp(0.55rem, 1.3vw, 0.75rem)', lineHeight: '1.6', borderSpacing: '0' }}>
-                      <tbody>
-                        {lineStats.map((stat, idx) => (
-                        <tr key={idx} className={`border-2 ${isWordCounterFocused ? 'border-green-500' : 'border-white'}`} style={{ height: '1.6em', padding: '0', margin: '0' }}>
-                          <td className={`border-2 px-1 text-center ${isWordCounterFocused ? 'border-green-500' : 'border-white'}`} style={{ padding: '0 0.25rem', lineHeight: '1.6', margin: '0', verticalAlign: 'middle' }}>{idx + 1}</td>
-                          <td className={`border-2 px-1 text-center ${isWordCounterFocused ? 'border-green-500' : 'border-white'}`} style={{ padding: '0 0.25rem', lineHeight: '1.6', margin: '0', verticalAlign: 'middle' }}>{stat.wordCount}</td>
-                          <td className={`border-2 px-1 text-center ${isWordCounterFocused ? 'border-green-500' : 'border-white'}`} style={{ padding: '0 0.25rem', lineHeight: '1.6', margin: '0', verticalAlign: 'middle' }}>{stat.charCount}</td>
-                        </tr>
+                    {/* Top padding mirrors the textarea's border (4px) + padding so
+                        row 1 lines up with text line 1; each row is exactly one
+                        text line tall (same font size and 1.6 line-height, and no
+                        horizontal borders that would accumulate vertical drift) */}
+                    <div style={{ paddingTop: 'calc(clamp(0.5rem, 1vw, 0.75rem) + 4px)', paddingBottom: 'calc(clamp(0.5rem, 1vw, 0.75rem) + 4px)' }}>
+                      {lineStats.map((stat, idx) => (
+                        <div key={idx} className="grid grid-cols-3 text-center text-white font-bold" style={{ fontSize: 'clamp(0.55rem, 1.3vw, 0.75rem)', lineHeight: '1.6', height: '1.6em' }}>
+                          <div className="overflow-hidden">{idx + 1}</div>
+                          <div className={`overflow-hidden border-l-2 border-r-2 ${isWordCounterFocused ? 'border-green-500' : 'border-white'}`}>{stat.wordCount}</div>
+                          <div className="overflow-hidden">{stat.charCount}</div>
+                        </div>
                       ))}
-
-                      </tbody>
-                    </table>
+                    </div>
                   </div>
-
                 </div>
                 <textarea
                   ref={textareaRef}
@@ -1174,19 +1155,20 @@ export default function Timer() {
                       lineCounterRef.current.scrollLeft = textareaRef.current.scrollLeft;
                     }
                   }}
-                  placeholder="Enter text here..."
+                  placeholder="Start typing..."
                   className={`flex-1 bg-black border-4 text-white font-bold outline-none overflow-auto ${isWordCounterFocused ? 'border-green-500' : 'border-white'}`}
                   style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.55rem, 1.3vw, 0.75rem)', padding: 'clamp(0.5rem, 1vw, 0.75rem)', lineHeight: '1.6', whiteSpace: 'pre', overflowWrap: 'normal' }}
                 />
               </div>
             </div>
-            <div className="flex justify-between items-start px-2 py-1 gap-4" style={{ fontSize: 'clamp(0.5rem, 1vw, 0.65rem)' }}>
-              <div className={`text-white font-bold flex flex-col gap-0`} style={{ fontSize: 'clamp(0.35rem, 0.8vw, 0.55rem)' }}>
-                <div className="text-white mb-0.5">TOTAL</div>
-                <div className="flex gap-0.5">
-                  <div className="border border-white text-center px-0.5 py-0.5 bg-black w-6">{lineStats.length}</div>
-                  <div className="border border-white text-center px-0.5 py-0.5 bg-black w-6">{totalWords}</div>
-                  <div className="border border-white text-center px-0.5 py-0.5 bg-black w-6">{totalChars}</div>
+            <div className="flex justify-between items-start px-3 py-1 gap-4" style={{ fontSize: 'clamp(0.5rem, 1vw, 0.65rem)' }}>
+              <div className="text-white font-bold flex flex-col gap-0">
+                <div className="text-white mb-0.5" style={{ fontSize: 'clamp(0.35rem, 0.8vw, 0.55rem)' }}>TOTAL</div>
+                {/* Same width and grid as the header/rows so totals line up too */}
+                <div className="grid grid-cols-3 text-center" style={{ fontSize: 'clamp(0.55rem, 1.3vw, 0.75rem)', width: 'clamp(6rem, 12vw, 8rem)' }}>
+                  <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalLines}</div>
+                  <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalWords}</div>
+                  <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalChars}</div>
                 </div>
               </div>
               <div className={`text-xs flex flex-col justify-center items-center text-center ${isWordCounterFocused ? 'text-green-500' : 'text-gray-400'}`}>
@@ -1213,7 +1195,7 @@ export default function Timer() {
             <AlertDialogDescription className="text-white text-lg">
               {dialog.type === 'stop' && 'Are you sure you want to stop the timer? This will reset it to the initial time.'}
               {dialog.type === 'reset' && 'Are you sure you want to reset the timer? It will restart from the beginning.'}
-              {dialog.type === 'switch' && `A timer is currently running. Do you want to switch to ${dialog.data?.minutes}:${String(dialog.data?.seconds).padStart(2, '0')}?`}
+              {dialog.type === 'switch' && `A timer is currently running. Do you want to switch to ${formatEntryLabel(dialog.data?.hours, dialog.data?.minutes, dialog.data?.seconds)}?`}
               {dialog.type === 'timeAdjust' && (
                 dialog.data?.type === 'minutes' 
                   ? `Change minutes to ${dialog.data.value}?`
