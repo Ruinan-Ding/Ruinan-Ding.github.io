@@ -7,7 +7,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_REPEAT_MS, DEFAULT_PRESETS, DEFAULT_TIME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_TICK_MS, DEFAULT_PRESETS, DEFAULT_TIME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatTime, toTotalSeconds } from './format';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 
@@ -173,13 +173,21 @@ export default function Timer() {
     }
   }, [seconds]);
 
-  // Alarm while in negative time: repeating beep with silence in between
+  // Alarm while in negative time: bursts of quick beeps with a longer
+  // silence between bursts (see the ALARM_* constants for the pattern)
   const isAlarmActive = isRunning && !isPaused && seconds < 0 && !isSilentMode;
   useEffect(() => {
     if (!isAlarmActive) return;
 
-    beep(...TONES.alarm);
-    const id = setInterval(() => beep(...TONES.alarm), ALARM_REPEAT_MS);
+    let tick = 0;
+    const playTick = () => {
+      if (tick % (ALARM_BURST_COUNT + ALARM_BURST_GAP_TICKS) < ALARM_BURST_COUNT) {
+        beep(...TONES.alarm);
+      }
+      tick++;
+    };
+    playTick();
+    const id = setInterval(playTick, ALARM_TICK_MS);
     beepIntervalRef.current = id;
 
     return () => {
@@ -450,9 +458,11 @@ export default function Timer() {
   const handleDialogDismiss = () => {
     if (!justConfirmedRef.current && dialog.type === 'adjust') {
       setterFor(dialog.data.unit)(dialog.data.previous);
+      // Cancelling re-arms the prompt; confirming keeps it suppressed so
+      // further adjustments in this running/paused state apply directly
+      promptShownInStateRef.current = false;
     }
     justConfirmedRef.current = false;
-    promptShownInStateRef.current = false;
     closeDialog();
   };
 
@@ -522,7 +532,7 @@ export default function Timer() {
               backgroundColor: 'transparent',
               fontFamily: "'IBM Plex Mono', monospace",
             }}
-            title={isSilentMode ? 'Click to unmute' : 'Click to mute'}
+            title={`${isSilentMode ? 'Click to unmute' : 'Click to mute'} — Tip: for a count-up timer (stopwatch), mute this and set the time to 00:00:00`}
             aria-label={isSilentMode ? 'Unmute' : 'Mute'}
           >
             <span style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', color: isSilentMode ? '#ffffff' : '#22c55e', lineHeight: '1' }}>
@@ -574,7 +584,10 @@ export default function Timer() {
 
             {/* Control buttons */}
             <div className="flex gap-2">
-              {!isRunning && seconds >= 0 && (
+              {/* Not running can also mean negative time restored from a
+                  refresh mid-alarm; START still applies (it restarts from
+                  the configured time, same as the spacebar path) */}
+              {!isRunning && (
                 <button
                   onClick={handleStart}
                   className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -636,9 +649,9 @@ export default function Timer() {
 
           {/* Configured time inputs - full-width block below the clock until lg, then a fixed column to its right */}
           <div className="border-4 border-white p-2 sm:p-3 md:p-4 flex flex-col gap-2 flex-shrink-0 min-w-0 w-full max-w-sm lg:w-[clamp(12rem,22vw,16rem)] lg:max-w-none">
-            <TimeField label="HOURS" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
-            <TimeField label="MINUTES" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
-            <TimeField label="SECONDS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />
+            <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
+            <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
+            <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />
           </div>
         </div>
 

@@ -15,8 +15,15 @@ export const MIN_TOTAL_SECONDS = -359999;
 /** Countdown tick resolution in milliseconds. */
 export const TICK_MS = 10;
 
-/** The alarm repeats every 500ms: a 200ms beep followed by 300ms of silence. */
-export const ALARM_REPEAT_MS = 500;
+/**
+ * Alarm pattern: bursts of quick beeps separated by a longer silence.
+ * A beep slot comes up every ALARM_TICK_MS; each cycle plays
+ * ALARM_BURST_COUNT beeps then stays silent for ALARM_BURST_GAP_TICKS
+ * slots (3 × 150ms beeps at 250ms spacing, then 750ms of silence).
+ */
+export const ALARM_TICK_MS = 250;
+export const ALARM_BURST_COUNT = 3;
+export const ALARM_BURST_GAP_TICKS = 3;
 
 export const MAX_HOURS = 99;
 export const MAX_MINUTES = 59;
@@ -32,7 +39,7 @@ export const TONES = {
   stop: [800, 100],
   reset: [700, 100],
   silentToggle: [500, 100],
-  alarm: [600, 200],
+  alarm: [600, 150],
 } as const;
 
 /** Configured time shown on first visit. */

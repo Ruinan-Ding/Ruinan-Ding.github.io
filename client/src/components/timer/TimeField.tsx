@@ -1,11 +1,14 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
+import { pad } from './format';
 
 interface TimeFieldProps {
   label: string;
+  /** Hint shown while the field is empty during editing, e.g. "MM". */
+  placeholder: string;
   value: number;
   max: number;
-  /** Called with the clamped new value whenever the user types or clicks a chevron. */
+  /** Called with the clamped new value when an edit commits (blur/Enter) or a chevron is clicked. */
   onRequestChange: (value: number) => void;
 }
 
@@ -13,9 +16,60 @@ const chevronButtonClass =
   'border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed';
 const chevronButtonStyle = { padding: 'clamp(0.25rem, 0.5vw, 0.375rem)' };
 
-/** A labelled number input with increment/decrement chevrons, clamped to [0, max]. */
-function TimeField({ label, value, max, onRequestChange }: TimeFieldProps) {
+/**
+ * A labelled two-digit time input with increment/decrement chevrons.
+ *
+ * Clicking in clears the box down to its HH/MM/SS hint; typed digits enter
+ * from the right and shift left, calculator-style, while the caret stays
+ * parked at the left edge. Nothing is clamped or applied until the edit
+ * commits (blur or Enter) — the value is then corrected to [0, max].
+ * Escape or committing an empty box keeps the previous value.
+ */
+function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFieldProps) {
   const clamp = (next: number) => Math.max(0, Math.min(max, next));
+
+  // null = not editing; '' = editing but untouched (placeholder visible)
+  const [draft, setDraft] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Park the caret at the left edge; typing is intercepted below, so digits
+  // still enter from the right regardless
+  useEffect(() => {
+    if (draft !== null) inputRef.current?.setSelectionRange(0, 0);
+  }, [draft]);
+
+  const appendDigits = (text: string) => {
+    const digits = text.replace(/\D/g, '');
+    if (digits) setDraft((prev) => ((prev ?? '') + digits).slice(-2));
+  };
+
+  const handleBlur = () => {
+    const wasCancelled = cancelledRef.current;
+    cancelledRef.current = false;
+    const finished = draft;
+    setDraft(null);
+    if (wasCancelled || finished === null || finished === '') return;
+    const next = clamp(parseInt(finished, 10));
+    if (next !== value) onRequestChange(next);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      inputRef.current?.blur();
+    } else if (e.key === 'Escape') {
+      cancelledRef.current = true;
+      inputRef.current?.blur();
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      setDraft((prev) => (prev ?? '').slice(0, -1));
+    } else if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      appendDigits(e.key);
+    } else if (e.key.length === 1) {
+      e.preventDefault(); // block non-digit characters
+    }
+  };
 
   return (
     <div className="flex items-center gap-1 sm:gap-2 md:gap-4 min-w-0 flex-wrap justify-between">
@@ -27,10 +81,24 @@ function TimeField({ label, value, max, onRequestChange }: TimeFieldProps) {
       </label>
       <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
         <input
-          type="number"
-          value={value}
-          onChange={(e) => onRequestChange(clamp(parseInt(e.target.value) || 0))}
-          className="bg-black border-4 border-white text-white font-bold text-center outline-none flex-shrink-0"
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          value={draft ?? pad(value)}
+          placeholder={placeholder}
+          onFocus={() => setDraft('')}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          onBeforeInput={(e) => {
+            // Soft keyboards may not send meaningful keydown events; catch
+            // the insertion (typing or paste) here instead
+            e.preventDefault();
+            const native = e.nativeEvent as InputEvent;
+            const data = native.data ?? native.dataTransfer?.getData('text') ?? '';
+            if (data) appendDigits(data);
+          }}
+          onChange={() => {}}
+          className="bg-black border-4 border-white text-white font-bold text-center outline-none flex-shrink-0 placeholder:text-white placeholder:opacity-40"
           style={{ fontFamily: "'IBM Plex Mono', monospace", width: 'clamp(2.5rem, 6vw, 4rem)', fontSize: 'clamp(1rem, 1.8vw, 1.5rem)', padding: 'clamp(0.25rem, 0.5vw, 0.375rem)' }}
         />
         <div className="flex flex-col gap-1">
