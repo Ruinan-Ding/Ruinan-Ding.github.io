@@ -3,3 +3,5 @@ node_modules
 .git
 *.min.js
 *.min.css
+pnpm-lock.yaml
+patches

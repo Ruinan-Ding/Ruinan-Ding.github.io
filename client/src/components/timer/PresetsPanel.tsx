@@ -1,0 +1,136 @@
+import { memo, useState } from 'react';
+import { MAX_PRESETS } from './constants';
+import { formatEntryLabel, formatPresetDisplay, parsePresetDigits, presetDigits } from './format';
+import type { TimeParts, TimerEntry } from './types';
+
+interface PresetsPanelProps {
+  presets: TimerEntry[];
+  onAdd: (parts: TimeParts) => void;
+  onRemove: (id: string) => void;
+  onSelect: (entry: TimerEntry) => void;
+}
+
+/**
+ * Sidebar list of saved presets plus the HH:MM:SS input for adding new ones.
+ *
+ * Digit entry is keydown-driven rather than derived from onChange: the
+ * display is always re-padded to a full 6-digit "00:00:00" shape, so once
+ * any digit exists the rendered value can't be told apart from a "complete"
+ * one — deriving from it would mean every keystroke after the first inserts
+ * into an already-"full" 6-digit string and gets rejected. Tracking the raw
+ * typed digit sequence as its own state (matching how Backspace already had
+ * to work here) sidesteps that.
+ */
+function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps) {
+  // The raw, un-padded digit sequence typed so far (0-6 digits)
+  const [digits, setDigits] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+  const atCapacity = presets.length >= MAX_PRESETS;
+
+  const displayValue = digits === '' ? (isFocused ? 'HH:MM:SS' : '') : formatPresetDisplay(digits);
+
+  const handleAdd = () => {
+    if (atCapacity || digits === '') return;
+    onAdd(parsePresetDigits(digits));
+    setDigits('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleAdd();
+      return;
+    }
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      setDigits((prev) => prev.slice(0, -1));
+      return;
+    }
+    if (/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+      setDigits((prev) => (prev.length >= 6 ? prev : prev + e.key));
+    } else if (e.key.length === 1) {
+      // Any other printable character — this field is digits-only
+      e.preventDefault();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = presetDigits(e.clipboardData.getData('text'));
+    setDigits((prev) => (prev + pasted).slice(0, 6));
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    if (digits === '') return;
+    // Clamp each part to its valid range and lock in the full 6-digit value
+    const { hours, minutes, seconds } = parsePresetDigits(digits);
+    setDigits(`${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}${String(seconds).padStart(2, '0')}`);
+  };
+
+  return (
+    <div>
+      <h2 className="text-white font-bold mb-4 border-b-2 border-white pb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1.125rem)' }}>PRESETS</h2>
+      <div className="flex flex-col gap-2">
+        {presets.map((preset) => (
+          <div key={preset.id} className="flex items-center gap-2">
+            <button
+              onClick={() => onRemove(preset.id)}
+              className="border-2 border-red-500 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-colors flex-shrink-0"
+              style={{ padding: 'clamp(0.25rem, 0.5vw, 0.375rem)', fontSize: 'clamp(0.7rem, 1.2vw, 0.875rem)', minWidth: 'clamp(1.5rem, 3vw, 2rem)' }}
+            >
+              −
+            </button>
+            <button
+              onClick={() => onSelect(preset)}
+              className="flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0"
+              style={{ fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.375rem, 1vw, 0.5rem)', fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)' }}
+            >
+              {formatEntryLabel(preset)}
+            </button>
+          </div>
+        ))}
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            onClick={handleAdd}
+            disabled={atCapacity}
+            title={atCapacity ? `Preset limit reached (${MAX_PRESETS})` : 'Add preset'}
+            className="border-2 border-green-500 text-green-500 font-bold hover:bg-green-500 hover:text-white transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ padding: 'clamp(0.25rem, 0.5vw, 0.375rem)', fontSize: 'clamp(0.7rem, 1.2vw, 0.875rem)', minWidth: 'clamp(1.5rem, 3vw, 2rem)' }}
+          >
+            +
+          </button>
+          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', minWidth: 0 }}>
+            <div style={{ position: 'absolute', left: 'clamp(0.375rem, 1vw, 0.5rem)', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)', color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+              {displayValue === '' ? 'HH:MM:SS' : ''}
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={displayValue}
+              onChange={() => {}}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onFocus={() => setIsFocused(true)}
+              onBlur={handleBlur}
+              className="border-4 border-white font-bold transition-colors duration-0 w-full preset-input"
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                padding: 'clamp(0.375rem, 1vw, 0.5rem)',
+                fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)',
+                color: '#ffffff',
+                backgroundColor: 'transparent',
+                position: 'relative',
+                zIndex: 1,
+                letterSpacing: '0.05em',
+                minWidth: 0,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default memo(PresetsPanel);

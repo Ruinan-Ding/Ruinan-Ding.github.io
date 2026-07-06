@@ -1,4 +1,4 @@
-import Timer from '@/components/Timer';
+import Timer from '@/components/timer/Timer';
 
 /**
  * Home Page - Timer Application

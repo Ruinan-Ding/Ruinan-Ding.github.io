@@ -1,14 +1,25 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * useFavicon Hook - Update favicon with colored shapes based on timer state
- * 
+ *
  * Icons:
  * - Green triangle when running (solid)
  * - Yellow bars fading slowly when paused
  * - Red square fading quickly when finished
  * - FT (Flash Timer) when stopped
  */
+
+interface FaviconState {
+  isRunning: boolean;
+  isPaused: boolean;
+  isFinished: boolean;
+  minutes: number;
+  seconds: number;
+  hours: number;
+}
+
+const pad = (value: number) => String(value).padStart(2, '0');
 
 export const useFavicon = (
   isRunning: boolean,
@@ -18,6 +29,12 @@ export const useFavicon = (
   seconds: number,
   hours: number = 0
 ) => {
+  // The canvas + redraw interval are set up once (below); this ref carries
+  // the latest values into that interval's callback so it doesn't need to be
+  // torn down and recreated whenever the displayed time ticks over
+  const stateRef = useRef<FaviconState>({ isRunning, isPaused, isFinished, minutes, seconds, hours });
+  stateRef.current = { isRunning, isPaused, isFinished, minutes, seconds, hours };
+
   useEffect(() => {
     const canvas = document.createElement('canvas');
     canvas.width = 64;
@@ -71,16 +88,15 @@ export const useFavicon = (
     };
 
     const getTimeDisplay = () => {
-      if (hours > 0) {
-        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-      } else {
-        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-      }
+      const { hours, minutes, seconds } = stateRef.current;
+      return hours > 0
+        ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+        : `${pad(minutes)}:${pad(seconds)}`;
     };
 
-    const timeDisplay = getTimeDisplay();
-
     const updateFavicon = () => {
+      const { isRunning, isPaused, isFinished } = stateRef.current;
+      const timeDisplay = getTimeDisplay();
       const now = Date.now();
       let opacity = 1;
 
@@ -105,7 +121,7 @@ export const useFavicon = (
         document.title = `${timeDisplay} - Flash Timer`;
         drawFavicon('triangle', 1);
       } else {
-        // Default state - ST favicon
+        // Default state - FT favicon
         document.title = `Flash Timer`;
         drawFavicon('default', 1);
       }
@@ -127,5 +143,5 @@ export const useFavicon = (
     const interval = setInterval(updateFavicon, 50);
 
     return () => clearInterval(interval);
-  }, [isRunning, isPaused, isFinished, minutes, seconds, hours]);
+  }, []); // Set up once; updateFavicon reads the latest state via stateRef
 };

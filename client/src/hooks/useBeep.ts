@@ -55,12 +55,5 @@ export const useBeep = () => {
     }
   }, []);
 
-  const beepSequence = useCallback(async (count: number = 3, frequency: number = 800, duration: number = 200, interval: number = 300) => {
-    for (let i = 0; i < count; i++) {
-      beep(frequency, duration);
-      await new Promise(resolve => setTimeout(resolve, interval));
-    }
-  }, [beep]);
-
-  return { beep, beepSequence };
+  return { beep };
 };
