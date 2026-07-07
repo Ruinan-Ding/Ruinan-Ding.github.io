@@ -2,6 +2,7 @@ import { Menu, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
+import { uniqueId } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
 import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
@@ -20,14 +21,43 @@ import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
  * a floor of -99:59:59.
  */
 export default function Timer() {
-  // Remaining time
-  const [seconds, setSeconds] = useState(toTotalSeconds(DEFAULT_TIME));
-  const [milliseconds, setMilliseconds] = useState(0);
+  // Persisted state is parsed synchronously, once, and the initializers
+  // below each pick their slice. Loading in an effect instead would let the
+  // persist effect run first and briefly save defaults over the real data.
+  // isRunning/isPaused are deliberately not restored: a refresh always lands
+  // stopped with fresh milliseconds and the user presses START to resume.
+  const initial = useMemo(() => {
+    let saved: Record<string, unknown> = {};
+    let history: TimerEntry[] = [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.timerState) ?? 'null');
+      if (parsed && typeof parsed === 'object') saved = parsed;
+    } catch (e) {
+      console.error('Failed to load timer state:', e);
+    }
+    try {
+      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.history) ?? 'null');
+      if (Array.isArray(parsed)) history = parsed;
+    } catch (e) {
+      console.error('Failed to load history:', e);
+    }
+    return { saved, history };
+  }, []);
+  const savedNumber = (key: string, fallback: number) =>
+    typeof initial.saved[key] === 'number' ? (initial.saved[key] as number) : fallback;
+
+  // Remaining time: signed whole seconds plus milliseconds in [0, 1000),
+  // one state object so the countdown updates both in a single pure update
+  const [time, setTime] = useState(() => ({
+    seconds: savedNumber('seconds', toTotalSeconds(DEFAULT_TIME)),
+    milliseconds: 0,
+  }));
+  const { seconds, milliseconds } = time;
 
   // Configured time (independent, doesn't change while counting down)
-  const [hours, setHours] = useState(DEFAULT_TIME.hours);
-  const [minutes, setMinutes] = useState(DEFAULT_TIME.minutes);
-  const [timerSeconds, setTimerSeconds] = useState(DEFAULT_TIME.seconds);
+  const [hours, setHours] = useState(() => savedNumber('hours', DEFAULT_TIME.hours));
+  const [minutes, setMinutes] = useState(() => savedNumber('minutes', DEFAULT_TIME.minutes));
+  const [timerSeconds, setTimerSeconds] = useState(() => savedNumber('timerSeconds', DEFAULT_TIME.seconds));
 
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -36,7 +66,7 @@ export default function Timer() {
     return saved ? JSON.parse(saved) : false;
   });
 
-  const [history, setHistory] = useState<TimerEntry[]>([]);
+  const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.presets);
     if (!saved) return DEFAULT_PRESETS;
@@ -83,35 +113,6 @@ export default function Timer() {
 
   const closeDialog = () => setDialog({ type: null });
 
-  // Load persisted state on mount
-  useEffect(() => {
-    const savedState = localStorage.getItem(STORAGE_KEYS.timerState);
-    const savedHistory = localStorage.getItem(STORAGE_KEYS.history);
-
-    if (savedState) {
-      try {
-        const parsed = JSON.parse(savedState);
-        if (typeof parsed.seconds === 'number') setSeconds(parsed.seconds);
-        if (typeof parsed.hours === 'number') setHours(parsed.hours);
-        if (typeof parsed.minutes === 'number') setMinutes(parsed.minutes);
-        if (typeof parsed.timerSeconds === 'number') setTimerSeconds(parsed.timerSeconds);
-        // Always load paused and not running with fresh milliseconds;
-        // the user must press START to resume
-        setMilliseconds(0);
-      } catch (e) {
-        console.error('Failed to load timer state:', e);
-      }
-    }
-
-    if (savedHistory) {
-      try {
-        setHistory(JSON.parse(savedHistory));
-      } catch (e) {
-        console.error('Failed to load history:', e);
-      }
-    }
-  }, []);
-
   // Persist state
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.timerState, JSON.stringify({ seconds, isPaused, isRunning, hours, minutes, timerSeconds }));
@@ -137,7 +138,11 @@ export default function Timer() {
   );
 
   // Countdown: decrement by elapsed wall-clock time, wrapping milliseconds
-  // into seconds; continues into negative time until the floor
+  // into seconds; continues into negative time until the -99:59:59 floor.
+  // The updater is pure (both parts derive from prev in one call, however
+  // many whole seconds elapsed since the last tick), and once frozen at the
+  // floor it returns prev unchanged so ticks stop causing re-renders while
+  // the alarm keeps sounding.
   useEffect(() => {
     if (!isRunning || isPaused) return;
 
@@ -147,13 +152,12 @@ export default function Timer() {
       const elapsed = now - lastTime;
       lastTime = now;
 
-      setMilliseconds((prev) => {
-        const newMs = prev - elapsed;
-        if (newMs < 0) {
-          setSeconds((prevSecs) => Math.max(prevSecs - 1, MIN_TOTAL_SECONDS));
-          return newMs + 1000;
-        }
-        return newMs;
+      setTime((prev) => {
+        if (prev.seconds <= MIN_TOTAL_SECONDS) return prev;
+        const totalMs = prev.seconds * 1000 + prev.milliseconds - elapsed;
+        if (totalMs <= MIN_TOTAL_SECONDS * 1000) return { seconds: MIN_TOTAL_SECONDS, milliseconds: 0 };
+        const nextSeconds = Math.floor(totalMs / 1000);
+        return { seconds: nextSeconds, milliseconds: totalMs - nextSeconds * 1000 };
       });
     }, TICK_MS);
 
@@ -161,17 +165,6 @@ export default function Timer() {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [isRunning, isPaused]);
-
-  // Freeze the clock once it hits the -99:59:59 floor (the alarm keeps sounding)
-  useEffect(() => {
-    if (seconds <= MIN_TOTAL_SECONDS) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      setMilliseconds(0);
-    }
-  }, [seconds]);
 
   // Alarm while in negative time: bursts of quick beeps with a longer
   // silence between bursts (see the ALARM_* constants for the pattern)
@@ -201,13 +194,17 @@ export default function Timer() {
   // carries the latest action so it doesn't need to be torn down and
   // re-added on every countdown tick (Timer re-renders every TICK_MS while
   // running).
-  const spacebarActionRef = useRef<() => void>(() => {});
+  const spacebarActionRef = useRef<() => boolean>(() => false);
   spacebarActionRef.current = () => {
+    // The confirm dialog owns the keyboard while open: Space must press the
+    // focused dialog button, not control the timer behind the modal
+    if (dialog.type !== null) return false;
     if (isRunning) {
       togglePause();
     } else {
       handleStart();
     }
+    return true;
   };
 
   useEffect(() => {
@@ -215,8 +212,9 @@ export default function Timer() {
       if (e.code !== 'Space') return;
       // Don't intercept spacebar while typing in a text field
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
-      e.preventDefault();
-      spacebarActionRef.current();
+      if (spacebarActionRef.current()) {
+        e.preventDefault();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -257,7 +255,7 @@ export default function Timer() {
   };
 
   const recordHistory = (parts: TimeParts) => {
-    const entry: TimerEntry = { id: Date.now().toString(), ...parts, timestamp: Date.now() };
+    const entry: TimerEntry = { id: uniqueId(), ...parts, timestamp: Date.now() };
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
   };
 
@@ -273,12 +271,12 @@ export default function Timer() {
 
   const handleStart = () => {
     // If the timer is at 0 or in negative time, restart from the configured time
-    if (seconds <= 0) {
-      setSeconds(configuredTotalSeconds);
-    }
+    setTime((prev) => ({
+      seconds: prev.seconds <= 0 ? configuredTotalSeconds : prev.seconds,
+      milliseconds: 0,
+    }));
 
     recordHistory(configured);
-    setMilliseconds(0);
     setIsRunning(true);
     setIsPaused(false);
     playTone('start');
@@ -288,8 +286,7 @@ export default function Timer() {
     // Clear intervals before touching state
     clearAlarmInterval();
     clearCountdownInterval();
-    setSeconds(configuredTotalSeconds);
-    setMilliseconds(0);
+    setTime({ seconds: configuredTotalSeconds, milliseconds: 0 });
     setIsRunning(false);
     setIsPaused(false);
   };
@@ -315,8 +312,7 @@ export default function Timer() {
     // If finished, auto-restart without confirmation
     if (seconds < 0) {
       clearAlarmInterval();
-      setSeconds(configuredTotalSeconds);
-      setMilliseconds(0);
+      setTime({ seconds: configuredTotalSeconds, milliseconds: 0 });
       recordHistory(configured);
       setIsRunning(true);
       setIsPaused(false);
@@ -337,8 +333,7 @@ export default function Timer() {
     setHours(parts.hours);
     setMinutes(parts.minutes);
     setTimerSeconds(parts.seconds);
-    setSeconds(toTotalSeconds(parts));
-    setMilliseconds(0);
+    setTime({ seconds: toTotalSeconds(parts), milliseconds: 0 });
     setIsSidebarOpen(false);
   }, []);
 
@@ -363,7 +358,7 @@ export default function Timer() {
   };
 
   const handleAddPreset = useCallback((parts: TimeParts) => {
-    setPresets((prev) => (prev.length >= MAX_PRESETS ? prev : [...prev, { id: `preset-${Date.now()}`, ...parts, timestamp: 0 }]));
+    setPresets((prev) => (prev.length >= MAX_PRESETS ? prev : [...prev, { id: uniqueId(), ...parts, timestamp: 0 }]));
   }, []);
 
   const handleRemovePreset = useCallback((id: string) => {
@@ -385,6 +380,23 @@ export default function Timer() {
   );
 
   /**
+   * Apply a confirmed (or confirmation-exempt) change to one unit of the
+   * configured time, updating the remaining time to match. Landing on 0
+   * while running or paused triggers the alarm immediately: the clock is
+   * zeroed and resumed so it crosses into negative time on the next tick.
+   */
+  const applyAdjustment = useCallback((unit: TimeUnit, value: number) => {
+    setterFor(unit)(value);
+    const newTotalSeconds = totalWith(unit, value);
+    if (newTotalSeconds <= 0 && (isRunning || isPaused)) {
+      setTime({ seconds: 0, milliseconds: 0 });
+      setIsPaused(false);
+    } else {
+      setTime((prev) => ({ ...prev, seconds: newTotalSeconds }));
+    }
+  }, [isRunning, isPaused, setterFor, totalWith]);
+
+  /**
    * Change one unit of the configured time. While the timer is running or
    * paused this asks for confirmation (once per state) before also updating
    * the remaining time; otherwise the remaining time follows immediately.
@@ -397,17 +409,13 @@ export default function Timer() {
     // that clamps back to the current value) instead of prompting
     if (unit === 'hours' && value === previous) return;
 
-    if (isRunning || isPaused) {
-      if (!promptShownInStateRef.current) {
-        setDialog({ type: 'adjust', data: { unit, value, previous } });
-        promptShownInStateRef.current = true;
-      } else {
-        setSeconds(totalWith(unit, value));
-      }
+    if ((isRunning || isPaused) && !promptShownInStateRef.current) {
+      setDialog({ type: 'adjust', data: { unit, value, previous } });
+      promptShownInStateRef.current = true;
     } else {
-      setSeconds(totalWith(unit, value));
+      applyAdjustment(unit, value);
     }
-  }, [configured, isRunning, isPaused, setterFor, totalWith]);
+  }, [configured, isRunning, isPaused, setterFor, applyAdjustment]);
 
   // One stable callback per field so TimeField (React.memo'd) can skip
   // re-rendering on every countdown tick
@@ -416,16 +424,7 @@ export default function Timer() {
   const handleSecondsChange = useCallback((value: number) => requestConfiguredChange('seconds', value), [requestConfiguredChange]);
 
   const handleConfirmAdjust = (unit: TimeUnit, value: number) => {
-    setterFor(unit)(value);
-    const newTotalSeconds = totalWith(unit, value);
-    setSeconds(newTotalSeconds);
-
-    // If the adjustment lands on 0, trigger the alarm immediately: keep the
-    // timer running (resumed) so it crosses into negative time on the next tick
-    if (newTotalSeconds <= 0 && (isRunning || isPaused)) {
-      setMilliseconds(0);
-      setIsPaused(false);
-    }
+    applyAdjustment(unit, value);
     closeDialog();
   };
 

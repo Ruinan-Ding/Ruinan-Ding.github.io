@@ -24,10 +24,10 @@ interface PresetsPanelProps {
 function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps) {
   // The raw, un-padded digit sequence typed so far (0-6 digits)
   const [digits, setDigits] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
   const atCapacity = presets.length >= MAX_PRESETS;
 
-  const displayValue = digits === '' ? (isFocused ? 'HH:MM:SS' : '') : formatPresetDisplay(digits);
+  // Empty input (focused or not) shows the dim HH:MM:SS hint overlay below
+  const displayValue = digits === '' ? '' : formatPresetDisplay(digits);
 
   const handleAdd = () => {
     if (atCapacity || digits === '') return;
@@ -61,7 +61,6 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
   };
 
   const handleBlur = () => {
-    setIsFocused(false);
     if (digits === '') return;
     // Clamp each part to its valid range and lock in the full 6-digit value
     const { hours, minutes, seconds } = parsePresetDigits(digits);
@@ -111,7 +110,6 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
               onChange={() => {}}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              onFocus={() => setIsFocused(true)}
               onBlur={handleBlur}
               className="border-4 border-white font-bold transition-colors duration-0 w-full preset-input"
               style={{
