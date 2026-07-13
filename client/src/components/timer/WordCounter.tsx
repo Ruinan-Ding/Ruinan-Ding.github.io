@@ -8,6 +8,7 @@ interface WordCounterProps {
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
 const COUNTER_FONT_SIZE = 'clamp(0.55rem, 1.3vw, 0.75rem)';
 const COUNTER_PADDING = 'clamp(0.5rem, 1vw, 0.75rem)';
+const COUNTER_GAP = '0.5rem';
 const COUNTER_LINE_HEIGHT = 1.6;
 const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
@@ -16,8 +17,7 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
   const [text, setText] = useState(() => localStorage.getItem(STORAGE_KEYS.wordCounter) || '');
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const lineCounterRef = useRef<HTMLDivElement | null>(null);
-  const ruleOverlayRef = useRef<HTMLDivElement | null>(null);
+  const rowsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.wordCounter, text);
@@ -52,12 +52,6 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
   const rowDivider = (idx: number) =>
     idx < lineStats.length - 1 ? `1px solid ${ruleColor}` : undefined;
 
-  const syncScroll = (top: number) => {
-    if (lineCounterRef.current) lineCounterRef.current.scrollTop = top;
-    if (ruleOverlayRef.current) ruleOverlayRef.current.scrollTop = top;
-    if (textareaRef.current) textareaRef.current.scrollTop = top;
-  };
-
   return (
     <div className="flex flex-col items-start gap-1 w-full flex-1 overflow-hidden min-h-0">
       <label className={`font-bold text-left ${isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
@@ -74,51 +68,48 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
           )}
         </div>
         <div className="flex flex-col gap-2 px-3 pb-3 flex-1 overflow-hidden min-h-0">
-          <div className="flex gap-2 flex-1 overflow-hidden min-h-0">
-            <div className="flex flex-col flex-shrink-0" style={{ width: COUNTER_COLUMN_WIDTH }}>
-              <div ref={lineCounterRef} className="overflow-auto no-scrollbar flex-1" onScroll={() => {
-                if (lineCounterRef.current) syncScroll(lineCounterRef.current.scrollTop);
-              }}>
-                {/* padding mirrors the textarea's border + padding so row 1
-                    lines up with text line 1 */}
-                <div style={{ paddingTop: `calc(${COUNTER_PADDING} + 4px)`, paddingBottom: `calc(${COUNTER_PADDING} + 4px)` }}>
-                  {lineStats.map((stat, idx) => (
-                    // fixed height + border-box keeps the divider from
-                    // drifting out of sync with the textarea's lines
-                    <div key={idx} className="grid grid-cols-3 text-center text-white font-bold" style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: COUNTER_LINE_HEIGHT, height: `${COUNTER_LINE_HEIGHT}em`, borderBottom: rowDivider(idx) }}>
+          <div className="relative flex-1 overflow-hidden min-h-0">
+            {/* Counter numbers + rule lines as one full-width row per line of
+                text, so the row's own border-bottom runs unbroken straight
+                through from the L/W/C numbers into the text — no seam where
+                two separately-aligned elements could drift apart. Purely
+                decorative: it never scrolls itself, the textarea drives it. */}
+            <div ref={rowsRef} aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div style={{ paddingTop: COUNTER_PADDING, paddingBottom: COUNTER_PADDING }}>
+                {lineStats.map((stat, idx) => (
+                  <div key={idx} className="flex items-stretch" style={{ height: `${COUNTER_LINE_HEIGHT}em`, borderBottom: rowDivider(idx) }}>
+                    <div className="grid grid-cols-3 text-center text-white font-bold flex-shrink-0" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
                       <div className="overflow-hidden">{idx + 1}</div>
                       <div className={`overflow-hidden border-l-2 border-r-2 ${isFocused ? 'border-green-500' : 'border-white'}`}>{stat.wordCount}</div>
                       <div className="overflow-hidden">{stat.charCount}</div>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex-1" />
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="relative flex-1 min-w-0 min-h-0 bg-black">
-              {/* Ruled lines behind the text: same fixed-height rows as the
-                  line counter, one per line, scrolled in sync. inset-1 keeps
-                  them off the textarea's 4px border. */}
-              <div ref={ruleOverlayRef} aria-hidden className="absolute inset-1 overflow-hidden pointer-events-none">
-                <div style={{ fontSize: COUNTER_FONT_SIZE, paddingTop: COUNTER_PADDING, paddingBottom: COUNTER_PADDING }}>
-                  {lineStats.map((_, idx) => (
-                    <div key={idx} style={{ height: `${COUNTER_LINE_HEIGHT}em`, borderBottom: rowDivider(idx) }} />
-                  ))}
-                </div>
-              </div>
-              <textarea
-                ref={textareaRef}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                onScroll={() => {
-                  if (textareaRef.current) syncScroll(textareaRef.current.scrollTop);
-                }}
-                placeholder="Start typing..."
-                className={`absolute inset-0 w-full h-full bg-transparent border-4 text-white font-bold outline-none overflow-auto ${isFocused ? 'border-green-500' : 'border-white'}`}
-                style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: COUNTER_FONT_SIZE, padding: COUNTER_PADDING, lineHeight: COUNTER_LINE_HEIGHT, whiteSpace: 'pre', overflowWrap: 'normal' }}
-              />
-            </div>
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              onScroll={() => {
+                if (rowsRef.current && textareaRef.current) rowsRef.current.scrollTop = textareaRef.current.scrollTop;
+              }}
+              placeholder="Start typing..."
+              className="absolute inset-y-0 bg-transparent text-white font-bold outline-none overflow-auto"
+              style={{
+                left: `calc(${COUNTER_COLUMN_WIDTH} + ${COUNTER_GAP})`,
+                right: 0,
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: COUNTER_FONT_SIZE,
+                padding: COUNTER_PADDING,
+                lineHeight: COUNTER_LINE_HEIGHT,
+                whiteSpace: 'pre',
+                overflowWrap: 'normal',
+              }}
+            />
           </div>
         </div>
         <div className="flex justify-between items-start px-3 py-1 gap-4" style={{ fontSize: 'clamp(0.5rem, 1vw, 0.65rem)' }}>
