@@ -7,6 +7,10 @@ interface WordCounterProps {
 
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
 const COUNTER_FONT_SIZE = 'clamp(0.55rem, 1.3vw, 0.75rem)';
+const COUNTER_PADDING = 'clamp(0.5rem, 1vw, 0.75rem)';
+const COUNTER_LINE_HEIGHT = 1.6;
+const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
+const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 
 function WordCounter({ onFocusChange }: WordCounterProps) {
   const [text, setText] = useState(() => localStorage.getItem(STORAGE_KEYS.wordCounter) || '');
@@ -41,6 +45,18 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
     onFocusChange(focused);
   };
 
+  const ruleColor = isFocused ? RULE_COLOR_FOCUSED : RULE_COLOR_IDLE;
+  // One rule per text line, drawn as a repeating background so it scrolls
+  // with the content (background-attachment: local) instead of the textarea
+  // itself; offset by the padding so the first rule lands under line 1,
+  // matching the line-counter's row borders.
+  const lineRuleStyle = {
+    backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent calc(${COUNTER_LINE_HEIGHT}em - 1px), ${ruleColor} calc(${COUNTER_LINE_HEIGHT}em - 1px), ${ruleColor} ${COUNTER_LINE_HEIGHT}em)`,
+    backgroundSize: `100% ${COUNTER_LINE_HEIGHT}em`,
+    backgroundPosition: `0 ${COUNTER_PADDING}`,
+    backgroundAttachment: 'local' as const,
+  };
+
   return (
     <div className="flex flex-col items-start gap-1 w-full flex-1 overflow-hidden min-h-0">
       <label className={`font-bold text-left ${isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
@@ -66,11 +82,11 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
               }}>
                 {/* padding mirrors the textarea's border + padding so row 1
                     lines up with text line 1 */}
-                <div style={{ paddingTop: 'calc(clamp(0.5rem, 1vw, 0.75rem) + 4px)', paddingBottom: 'calc(clamp(0.5rem, 1vw, 0.75rem) + 4px)' }}>
+                <div style={{ paddingTop: `calc(${COUNTER_PADDING} + 4px)`, paddingBottom: `calc(${COUNTER_PADDING} + 4px)` }}>
                   {lineStats.map((stat, idx) => (
                     // fixed height + border-box keeps the underline from
                     // drifting out of sync with the textarea's lines
-                    <div key={idx} className="grid grid-cols-3 text-center text-white font-bold" style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: '1.6', height: '1.6em', borderBottom: `1px solid ${isFocused ? 'rgba(34, 197, 94, 0.4)' : 'rgba(255, 255, 255, 0.35)'}` }}>
+                    <div key={idx} className="grid grid-cols-3 text-center text-white font-bold" style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: COUNTER_LINE_HEIGHT, height: `${COUNTER_LINE_HEIGHT}em`, borderBottom: `1px solid ${ruleColor}` }}>
                       <div className="overflow-hidden">{idx + 1}</div>
                       <div className={`overflow-hidden border-l-2 border-r-2 ${isFocused ? 'border-green-500' : 'border-white'}`}>{stat.wordCount}</div>
                       <div className="overflow-hidden">{stat.charCount}</div>
@@ -93,7 +109,7 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
               }}
               placeholder="Start typing..."
               className={`flex-1 bg-black border-4 text-white font-bold outline-none overflow-auto ${isFocused ? 'border-green-500' : 'border-white'}`}
-              style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: COUNTER_FONT_SIZE, padding: 'clamp(0.5rem, 1vw, 0.75rem)', lineHeight: '1.6', whiteSpace: 'pre', overflowWrap: 'normal' }}
+              style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: COUNTER_FONT_SIZE, padding: COUNTER_PADDING, lineHeight: COUNTER_LINE_HEIGHT, whiteSpace: 'pre', overflowWrap: 'normal', ...lineRuleStyle }}
             />
           </div>
         </div>
