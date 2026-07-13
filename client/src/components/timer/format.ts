@@ -18,9 +18,9 @@ export const formatTime = (totalSeconds: number, ms: number = 0) => {
   const sign = totalMs < 0 ? '-' : '';
 
   return {
-    main: hrs > 0
-      ? `${sign}${pad(hrs)}:${pad(mins)}:${pad(secs)}`
-      : `${sign}${pad(mins)}:${pad(secs)}`,
+    sign,
+    hours: hrs > 0 ? pad(hrs) : '',
+    main: `${pad(mins)}:${pad(secs)}`,
     ms: pad(Math.floor((absMs % 1000) / 10)),
   };
 };

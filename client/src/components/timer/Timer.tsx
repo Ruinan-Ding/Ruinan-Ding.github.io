@@ -404,6 +404,9 @@ export default function Timer() {
     closeDialog();
   };
 
+  const remaining = formatTime(seconds, milliseconds);
+  const configuredDisplay = formatTime(configuredTotalSeconds);
+
   const status = seconds < 0
     ? (isPaused ? 'PAUSED' : 'FINISHED')
     : isRunning
@@ -492,7 +495,8 @@ export default function Timer() {
           <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
             {/* configured time label */}
             <div className="text-white opacity-75" style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.875rem)', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.05em' }}>
-              {formatTime(configuredTotalSeconds).main}
+              {configuredDisplay.hours && `${configuredDisplay.hours}:`}
+              {configuredDisplay.main}
             </div>
 
             <div
@@ -506,8 +510,9 @@ export default function Timer() {
               style={{ fontSize: 'clamp(2.5rem, 12vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
             >
               <div className="flex items-baseline gap-1">
-                <span>{formatTime(seconds, milliseconds).main}</span>
-                <span style={{ fontSize: '0.5em' }}>·{formatTime(seconds, milliseconds).ms}</span>
+                {remaining.hours && <span style={{ fontSize: '0.5em' }}>{remaining.sign}{remaining.hours}</span>}
+                <span>{!remaining.hours && remaining.sign}{remaining.main}</span>
+                <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
               </div>
             </div>
 
