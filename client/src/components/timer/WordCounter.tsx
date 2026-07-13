@@ -75,10 +75,12 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
                 two separately-aligned elements could drift apart. Purely
                 decorative: it never scrolls itself, the textarea drives it. */}
             <div ref={rowsRef} aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
-              <div style={{ paddingTop: COUNTER_PADDING, paddingBottom: COUNTER_PADDING }}>
+              {/* font-size/line-height here so each row's 1.6em height equals
+                  a textarea line box exactly */}
+              <div style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: COUNTER_LINE_HEIGHT, paddingTop: COUNTER_PADDING, paddingBottom: COUNTER_PADDING }}>
                 {lineStats.map((stat, idx) => (
                   <div key={idx} className="flex items-stretch" style={{ height: `${COUNTER_LINE_HEIGHT}em`, borderBottom: rowDivider(idx) }}>
-                    <div className="grid grid-cols-3 text-center text-white font-bold flex-shrink-0" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
+                    <div className="grid grid-cols-3 text-center text-white font-bold flex-shrink-0" style={{ width: COUNTER_COLUMN_WIDTH }}>
                       <div className="overflow-hidden">{idx + 1}</div>
                       <div className={`overflow-hidden border-l-2 border-r-2 ${isFocused ? 'border-green-500' : 'border-white'}`}>{stat.wordCount}</div>
                       <div className="overflow-hidden">{stat.charCount}</div>
@@ -88,6 +90,8 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
                 ))}
               </div>
             </div>
+            {/* thick divider between the C column and the text */}
+            <div aria-hidden className={`absolute inset-y-0 w-1 ${isFocused ? 'bg-green-500' : 'bg-white'}`} style={{ left: COUNTER_COLUMN_WIDTH }} />
             <textarea
               ref={textareaRef}
               value={text}
