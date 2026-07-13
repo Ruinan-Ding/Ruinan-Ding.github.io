@@ -65,7 +65,7 @@ export const useFavicon = (
         ctx.font = 'bold 48px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('FT', 32, 32);
+        ctx.fillText('ST', 32, 32);
       }
     };
 
@@ -87,20 +87,20 @@ export const useFavicon = (
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
         opacity = cycle === 0 ? progress : 1 - progress;
-        document.title = `${timeDisplay} - Flash Timer`;
+        document.title = `${timeDisplay} - Study Timer`;
         drawFavicon('square', opacity);
       } else if (isPaused) {
         const cycleTime = 1000;
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
         opacity = cycle === 0 ? progress : 1 - progress;
-        document.title = `${timeDisplay} - Flash Timer`;
+        document.title = `${timeDisplay} - Study Timer`;
         drawFavicon('bars', opacity);
       } else if (isRunning) {
-        document.title = `${timeDisplay} - Flash Timer`;
+        document.title = `${timeDisplay} - Study Timer`;
         drawFavicon('triangle', 1);
       } else {
-        document.title = `Flash Timer`;
+        document.title = `Study Timer`;
         drawFavicon('default', 1);
       }
 
