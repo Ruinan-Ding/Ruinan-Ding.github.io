@@ -59,7 +59,7 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
         <div className="flex flex-col gap-2 px-3 pb-3 flex-1 overflow-hidden min-h-0">
           <div className="flex gap-2 flex-1 overflow-hidden min-h-0">
             <div className="flex flex-col flex-shrink-0" style={{ width: COUNTER_COLUMN_WIDTH }}>
-              <div ref={lineCounterRef} className="overflow-auto flex-1" onScroll={() => {
+              <div ref={lineCounterRef} className="overflow-auto no-scrollbar flex-1" onScroll={() => {
                 if (textareaRef.current && lineCounterRef.current) {
                   textareaRef.current.scrollTop = lineCounterRef.current.scrollTop;
                 }
@@ -68,7 +68,9 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
                     lines up with text line 1 */}
                 <div style={{ paddingTop: 'calc(clamp(0.5rem, 1vw, 0.75rem) + 4px)', paddingBottom: 'calc(clamp(0.5rem, 1vw, 0.75rem) + 4px)' }}>
                   {lineStats.map((stat, idx) => (
-                    <div key={idx} className="grid grid-cols-3 text-center text-white font-bold" style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: '1.6', height: '1.6em' }}>
+                    // fixed height + border-box keeps the underline from
+                    // drifting out of sync with the textarea's lines
+                    <div key={idx} className="grid grid-cols-3 text-center text-white font-bold" style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: '1.6', height: '1.6em', borderBottom: `1px solid ${isFocused ? 'rgba(34, 197, 94, 0.4)' : 'rgba(255, 255, 255, 0.35)'}` }}>
                       <div className="overflow-hidden">{idx + 1}</div>
                       <div className={`overflow-hidden border-l-2 border-r-2 ${isFocused ? 'border-green-500' : 'border-white'}`}>{stat.wordCount}</div>
                       <div className="overflow-hidden">{stat.charCount}</div>
