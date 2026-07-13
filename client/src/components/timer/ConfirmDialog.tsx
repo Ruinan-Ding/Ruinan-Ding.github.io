@@ -4,7 +4,6 @@ import type { DialogState } from './types';
 
 interface ConfirmDialogProps {
   dialog: DialogState;
-  /** Fired when the dialog is dismissed without confirming: Cancel button, Escape, or overlay click. */
   onDismiss: () => void;
   onConfirm: () => void;
 }
@@ -44,7 +43,6 @@ const getCopy = (dialog: DialogState) => {
   }
 };
 
-/** The single confirmation dialog shared by stop, reset, switch, and adjust actions. */
 export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmDialogProps) {
   const copy = getCopy(dialog);
 

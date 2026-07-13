@@ -4,11 +4,9 @@ import { pad } from './format';
 
 interface TimeFieldProps {
   label: string;
-  /** Hint shown while the field is empty during editing, e.g. "MM". */
   placeholder: string;
   value: number;
   max: number;
-  /** Called with the clamped new value when an edit commits (blur/Enter) or a chevron is clicked. */
   onRequestChange: (value: number) => void;
 }
 
@@ -16,15 +14,8 @@ const chevronButtonClass =
   'border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed';
 const chevronButtonStyle = { padding: 'clamp(0.25rem, 0.5vw, 0.375rem)' };
 
-/**
- * A labelled two-digit time input with increment/decrement chevrons.
- *
- * Clicking in clears the box down to its HH/MM/SS hint; typed digits enter
- * from the right and shift left, calculator-style, while the caret stays
- * parked at the left edge. Nothing is clamped or applied until the edit
- * commits (blur or Enter) — the value is then corrected to [0, max].
- * Escape or committing an empty box keeps the previous value.
- */
+// Two-digit time input; digits enter from the right, calculator-style, and
+// nothing is clamped or applied until the edit commits (blur or Enter)
 function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFieldProps) {
   const clamp = (next: number) => Math.max(0, Math.min(max, next));
 
@@ -33,8 +24,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
   const cancelledRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Park the caret at the left edge; typing is intercepted below, so digits
-  // still enter from the right regardless
+  // park the caret at the left edge; typing is intercepted below anyway
   useEffect(() => {
     if (draft !== null) inputRef.current?.setSelectionRange(0, 0);
   }, [draft]);
@@ -67,7 +57,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
       e.preventDefault();
       appendDigits(e.key);
     } else if (e.key.length === 1) {
-      e.preventDefault(); // block non-digit characters
+      e.preventDefault();
     }
   };
 
@@ -90,8 +80,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           onBeforeInput={(e) => {
-            // Soft keyboards may not send meaningful keydown events; catch
-            // the insertion (typing or paste) here instead
+            // soft keyboards don't always send useful keydown events
             e.preventDefault();
             const native = e.nativeEvent as InputEvent;
             const data = native.data ?? native.dataTransfer?.getData('text') ?? '';

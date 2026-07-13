@@ -1,8 +1,7 @@
-/** A configured timer duration, used for both presets and run history. */
+// Used for both presets and run history
 export interface TimerEntry {
   id: string;
-  /** Optional for backwards compatibility with previously saved data. */
-  hours?: number;
+  hours?: number; // optional: older saved data has no hours field
   minutes: number;
   seconds: number;
   timestamp: number;
@@ -10,14 +9,12 @@ export interface TimerEntry {
 
 export type TimeUnit = 'hours' | 'minutes' | 'seconds';
 
-/** A plain hours/minutes/seconds triple. */
 export interface TimeParts {
   hours: number;
   minutes: number;
   seconds: number;
 }
 
-/** State for the single confirmation dialog shared by all destructive actions. */
 export type DialogState =
   | { type: null }
   | { type: 'stop' }

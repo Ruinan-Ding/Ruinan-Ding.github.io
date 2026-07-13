@@ -2,17 +2,12 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { STORAGE_KEYS } from './constants';
 
 interface WordCounterProps {
-  /** Notifies the parent so it can suspend the spacebar hint while typing. */
   onFocusChange: (focused: boolean) => void;
 }
 
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
 const COUNTER_FONT_SIZE = 'clamp(0.55rem, 1.3vw, 0.75rem)';
 
-/**
- * Scratchpad textarea with per-line and total counts of lines, words, and
- * alphanumeric characters. Content persists to localStorage.
- */
 function WordCounter({ onFocusChange }: WordCounterProps) {
   const [text, setText] = useState(() => localStorage.getItem(STORAGE_KEYS.wordCounter) || '');
   const [isFocused, setIsFocused] = useState(false);
@@ -52,8 +47,6 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
 
       <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isFocused ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
         <div className="flex justify-between items-center px-3 pt-3">
-          {/* Header uses the same width and 3-column grid as the per-line
-              counter below so the L/W/C labels sit over their columns */}
           <div className="text-white font-bold grid grid-cols-3 text-center flex-shrink-0" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
             <div className="border-2 border-white px-1 py-1">L</div>
             <div className="border-2 border-white px-1 py-1">W</div>
@@ -71,10 +64,8 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
                   textareaRef.current.scrollTop = lineCounterRef.current.scrollTop;
                 }
               }}>
-                {/* Top padding mirrors the textarea's border (4px) + padding so
-                    row 1 lines up with text line 1; each row is exactly one
-                    text line tall (same font size and 1.6 line-height, and no
-                    horizontal borders that would accumulate vertical drift) */}
+                {/* padding mirrors the textarea's border + padding so row 1
+                    lines up with text line 1 */}
                 <div style={{ paddingTop: 'calc(clamp(0.5rem, 1vw, 0.75rem) + 4px)', paddingBottom: 'calc(clamp(0.5rem, 1vw, 0.75rem) + 4px)' }}>
                   {lineStats.map((stat, idx) => (
                     <div key={idx} className="grid grid-cols-3 text-center text-white font-bold" style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: '1.6', height: '1.6em' }}>
@@ -107,7 +98,6 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
         <div className="flex justify-between items-start px-3 py-1 gap-4" style={{ fontSize: 'clamp(0.5rem, 1vw, 0.65rem)' }}>
           <div className="text-white font-bold flex flex-col gap-0">
             <div className="text-white mb-0.5" style={{ fontSize: 'clamp(0.35rem, 0.8vw, 0.55rem)' }}>TOTAL</div>
-            {/* Same width and grid as the header/rows so totals line up too */}
             <div className="grid grid-cols-3 text-center" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
               <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalLines}</div>
               <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalWords}</div>

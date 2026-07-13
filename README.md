@@ -1,51 +1,31 @@
 # Flash Timer
 
-A minimal, no-bullshit countdown timer. Set a time, hit start, and it counts down. When it hits zero, it keeps going—beeping until you stop it. Built for people who actually use timers: writers, students, anyone who needs to focus for a set amount of time.
+A minimal countdown timer. Set a time, hit start, and it counts down. When it hits zero it keeps going into negative time, beeping until you stop it. There's also a word counter scratchpad below the clock for timed writing sessions.
 
 ## Features
 
-- **Precision countdown** with millisecond accuracy
-- **Negative time support** – continues counting and beeping after zero
-- **Integrated word counter** – track lines, words, and characters while you write
-- **Presets & history** – save your most-used times and quickly reload them
-- **Keyboard shortcuts** – spacebar controls everything
-- **Silent mode** – toggle sound on/off
-- **Fully responsive** – works on desktop, tablet, and mobile
-- **State persistence** – everything saves automatically
+- Millisecond-precision countdown that keeps counting (and beeping) past zero
+- Presets and run history, saved in localStorage
+- Word counter with per-line and total line/word/character counts
+- Spacebar to start/pause/resume
+- Silent mode toggle
+- Live favicon and tab title showing timer state
 
-## Quick Start
+## Usage
 
-1. Set your time using the input fields or preset buttons
-2. Press START or hit spacebar
-3. Timer counts down. When it hits zero, it keeps going and beeps
-4. Press PAUSE to silence the alarm, STOP to reset, or RESET to start over
+Set a time with the input fields or a preset, then press START (or spacebar). PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Everything persists across page reloads.
 
-Everything saves automatically. Close the tab, come back later, your settings are still there.
-
-## Tech Stack
-
-- React 19 with TypeScript
-- Tailwind CSS 4
-- shadcn/ui components
-- Web Audio API for beeping
-- LocalStorage for persistence
+Tip: for a stopwatch, mute the sound and set the time to 00:00:00.
 
 ## Development
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Start dev server
 pnpm run dev
-
-# Build for production
 pnpm run build
 ```
 
-## Deployment
-
-Automatic deployment to GitHub Pages on push to `main` branch via GitHub Actions.
+Built with React 19, TypeScript, Tailwind CSS 4, and the Web Audio API. Deploys to GitHub Pages via GitHub Actions on push to `main`.
 
 ## License
 

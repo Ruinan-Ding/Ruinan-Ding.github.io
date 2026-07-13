@@ -1,14 +1,7 @@
 import { useEffect, useRef } from 'react';
 
-/**
- * useFavicon Hook - Update favicon with colored shapes based on timer state
- *
- * Icons:
- * - Green triangle when running (solid)
- * - Yellow bars fading slowly when paused
- * - Red square fading quickly when finished
- * - FT (Flash Timer) when stopped
- */
+// Draws the timer state into the favicon: green triangle while running,
+// pulsing yellow bars when paused, pulsing red square when finished
 
 interface FaviconState {
   isRunning: boolean;
@@ -29,9 +22,7 @@ export const useFavicon = (
   seconds: number,
   hours: number = 0
 ) => {
-  // The canvas + redraw interval are set up once (below); this ref carries
-  // the latest values into that interval's callback so it doesn't need to be
-  // torn down and recreated whenever the displayed time ticks over
+  // ref carries the latest values into the redraw interval's callback
   const stateRef = useRef<FaviconState>({ isRunning, isPaused, isFinished, minutes, seconds, hours });
   stateRef.current = { isRunning, isPaused, isFinished, minutes, seconds, hours };
 
@@ -44,42 +35,33 @@ export const useFavicon = (
     if (!ctx) return;
 
     const drawFavicon = (shape: 'triangle' | 'bars' | 'square' | 'default', opacity: number = 1) => {
-      // Clear canvas and add gray background
-      ctx.fillStyle = '#9ca3af'; // Gray background
+      ctx.fillStyle = '#9ca3af';
       ctx.fillRect(0, 0, 64, 64);
 
       ctx.globalAlpha = opacity;
 
       if (shape === 'triangle') {
-        // Green triangle pointing right - maximized - brighter
-        ctx.fillStyle = '#4ade80'; // Brighter green
+        ctx.fillStyle = '#4ade80';
         ctx.beginPath();
-        ctx.moveTo(8, 4);        // Top left
-        ctx.lineTo(8, 60);       // Bottom left
-        ctx.lineTo(60, 32);      // Right point
+        ctx.moveTo(8, 4);
+        ctx.lineTo(8, 60);
+        ctx.lineTo(60, 32);
         ctx.closePath();
         ctx.fill();
       } else if (shape === 'bars') {
-        // Two yellow horizontal bars (pause bars) - maximized with glow
-        // Add glow effect
         ctx.shadowColor = '#eab308';
         ctx.shadowBlur = 20;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
-        ctx.fillStyle = '#ffeb3b'; // Brighter yellow
-        // Left bar
+        ctx.fillStyle = '#ffeb3b';
         ctx.fillRect(6, 8, 20, 48);
-        // Right bar
         ctx.fillRect(38, 8, 20, 48);
-        // Reset shadow
         ctx.shadowBlur = 0;
       } else if (shape === 'square') {
-        // Red square - maximized - brighter
-        ctx.fillStyle = '#f87171'; // Brighter red
+        ctx.fillStyle = '#f87171';
         ctx.fillRect(8, 8, 48, 48);
       } else if (shape === 'default') {
-        // FT (Flash Timer) text - maximized, darker on gray
-        ctx.fillStyle = '#1a1a1a'; // Darker for better contrast
+        ctx.fillStyle = '#1a1a1a';
         ctx.font = 'bold 48px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -101,7 +83,6 @@ export const useFavicon = (
       let opacity = 1;
 
       if (isFinished) {
-        // Red square fades very quickly (300ms cycle - twice as fast)
         const cycleTime = 300;
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
@@ -109,7 +90,6 @@ export const useFavicon = (
         document.title = `${timeDisplay} - Flash Timer`;
         drawFavicon('square', opacity);
       } else if (isPaused) {
-        // Yellow bars fade slowly (1000ms cycle)
         const cycleTime = 1000;
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
@@ -117,11 +97,9 @@ export const useFavicon = (
         document.title = `${timeDisplay} - Flash Timer`;
         drawFavicon('bars', opacity);
       } else if (isRunning) {
-        // Green triangle (solid, no fade)
         document.title = `${timeDisplay} - Flash Timer`;
         drawFavicon('triangle', 1);
       } else {
-        // Default state - FT favicon
         document.title = `Flash Timer`;
         drawFavicon('default', 1);
       }
@@ -136,12 +114,9 @@ export const useFavicon = (
       favicon.href = canvas.toDataURL();
     };
 
-    // Initial draw
     updateFavicon();
-
-    // Update favicon and tab title every 50ms for smooth animation
     const interval = setInterval(updateFavicon, 50);
 
     return () => clearInterval(interval);
-  }, []); // Set up once; updateFavicon reads the latest state via stateRef
+  }, []);
 };

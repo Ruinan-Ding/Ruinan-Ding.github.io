@@ -12,20 +12,9 @@ import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_TICK_MS, DEFAULT_PRESET
 import { formatTime, toTotalSeconds } from './format';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 
-/**
- * Countdown timer with presets, run history, and a word-counter scratchpad.
- *
- * Time is tracked as `seconds` (signed) plus `milliseconds` in [0, 1000):
- * remaining time = seconds + milliseconds / 1000. Once the countdown passes
- * zero, `seconds` goes negative and the alarm sounds until stopped, down to
- * a floor of -99:59:59.
- */
 export default function Timer() {
-  // Persisted state is parsed synchronously, once, and the initializers
-  // below each pick their slice. Loading in an effect instead would let the
-  // persist effect run first and briefly save defaults over the real data.
-  // isRunning/isPaused are deliberately not restored: a refresh always lands
-  // stopped with fresh milliseconds and the user presses START to resume.
+  // Parse persisted state once, before first render, so the persist effect
+  // can't save defaults over it. isRunning/isPaused are not restored.
   const initial = useMemo(() => {
     let saved: Record<string, unknown> = {};
     let history: TimerEntry[] = [];
@@ -46,15 +35,13 @@ export default function Timer() {
   const savedNumber = (key: string, fallback: number) =>
     typeof initial.saved[key] === 'number' ? (initial.saved[key] as number) : fallback;
 
-  // Remaining time: signed whole seconds plus milliseconds in [0, 1000),
-  // one state object so the countdown updates both in a single pure update
+  // Remaining time: signed whole seconds plus milliseconds in [0, 1000)
   const [time, setTime] = useState(() => ({
     seconds: savedNumber('seconds', toTotalSeconds(DEFAULT_TIME)),
     milliseconds: 0,
   }));
   const { seconds, milliseconds } = time;
 
-  // Configured time (independent, doesn't change while counting down)
   const [hours, setHours] = useState(() => savedNumber('hours', DEFAULT_TIME.hours));
   const [minutes, setMinutes] = useState(() => savedNumber('minutes', DEFAULT_TIME.minutes));
   const [timerSeconds, setTimerSeconds] = useState(() => savedNumber('timerSeconds', DEFAULT_TIME.seconds));
@@ -72,7 +59,7 @@ export default function Timer() {
     if (!saved) return DEFAULT_PRESETS;
     try {
       const parsed: TimerEntry[] = JSON.parse(saved);
-      // Older saves packed hours into minutes (hh * 60 + mm); unpack them
+      // older saves packed hours into minutes
       return parsed.map((p) => ({
         ...p,
         hours: (p.hours ?? 0) + Math.floor(p.minutes / 60),
@@ -85,26 +72,18 @@ export default function Timer() {
 
   const [dialog, setDialog] = useState<DialogState>({ type: null });
   const [isWordCounterFocused, setIsWordCounterFocused] = useState(false);
-  // Below `lg`, the sidebar becomes a toggleable overlay instead of a
-  // permanent column, so the clock and the time inputs get the full width
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  // Adjusting the configured time while running asks for confirmation, but
-  // only once per running/paused state
+  // only prompt for time adjustments once per running/paused state
   const promptShownInStateRef = useRef(false);
-  // Radix fires both a button's own onClick AND onOpenChange for the same
-  // click, and React batches both within the same event before dialog state
-  // itself updates — a ref (synchronous, unlike state) is what lets the
-  // dismiss handler below tell "just confirmed" apart from "cancelled".
+  // Radix fires both onClick and onOpenChange for the same click, so the
+  // dismiss handler needs a ref to tell "just confirmed" from "cancelled"
   const justConfirmedRef = useRef(false);
 
   const { beep } = useBeep();
 
-  // Memoized so it only gets a new identity when the configured time actually
-  // changes, not on every countdown tick — everything below that depends on
-  // it (and gets handed to a memoized child component) stays stable too.
   const configured: TimeParts = useMemo(
     () => ({ hours, minutes, seconds: timerSeconds }),
     [hours, minutes, timerSeconds]
@@ -121,12 +100,11 @@ export default function Timer() {
     localStorage.setItem(STORAGE_KEYS.presets, JSON.stringify(presets));
   }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets]);
 
-  // Allow one confirmation prompt per running/paused state
   useEffect(() => {
     promptShownInStateRef.current = false;
   }, [isRunning, isPaused]);
 
-  // Show the remaining time (not the configured time) in the tab title/favicon
+  // Tab title/favicon shows the remaining time
   const remainingWholeSeconds = Math.floor(Math.abs(seconds * 1000 + milliseconds) / 1000);
   useFavicon(
     isRunning,
@@ -137,12 +115,8 @@ export default function Timer() {
     Math.floor(remainingWholeSeconds / 3600)
   );
 
-  // Countdown: decrement by elapsed wall-clock time, wrapping milliseconds
-  // into seconds; continues into negative time until the -99:59:59 floor.
-  // The updater is pure (both parts derive from prev in one call, however
-  // many whole seconds elapsed since the last tick), and once frozen at the
-  // floor it returns prev unchanged so ticks stop causing re-renders while
-  // the alarm keeps sounding.
+  // Countdown: subtract elapsed wall-clock time; keeps going negative until
+  // the -99:59:59 floor
   useEffect(() => {
     if (!isRunning || isPaused) return;
 
@@ -166,8 +140,7 @@ export default function Timer() {
     };
   }, [isRunning, isPaused]);
 
-  // Alarm while in negative time: bursts of quick beeps with a longer
-  // silence between bursts (see the ALARM_* constants for the pattern)
+  // Alarm while in negative time: bursts of beeps with gaps between them
   const isAlarmActive = isRunning && !isPaused && seconds < 0 && !isSilentMode;
   useEffect(() => {
     if (!isAlarmActive) return;
@@ -189,15 +162,11 @@ export default function Timer() {
     };
   }, [isAlarmActive, beep]);
 
-  // Spacebar mirrors the on-screen controls: START when idle, PAUSE/RESUME
-  // otherwise (including the alarm). The listener is registered once; a ref
-  // carries the latest action so it doesn't need to be torn down and
-  // re-added on every countdown tick (Timer re-renders every TICK_MS while
-  // running).
+  // Spacebar mirrors the on-screen controls; the ref lets the keydown
+  // listener stay registered once instead of rebinding every tick
   const spacebarActionRef = useRef<() => boolean>(() => false);
   spacebarActionRef.current = () => {
-    // The confirm dialog owns the keyboard while open: Space must press the
-    // focused dialog button, not control the timer behind the modal
+    // let the dialog own the keyboard while open
     if (dialog.type !== null) return false;
     if (isRunning) {
       togglePause();
@@ -210,7 +179,6 @@ export default function Timer() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Space') return;
-      // Don't intercept spacebar while typing in a text field
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
       if (spacebarActionRef.current()) {
         e.preventDefault();
@@ -223,8 +191,7 @@ export default function Timer() {
     };
   }, []);
 
-  // Escape closes the mobile sidebar drawer (ConfirmDialog gets this for
-  // free from Radix; this plain overlay needs it wired up manually)
+  // Escape closes the mobile sidebar drawer
   useEffect(() => {
     if (!isSidebarOpen) return;
     const handleEscape = (e: KeyboardEvent) => {
@@ -283,7 +250,6 @@ export default function Timer() {
   };
 
   const stopToConfigured = () => {
-    // Clear intervals before touching state
     clearAlarmInterval();
     clearCountdownInterval();
     setTime({ seconds: configuredTotalSeconds, milliseconds: 0 });
@@ -292,8 +258,7 @@ export default function Timer() {
   };
 
   const handleStopClick = () => {
-    // Only an actively-beeping alarm stops without confirmation;
-    // a paused alarm asks first, like any other stop
+    // an actively beeping alarm stops without confirmation
     if (seconds < 0 && isRunning && !isPaused) {
       playTone('stop');
       stopToConfigured();
@@ -328,7 +293,6 @@ export default function Timer() {
     closeDialog();
   };
 
-  /** Apply a preset/history entry as the configured time. */
   const loadEntry = useCallback((parts: TimeParts) => {
     setHours(parts.hours);
     setMinutes(parts.minutes);
@@ -337,8 +301,6 @@ export default function Timer() {
     setIsSidebarOpen(false);
   }, []);
 
-  // Stable so PresetsPanel/HistoryPanel (React.memo'd) can skip re-rendering
-  // on every countdown tick
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
     if (isRunning) {
@@ -367,8 +329,6 @@ export default function Timer() {
 
   const handleClearHistory = useCallback(() => setHistory([]), []);
 
-  // setHours/setMinutes/setTimerSeconds are React state setters, guaranteed
-  // stable, so this never needs to change identity
   const setterFor = useCallback(
     (unit: TimeUnit) => (unit === 'hours' ? setHours : unit === 'minutes' ? setMinutes : setTimerSeconds),
     []
@@ -379,12 +339,8 @@ export default function Timer() {
     [configured]
   );
 
-  /**
-   * Apply a confirmed (or confirmation-exempt) change to one unit of the
-   * configured time, updating the remaining time to match. Landing on 0
-   * while running or paused triggers the alarm immediately: the clock is
-   * zeroed and resumed so it crosses into negative time on the next tick.
-   */
+  // Apply a change to one unit of the configured time; landing on 0 while
+  // running/paused zeroes the clock so the alarm kicks in on the next tick
   const applyAdjustment = useCallback((unit: TimeUnit, value: number) => {
     setterFor(unit)(value);
     const newTotalSeconds = totalWith(unit, value);
@@ -396,17 +352,11 @@ export default function Timer() {
     }
   }, [isRunning, isPaused, setterFor, totalWith]);
 
-  /**
-   * Change one unit of the configured time. While the timer is running or
-   * paused this asks for confirmation (once per state) before also updating
-   * the remaining time; otherwise the remaining time follows immediately.
-   */
+  // Changing a field while running/paused asks for confirmation first
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
     const previous = configured[unit];
     setterFor(unit)(value);
 
-    // The hours field historically ignores no-op edits (e.g. typing a digit
-    // that clamps back to the current value) instead of prompting
     if (unit === 'hours' && value === previous) return;
 
     if ((isRunning || isPaused) && !promptShownInStateRef.current) {
@@ -417,8 +367,6 @@ export default function Timer() {
     }
   }, [configured, isRunning, isPaused, setterFor, applyAdjustment]);
 
-  // One stable callback per field so TimeField (React.memo'd) can skip
-  // re-rendering on every countdown tick
   const handleHoursChange = useCallback((value: number) => requestConfiguredChange('hours', value), [requestConfiguredChange]);
   const handleMinutesChange = useCallback((value: number) => requestConfiguredChange('minutes', value), [requestConfiguredChange]);
   const handleSecondsChange = useCallback((value: number) => requestConfiguredChange('seconds', value), [requestConfiguredChange]);
@@ -446,19 +394,10 @@ export default function Timer() {
     }
   };
 
-  /**
-   * Fired when the dialog goes away without confirming: Cancel button,
-   * Escape, or overlay click. An 'adjust' dialog eagerly applied its field
-   * edit before asking for confirmation (see requestConfiguredChange above),
-   * so dismissing without confirming must revert it — otherwise the field
-   * stays changed while the actual countdown doesn't, and the next stop/reset
-   * would silently apply a value the user never confirmed.
-   */
+  // Dismissing an 'adjust' dialog reverts the eagerly-applied field edit
   const handleDialogDismiss = () => {
     if (!justConfirmedRef.current && dialog.type === 'adjust') {
       setterFor(dialog.data.unit)(dialog.data.previous);
-      // Cancelling re-arms the prompt; confirming keeps it suppressed so
-      // further adjustments in this running/paused state apply directly
       promptShownInStateRef.current = false;
     }
     justConfirmedRef.current = false;
@@ -489,7 +428,6 @@ export default function Timer() {
 
   return (
     <div className="h-screen bg-black flex overflow-hidden">
-      {/* Backdrop for the mobile sidebar drawer */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/70 lg:hidden"
@@ -497,7 +435,7 @@ export default function Timer() {
         />
       )}
 
-      {/* Sidebar: a permanent column at lg+, a toggled overlay drawer below it */}
+      {/* Sidebar: permanent column at lg+, overlay drawer below */}
       <div
         className={`${isSidebarOpen ? 'flex' : 'hidden'} lg:flex fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto w-64 lg:w-48 bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden`}
       >
@@ -505,10 +443,7 @@ export default function Timer() {
         <HistoryPanel history={history} onSelect={handleSelectEntry} onClear={handleClearHistory} />
       </div>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col items-center p-2 sm:p-3 md:p-4 gap-2 overflow-hidden min-h-0 relative">
-        {/* Top-left controls: sidebar toggle (below lg) + silent mode toggle.
-            z-50 keeps both clickable above the drawer (z-40) and its backdrop (z-30). */}
         <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-50 flex items-center gap-2">
           <button
             onClick={() => setIsSidebarOpen((prev) => !prev)}
@@ -551,16 +486,11 @@ export default function Timer() {
           </button>
         </div>
 
-        {/* justify-start (not center) below lg: centering a flex container whose
-            content overflows clips it symmetrically top-and-bottom instead of
-            just extending down, which would hide the top of the clock */}
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto lg:overflow-hidden">
-          {/* Left spacer - only needed once the row layout kicks in at lg */}
           <div className="flex-1 hidden lg:block"></div>
 
-          {/* Timer display and controls - center */}
           <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
-            {/* Label showing the configured timer */}
+            {/* configured time label */}
             <div className="text-white opacity-75" style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.875rem)', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.05em' }}>
               {formatTime(configuredTotalSeconds).main}
             </div>
@@ -581,11 +511,7 @@ export default function Timer() {
               </div>
             </div>
 
-            {/* Control buttons */}
             <div className="flex gap-2">
-              {/* Not running can also mean negative time restored from a
-                  refresh mid-alarm; START still applies (it restarts from
-                  the configured time, same as the spacebar path) */}
               {!isRunning && (
                 <button
                   onClick={handleStart}
@@ -624,7 +550,6 @@ export default function Timer() {
               </button>
             </div>
 
-            {/* Status indicator and spacebar hint */}
             <div className="flex flex-col items-center gap-1 mt-2">
               <div className="font-bold tracking-wider" style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)', color: statusColor }}>
                 {status}
@@ -643,10 +568,8 @@ export default function Timer() {
             </div>
           </div>
 
-          {/* Right spacer - only needed once the row layout kicks in at lg */}
           <div className="flex-1 hidden lg:block"></div>
 
-          {/* Configured time inputs - full-width block below the clock until lg, then a fixed column to its right */}
           <div className="border-4 border-white p-2 sm:p-3 md:p-4 flex flex-col gap-2 flex-shrink-0 min-w-0 w-full max-w-sm lg:w-[clamp(12rem,22vw,16rem)] lg:max-w-none">
             <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
             <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />

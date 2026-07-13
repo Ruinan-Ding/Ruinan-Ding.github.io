@@ -1,6 +1,6 @@
 import type { TimeParts, TimerEntry } from './types';
 
-/** localStorage keys — shared with previous releases; do not rename. */
+// localStorage keys — don't rename, older saves use them
 export const STORAGE_KEYS = {
   timerState: 'timerAppState',
   history: 'timerAppHistory',
@@ -9,18 +9,13 @@ export const STORAGE_KEYS = {
   presets: 'timerAppPresets',
 } as const;
 
-/** Countdown floor: -99:59:59 expressed in seconds. */
+// countdown floor: -99:59:59
 export const MIN_TOTAL_SECONDS = -359999;
 
-/** Countdown tick resolution in milliseconds. */
 export const TICK_MS = 10;
 
-/**
- * Alarm pattern: bursts of quick beeps separated by a longer silence.
- * A beep slot comes up every ALARM_TICK_MS; each cycle plays
- * ALARM_BURST_COUNT beeps then stays silent for ALARM_BURST_GAP_TICKS
- * slots (3 × 150ms beeps at 250ms spacing, then 750ms of silence).
- */
+// alarm pattern: ALARM_BURST_COUNT beeps every ALARM_TICK_MS, then
+// ALARM_BURST_GAP_TICKS slots of silence
 export const ALARM_TICK_MS = 250;
 export const ALARM_BURST_COUNT = 3;
 export const ALARM_BURST_GAP_TICKS = 3;
@@ -31,7 +26,7 @@ export const MAX_SECONDS = 59;
 export const MAX_PRESETS = 20;
 export const MAX_HISTORY = 20;
 
-/** Beep tones per action: [frequency Hz, duration ms]. */
+// [frequency Hz, duration ms]
 export const TONES = {
   start: [600, 150],
   resume: [600, 150],
@@ -42,7 +37,6 @@ export const TONES = {
   alarm: [600, 150],
 } as const;
 
-/** Configured time shown on first visit. */
 export const DEFAULT_TIME: TimeParts = { hours: 0, minutes: 1, seconds: 5 };
 
 export const DEFAULT_PRESETS: TimerEntry[] = [

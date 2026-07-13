@@ -8,7 +8,6 @@ interface HistoryPanelProps {
   onClear: () => void;
 }
 
-/** Sidebar list of previously started timers. */
 function HistoryPanel({ history, onSelect, onClear }: HistoryPanelProps) {
   return (
     <div className="flex flex-col min-h-0 flex-1">

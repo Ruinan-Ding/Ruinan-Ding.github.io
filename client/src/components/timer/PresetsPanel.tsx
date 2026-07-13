@@ -10,23 +10,13 @@ interface PresetsPanelProps {
   onSelect: (entry: TimerEntry) => void;
 }
 
-/**
- * Sidebar list of saved presets plus the HH:MM:SS input for adding new ones.
- *
- * Digit entry is keydown-driven rather than derived from onChange: the
- * display is always re-padded to a full 6-digit "00:00:00" shape, so once
- * any digit exists the rendered value can't be told apart from a "complete"
- * one — deriving from it would mean every keystroke after the first inserts
- * into an already-"full" 6-digit string and gets rejected. Tracking the raw
- * typed digit sequence as its own state (matching how Backspace already had
- * to work here) sidesteps that.
- */
+// Digit entry is keydown-driven rather than derived from onChange: the
+// display re-pads to a full 6-digit shape, so onChange can't tell a partial
+// entry from a complete one. Track the raw typed digits instead.
 function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps) {
-  // The raw, un-padded digit sequence typed so far (0-6 digits)
   const [digits, setDigits] = useState('');
   const atCapacity = presets.length >= MAX_PRESETS;
 
-  // Empty input (focused or not) shows the dim HH:MM:SS hint overlay below
   const displayValue = digits === '' ? '' : formatPresetDisplay(digits);
 
   const handleAdd = () => {
@@ -49,7 +39,6 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
       e.preventDefault();
       setDigits((prev) => (prev.length >= 6 ? prev : prev + e.key));
     } else if (e.key.length === 1) {
-      // Any other printable character — this field is digits-only
       e.preventDefault();
     }
   };
@@ -62,7 +51,6 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
 
   const handleBlur = () => {
     if (digits === '') return;
-    // Clamp each part to its valid range and lock in the full 6-digit value
     const { hours, minutes, seconds } = parsePresetDigits(digits);
     setDigits(`${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}${String(seconds).padStart(2, '0')}`);
   };
