@@ -13,7 +13,7 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 
 ## Usage
 
-Set a time with the input fields or a preset, then press START (or spacebar). PAUSE silences the alarm; RESET puts the timer back to the configured time (or restarts it once the alarm is going). Everything persists across page reloads.
+Set a time with the input fields or a preset, then press START (or spacebar). PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Everything persists across page reloads.
 
 Tip: for a stopwatch, mute the sound and set the time to 00:00:00.
 

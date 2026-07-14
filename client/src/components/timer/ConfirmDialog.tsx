@@ -10,6 +10,12 @@ interface ConfirmDialogProps {
 
 const getCopy = (dialog: DialogState) => {
   switch (dialog.type) {
+    case 'stop':
+      return {
+        title: 'CONFIRM STOP',
+        description: 'Are you sure you want to stop the timer? This will reset it to the initial time.',
+        action: 'CONFIRM',
+      };
     case 'reset':
       return {
         title: 'CONFIRM RESET',
