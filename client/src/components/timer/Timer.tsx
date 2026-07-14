@@ -493,12 +493,6 @@ export default function Timer() {
           <div className="flex-1 hidden lg:block"></div>
 
           <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
-            {/* configured time label */}
-            <div className="text-white opacity-75" style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.875rem)', fontFamily: "'IBM Plex Mono', monospace", letterSpacing: '0.05em' }}>
-              {configuredDisplay.hours && `${configuredDisplay.hours}:`}
-              {configuredDisplay.main}
-            </div>
-
             <div
               className={`font-bold tracking-wider transition-all duration-200 ${
                 seconds < 0
@@ -513,6 +507,10 @@ export default function Timer() {
                 {remaining.hours && <span style={{ fontSize: '0.5em' }}>{remaining.sign}{remaining.hours}</span>}
                 <span>{!remaining.hours && remaining.sign}{remaining.main}</span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
+                {/* configured time, for reference */}
+                <span className="opacity-60" style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.875rem)', letterSpacing: '0.05em', marginLeft: '0.25em' }}>
+                  /{configuredDisplay.hours && `${configuredDisplay.hours}:`}{configuredDisplay.main}
+                </span>
               </div>
             </div>
 
