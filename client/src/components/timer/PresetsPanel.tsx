@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { MAX_PRESETS } from './constants';
 import { formatEntryLabel, formatPresetDisplay, parsePresetDigits, presetDigits } from './format';
 import type { TimeParts, TimerEntry } from './types';
@@ -15,9 +15,18 @@ interface PresetsPanelProps {
 // entry from a complete one. Track the raw typed digits instead.
 function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
 
   const displayValue = digits === '' ? '' : formatPresetDisplay(digits);
+
+  // keep the caret parked at the far right; digits enter from there
+  useEffect(() => {
+    const el = inputRef.current;
+    if (el && document.activeElement === el) {
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
+  }, [displayValue]);
 
   const handleAdd = () => {
     if (atCapacity || digits === '') return;
@@ -92,6 +101,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
               {displayValue === '' ? 'HH:MM:SS' : ''}
             </div>
             <input
+              ref={inputRef}
               type="text"
               inputMode="numeric"
               value={displayValue}
@@ -99,6 +109,11 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               onBlur={handleBlur}
+              onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
+              onMouseUp={(e) => {
+                const el = e.target as HTMLInputElement;
+                el.setSelectionRange(el.value.length, el.value.length);
+              }}
               className="border-4 border-white font-bold transition-colors duration-0 w-full preset-input"
               style={{
                 fontFamily: "'IBM Plex Mono', monospace",

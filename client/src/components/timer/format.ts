@@ -34,13 +34,14 @@ export const formatEntryLabel = (entry: Pick<TimerEntry, 'hours' | 'minutes' | '
 
 export const presetDigits = (input: string) => input.replace(/[^0-9]/g, '');
 
+// Digits fill from the right (calculator-style): "130" -> 00:01:30
 export const formatPresetDisplay = (digits: string) => {
-  const padded = digits.padEnd(6, '0');
+  const padded = digits.padStart(6, '0');
   return `${padded.slice(0, 2)}:${padded.slice(2, 4)}:${padded.slice(4, 6)}`;
 };
 
 export const parsePresetDigits = (digits: string): TimeParts => {
-  const padded = digits.padEnd(6, '0');
+  const padded = digits.padStart(6, '0');
   return {
     hours: Math.min(parseInt(padded.slice(0, 2), 10), MAX_HOURS),
     minutes: Math.min(parseInt(padded.slice(2, 4), 10), MAX_MINUTES),
