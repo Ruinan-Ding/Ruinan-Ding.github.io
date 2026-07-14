@@ -54,7 +54,18 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
 
   return (
     <div className="flex flex-col items-start gap-1 w-full flex-1 overflow-hidden min-h-0">
-      <label className={`font-bold text-left ${isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
+      <div className="flex justify-between items-center w-full">
+        <label className={`font-bold text-left ${isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
+        {text !== '' && (
+          <button
+            onClick={() => setText('')}
+            className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors"
+            style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.75rem)' }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
 
       <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isFocused ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
         <div className="flex justify-between items-center px-3 pt-3">
@@ -112,6 +123,7 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
                 lineHeight: COUNTER_LINE_HEIGHT,
                 whiteSpace: 'pre',
                 overflowWrap: 'normal',
+                resize: 'none',
               }}
             />
           </div>
