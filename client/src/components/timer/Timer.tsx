@@ -12,6 +12,36 @@ import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_TICK_MS, DEFAULT_PRESET
 import { formatTime, toTotalSeconds } from './format';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 
+// Speaker with sound waves that grow in as the volume rises; an X when muted
+function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean; color: string }) {
+  const wave = (threshold: number) => Math.max(0, Math.min(1, (volume - threshold) / 0.25));
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ width: 'clamp(1.5rem, 3vw, 2rem)', height: 'clamp(1.5rem, 3vw, 2rem)' }}
+    >
+      <polygon points="9 5 4 9 1 9 1 15 4 15 9 19 9 5" fill={color} />
+      {muted ? (
+        <>
+          <line x1="14" y1="9" x2="20" y2="15" />
+          <line x1="20" y1="9" x2="14" y2="15" />
+        </>
+      ) : (
+        <>
+          <path d="M12.5 9.5a3.5 3.5 0 0 1 0 5" opacity={wave(0)} />
+          <path d="M15 7a7 7 0 0 1 0 10" opacity={wave(0.33)} />
+          <path d="M17.5 4.5a10.5 10.5 0 0 1 0 15" opacity={wave(0.66)} />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export default function Timer() {
   // Parse persisted state once, before first render, so the persist effect
   // can't save defaults over it. isRunning/isPaused are not restored.
@@ -87,7 +117,8 @@ export default function Timer() {
   const justConfirmedRef = useRef(false);
 
   const { beep } = useBeep(volume);
-  const lastVolumePreviewRef = useRef(0);
+  // cancels the in-flight preview burst so a new one overrides it
+  const previewCleanupRef = useRef<(() => void) | null>(null);
 
   const configured: TimeParts = useMemo(
     () => ({ hours, minutes, seconds: timerSeconds }),
@@ -213,15 +244,34 @@ export default function Timer() {
     }
   };
 
-  // Preview the dragged level with a single alarm burst; throttled to the
-  // tone's own duration so fast dragging doesn't stack overlapping beeps
+  // Dragging the slider to 0 mutes; dragging back off 0 unmutes
   const handleVolumeChange = (value: number) => {
     setVolume(value);
-    const now = Date.now();
-    if (now - lastVolumePreviewRef.current >= ALARM_TICK_MS) {
-      lastVolumePreviewRef.current = now;
-      beep(...TONES.alarm, value);
+    if (value === 0) {
+      setIsSilentMode(true);
+    } else if (isSilentMode) {
+      setIsSilentMode(false);
     }
+  };
+
+  // On release, preview the chosen level with one alarm burst
+  // (ALARM_BURST_COUNT beeps); a re-release cancels the previous burst
+  const playVolumePreview = (value: number) => {
+    previewCleanupRef.current?.();
+    if (value === 0) return;
+
+    const stops: Array<() => void> = [];
+    const timeouts: number[] = [];
+    for (let i = 0; i < ALARM_BURST_COUNT; i++) {
+      timeouts.push(window.setTimeout(() => {
+        stops.push(beep(...TONES.alarm, value));
+      }, i * ALARM_TICK_MS));
+    }
+    previewCleanupRef.current = () => {
+      timeouts.forEach(clearTimeout);
+      stops.forEach((stop) => stop());
+      previewCleanupRef.current = null;
+    };
   };
 
   const clearAlarmInterval = () => {
@@ -479,6 +529,8 @@ export default function Timer() {
             <button
               onClick={() => {
                 beep(...TONES.silentToggle);
+                // unmuting with the slider parked at 0 restores a usable level
+                if (isSilentMode && volume === 0) setVolume(DEFAULT_VOLUME);
                 setIsSilentMode(!isSilentMode);
               }}
               className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
@@ -490,24 +542,11 @@ export default function Timer() {
               title={`${isSilentMode ? 'Click to unmute' : 'Click to mute'} — Tip: for a count-up timer (stopwatch), mute this and set the time to 00:00:00`}
               aria-label={isSilentMode ? 'Unmute' : 'Mute'}
             >
-              <span style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', color: isSilentMode ? '#ffffff' : '#22c55e', lineHeight: '1' }}>
-                {isSilentMode ? '🔇' : '🔊'}
-              </span>
-              {isSilentMode && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    width: '100%',
-                    height: '3px',
-                    backgroundColor: '#ffffff',
-                    transform: 'rotate(45deg)',
-                  }}
-                />
-              )}
+              <SpeakerIcon volume={volume} muted={isSilentMode} color={isSilentMode ? '#ffffff' : '#22c55e'} />
             </button>
 
-            {/* Volume slider: revealed on hover/focus; dragging previews the
-                level with a single (throttled) alarm burst */}
+            {/* Volume slider: revealed on hover/focus; releasing it previews
+                the chosen level with a single alarm burst */}
             <div className="absolute left-0 top-full mt-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 border-3 border-white bg-black p-2 z-50">
               <input
                 type="range"
@@ -516,6 +555,12 @@ export default function Timer() {
                 step={0.01}
                 value={volume}
                 onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                onPointerUp={(e) => playVolumePreview(Number((e.target as HTMLInputElement).value))}
+                onKeyUp={(e) => {
+                  if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
+                    playVolumePreview(Number((e.target as HTMLInputElement).value));
+                  }
+                }}
                 className="block"
                 style={{ width: '6rem', accentColor: isSilentMode ? '#ffffff' : '#22c55e' }}
                 aria-label="Volume"
