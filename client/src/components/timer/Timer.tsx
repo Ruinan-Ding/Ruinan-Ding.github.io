@@ -8,7 +8,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_TICK_MS, DEFAULT_PRESETS, DEFAULT_TIME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_TICK_MS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatTime, toTotalSeconds } from './format';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 
@@ -52,6 +52,10 @@ export default function Timer() {
     const saved = localStorage.getItem(STORAGE_KEYS.silentMode);
     return saved ? JSON.parse(saved) : false;
   });
+  const [volume, setVolume] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.volume);
+    return saved ? JSON.parse(saved) : DEFAULT_VOLUME;
+  });
 
   const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
@@ -82,7 +86,8 @@ export default function Timer() {
   // dismiss handler needs a ref to tell "just confirmed" from "cancelled"
   const justConfirmedRef = useRef(false);
 
-  const { beep } = useBeep();
+  const { beep } = useBeep(volume);
+  const lastVolumePreviewRef = useRef(0);
 
   const configured: TimeParts = useMemo(
     () => ({ hours, minutes, seconds: timerSeconds }),
@@ -98,7 +103,8 @@ export default function Timer() {
     localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
     localStorage.setItem(STORAGE_KEYS.silentMode, JSON.stringify(isSilentMode));
     localStorage.setItem(STORAGE_KEYS.presets, JSON.stringify(presets));
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets]);
+    localStorage.setItem(STORAGE_KEYS.volume, JSON.stringify(volume));
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume]);
 
   useEffect(() => {
     promptShownInStateRef.current = false;
@@ -204,6 +210,17 @@ export default function Timer() {
   const playTone = (tone: keyof typeof TONES) => {
     if (!isSilentMode) {
       beep(...TONES[tone]);
+    }
+  };
+
+  // Preview the dragged level with a single alarm burst; throttled to the
+  // tone's own duration so fast dragging doesn't stack overlapping beeps
+  const handleVolumeChange = (value: number) => {
+    setVolume(value);
+    const now = Date.now();
+    if (now - lastVolumePreviewRef.current >= ALARM_TICK_MS) {
+      lastVolumePreviewRef.current = now;
+      beep(...TONES.alarm, value);
     }
   };
 
@@ -458,35 +475,54 @@ export default function Timer() {
             {isSidebarOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
 
-          <button
-            onClick={() => {
-              beep(...TONES.silentToggle);
-              setIsSilentMode(!isSilentMode);
-            }}
-            className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
-            style={{
-              borderColor: isSilentMode ? '#ffffff' : '#22c55e',
-              backgroundColor: 'transparent',
-              fontFamily: "'IBM Plex Mono', monospace",
-            }}
-            title={`${isSilentMode ? 'Click to unmute' : 'Click to mute'} — Tip: for a count-up timer (stopwatch), mute this and set the time to 00:00:00`}
-            aria-label={isSilentMode ? 'Unmute' : 'Mute'}
-          >
-            <span style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', color: isSilentMode ? '#ffffff' : '#22c55e', lineHeight: '1' }}>
-              {isSilentMode ? '🔇' : '🔊'}
-            </span>
-            {isSilentMode && (
-              <div
-                style={{
-                  position: 'absolute',
-                  width: '100%',
-                  height: '3px',
-                  backgroundColor: '#ffffff',
-                  transform: 'rotate(45deg)',
-                }}
+          <div className="relative group">
+            <button
+              onClick={() => {
+                beep(...TONES.silentToggle);
+                setIsSilentMode(!isSilentMode);
+              }}
+              className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
+              style={{
+                borderColor: isSilentMode ? '#ffffff' : '#22c55e',
+                backgroundColor: 'transparent',
+                fontFamily: "'IBM Plex Mono', monospace",
+              }}
+              title={`${isSilentMode ? 'Click to unmute' : 'Click to mute'} — Tip: for a count-up timer (stopwatch), mute this and set the time to 00:00:00`}
+              aria-label={isSilentMode ? 'Unmute' : 'Mute'}
+            >
+              <span style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', color: isSilentMode ? '#ffffff' : '#22c55e', lineHeight: '1' }}>
+                {isSilentMode ? '🔇' : '🔊'}
+              </span>
+              {isSilentMode && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '3px',
+                    backgroundColor: '#ffffff',
+                    transform: 'rotate(45deg)',
+                  }}
+                />
+              )}
+            </button>
+
+            {/* Volume slider: revealed on hover/focus; dragging previews the
+                level with a single (throttled) alarm burst */}
+            <div className="absolute left-0 top-full mt-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 border-3 border-white bg-black p-2 z-50">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                className="block"
+                style={{ width: '6rem', accentColor: isSilentMode ? '#ffffff' : '#22c55e' }}
+                aria-label="Volume"
+                title={`Volume: ${Math.round(volume * 100)}%`}
               />
-            )}
-          </button>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto lg:overflow-hidden">
@@ -508,7 +544,7 @@ export default function Timer() {
                 <span>{!remaining.hours && remaining.sign}{remaining.main}</span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
                 {/* configured time, for reference */}
-                <span className="opacity-60" style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.875rem)', letterSpacing: '0.05em', marginLeft: '0.25em' }}>
+                <span className="opacity-60" style={{ fontSize: 'clamp(0.85rem, 1.6vw, 1.15rem)', letterSpacing: '0.05em', marginLeft: '0.25em' }}>
                   /{configuredDisplay.hours && `${configuredDisplay.hours}:`}{configuredDisplay.main}
                 </span>
               </div>

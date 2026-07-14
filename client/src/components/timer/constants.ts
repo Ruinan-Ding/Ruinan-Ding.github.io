@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   wordCounter: 'wordCounterText',
   silentMode: 'timerSilentMode',
   presets: 'timerAppPresets',
+  volume: 'timerVolume',
 } as const;
 
 // countdown floor: -99:59:59
@@ -38,6 +39,7 @@ export const TONES = {
 } as const;
 
 export const DEFAULT_TIME: TimeParts = { hours: 0, minutes: 1, seconds: 5 };
+export const DEFAULT_VOLUME = 0.5;
 
 export const DEFAULT_PRESETS: TimerEntry[] = [
   { id: 'preset-1', hours: 0, minutes: 1, seconds: 5, timestamp: 0 },

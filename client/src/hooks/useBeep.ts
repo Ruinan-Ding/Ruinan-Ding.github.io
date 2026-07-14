@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 // Single shared AudioContext — browsers cap how many can exist
 let audioContextInstance: AudioContext | null = null;
@@ -15,8 +15,13 @@ const getAudioContext = (): AudioContext => {
   return audioContextInstance;
 };
 
-export const useBeep = () => {
-  const beep = useCallback((frequency: number = 800, duration: number = 200) => {
+// volume: 0-1, applied to every beep unless a call passes its own override
+// (used to preview a specific level while dragging the volume slider)
+export const useBeep = (volume: number = 1) => {
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
+
+  const beep = useCallback((frequency: number = 800, duration: number = 200, volumeOverride?: number) => {
     try {
       const audioContext = getAudioContext();
 
@@ -35,9 +40,11 @@ export const useBeep = () => {
 
       const startTime = audioContext.currentTime;
       const endTime = startTime + duration / 1000;
+      // exponentialRampToValueAtTime requires values > 0
+      const peak = Math.max(0.0001, volumeOverride ?? volumeRef.current);
 
-      gainNode.gain.setValueAtTime(1, startTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, endTime);
+      gainNode.gain.setValueAtTime(peak, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(peak * 0.01, endTime);
 
       oscillator.start(startTime);
       oscillator.stop(endTime);
