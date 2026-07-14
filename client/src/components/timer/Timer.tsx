@@ -355,8 +355,11 @@ export default function Timer() {
 
   const handleConfirmReset = () => {
     playTone('reset');
-    stopToConfigured();
+    clearAlarmInterval();
+    setTime({ seconds: configuredTotalSeconds, milliseconds: 0 });
     recordHistory(configured);
+    setIsRunning(true);
+    setIsPaused(false);
     closeDialog();
   };
 
