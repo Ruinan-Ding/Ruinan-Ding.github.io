@@ -97,7 +97,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
             +
           </button>
           <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', minWidth: 0 }}>
-            <div style={{ position: 'absolute', left: 'clamp(0.375rem, 1vw, 0.5rem)', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)', color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', right: 'clamp(0.375rem, 1vw, 0.5rem)', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)', color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
               {displayValue === '' ? 'HH:MM:SS' : ''}
             </div>
             <input
@@ -125,6 +125,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
                 zIndex: 1,
                 letterSpacing: '0.05em',
                 minWidth: 0,
+                textAlign: 'right',
               }}
             />
           </div>

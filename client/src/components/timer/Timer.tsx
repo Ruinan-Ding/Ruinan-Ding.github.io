@@ -71,6 +71,10 @@ export default function Timer() {
     milliseconds: 0,
   }));
   const { seconds, milliseconds } = time;
+  // mirror for callbacks that need the current time without re-memoizing
+  // on every countdown tick
+  const timeRef = useRef(time);
+  timeRef.current = time;
 
   const [hours, setHours] = useState(() => savedNumber('hours', DEFAULT_TIME.hours));
   const [minutes, setMinutes] = useState(() => savedNumber('minutes', DEFAULT_TIME.minutes));
@@ -404,36 +408,39 @@ export default function Timer() {
     []
   );
 
-  const totalWith = useCallback(
-    (unit: TimeUnit, value: number) => toTotalSeconds({ ...configured, [unit]: value }),
-    [configured]
-  );
-
-  // Apply a change to one unit of the configured time; landing on 0 while
-  // running/paused zeroes the clock so the alarm kicks in on the next tick
-  const applyAdjustment = useCallback((unit: TimeUnit, value: number) => {
+  // Apply a change to one unit of the configured time, shifting the
+  // remaining time by the same delta so elapsed progress is kept (changing
+  // hours must not reset the minutes/seconds already counted down).
+  // Dropping to 0 or below while running/paused zeroes the clock so the
+  // alarm kicks in on the next tick.
+  const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
     setterFor(unit)(value);
-    const newTotalSeconds = totalWith(unit, value);
-    if (newTotalSeconds <= 0 && (isRunning || isPaused)) {
-      setTime({ seconds: 0, milliseconds: 0 });
-      setIsPaused(false);
+    const delta = (value - previous) * (unit === 'hours' ? 3600 : unit === 'minutes' ? 60 : 1);
+    if (isRunning || isPaused) {
+      // at most one tick stale while running, which the countdown absorbs
+      if (timeRef.current.seconds + delta <= 0) {
+        setTime({ seconds: 0, milliseconds: 0 });
+        setIsPaused(false);
+      } else {
+        setTime((prev) => ({ ...prev, seconds: prev.seconds + delta }));
+      }
     } else {
-      setTime((prev) => ({ ...prev, seconds: newTotalSeconds }));
+      setTime((prev) => ({ ...prev, seconds: Math.max(0, prev.seconds + delta) }));
     }
-  }, [isRunning, isPaused, setterFor, totalWith]);
+  }, [isRunning, isPaused, setterFor]);
 
   // Changing a field while running/paused asks for confirmation first
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
     const previous = configured[unit];
     setterFor(unit)(value);
 
-    if (unit === 'hours' && value === previous) return;
+    if (value === previous) return;
 
     if ((isRunning || isPaused) && !promptShownInStateRef.current) {
       setDialog({ type: 'adjust', data: { unit, value, previous } });
       promptShownInStateRef.current = true;
     } else {
-      applyAdjustment(unit, value);
+      applyAdjustment(unit, value, previous);
     }
   }, [configured, isRunning, isPaused, setterFor, applyAdjustment]);
 
@@ -441,8 +448,8 @@ export default function Timer() {
   const handleMinutesChange = useCallback((value: number) => requestConfiguredChange('minutes', value), [requestConfiguredChange]);
   const handleSecondsChange = useCallback((value: number) => requestConfiguredChange('seconds', value), [requestConfiguredChange]);
 
-  const handleConfirmAdjust = (unit: TimeUnit, value: number) => {
-    applyAdjustment(unit, value);
+  const handleConfirmAdjust = (unit: TimeUnit, value: number, previous: number) => {
+    applyAdjustment(unit, value, previous);
     closeDialog();
   };
 
@@ -459,7 +466,7 @@ export default function Timer() {
         handleConfirmSwitch(dialog.data);
         break;
       case 'adjust':
-        handleConfirmAdjust(dialog.data.unit, dialog.data.value);
+        handleConfirmAdjust(dialog.data.unit, dialog.data.value, dialog.data.previous);
         break;
     }
   };
