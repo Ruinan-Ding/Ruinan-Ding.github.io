@@ -17,7 +17,6 @@ export interface TimeParts {
 
 export type DialogState =
   | { type: null }
-  | { type: 'stop' }
   | { type: 'reset' }
   | { type: 'switch'; data: TimeParts }
   | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number } };

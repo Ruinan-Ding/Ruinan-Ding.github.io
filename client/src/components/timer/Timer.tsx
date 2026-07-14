@@ -316,28 +316,12 @@ export default function Timer() {
     playTone('start');
   };
 
-  const stopToConfigured = () => {
+  const resetToConfigured = () => {
     clearAlarmInterval();
     clearCountdownInterval();
     setTime({ seconds: configuredTotalSeconds, milliseconds: 0 });
     setIsRunning(false);
     setIsPaused(false);
-  };
-
-  const handleStopClick = () => {
-    // an actively beeping alarm stops without confirmation
-    if (seconds < 0 && isRunning && !isPaused) {
-      playTone('stop');
-      stopToConfigured();
-      return;
-    }
-    setDialog({ type: 'stop' });
-  };
-
-  const handleConfirmStop = () => {
-    playTone('stop');
-    stopToConfigured();
-    closeDialog();
   };
 
   const handleResetClick = () => {
@@ -355,7 +339,7 @@ export default function Timer() {
 
   const handleConfirmReset = () => {
     playTone('reset');
-    stopToConfigured();
+    resetToConfigured();
     recordHistory(configured);
     closeDialog();
   };
@@ -446,9 +430,6 @@ export default function Timer() {
   const handleDialogConfirm = () => {
     justConfirmedRef.current = true;
     switch (dialog.type) {
-      case 'stop':
-        handleConfirmStop();
-        break;
       case 'reset':
         handleConfirmReset();
         break;
@@ -617,18 +598,10 @@ export default function Timer() {
               )}
 
               <button
-                onClick={handleStopClick}
+                onClick={handleResetClick}
                 disabled={!isRunning && seconds >= 0 && seconds === configuredTotalSeconds}
                 className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={controlButtonStyle('#ef4444')}
-              >
-                STOP
-              </button>
-
-              <button
-                onClick={handleResetClick}
-                className="border-4 font-bold hover:opacity-80 transition-all duration-200"
-                style={controlButtonStyle('#eab308')}
               >
                 RESET
               </button>

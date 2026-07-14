@@ -32,7 +32,6 @@ export const TONES = {
   start: [600, 150],
   resume: [600, 150],
   pause: [400, 150],
-  stop: [800, 100],
   reset: [700, 100],
   silentToggle: [500, 100],
   alarm: [600, 150],
