@@ -557,7 +557,7 @@ export default function Timer() {
 
             {/* Volume slider: revealed on hover/focus; releasing it previews
                 the chosen level with a single alarm burst */}
-            <div className="absolute left-0 top-full mt-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 border-3 border-white bg-black p-2 z-50">
+            <div className="absolute left-full top-0 ml-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 border-3 border-white bg-black p-2 z-50 flex items-center h-10 sm:h-12 md:h-14">
               <input
                 type="range"
                 min={0}
