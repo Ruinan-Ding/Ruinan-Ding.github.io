@@ -16,6 +16,12 @@ const getCopy = (dialog: DialogState) => {
         description: 'Are you sure you want to stop the timer? This will reset it to the initial time.',
         action: 'CONFIRM',
       };
+    case 'clearCache':
+      return {
+        title: 'CLEAR CACHE',
+        description: 'Reset the website to defaults? Presets, history, the word counter, and all settings will be erased.',
+        action: 'CLEAR',
+      };
     case 'reset':
       return {
         title: 'CONFIRM RESET',

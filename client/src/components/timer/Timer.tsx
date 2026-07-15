@@ -1,4 +1,4 @@
-import { Menu, X } from 'lucide-react';
+import { Menu, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
@@ -459,6 +459,11 @@ export default function Timer() {
       case 'stop':
         handleConfirmStop();
         break;
+      case 'clearCache':
+        // wipe saved state and reload so every piece of state re-initializes
+        Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+        window.location.reload();
+        break;
       case 'reset':
         handleConfirmReset();
         break;
@@ -556,28 +561,42 @@ export default function Timer() {
             </button>
 
             {/* Volume slider: revealed on hover/focus; releasing it previews
-                the chosen level with a single alarm burst */}
-            <div className="absolute left-full top-0 ml-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 border-3 border-white bg-black p-2 z-50 flex items-center h-10 sm:h-12 md:h-14">
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={volume}
-                onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                onPointerUp={(e) => playVolumePreview(Number((e.target as HTMLInputElement).value))}
-                onKeyUp={(e) => {
-                  if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
-                    playVolumePreview(Number((e.target as HTMLInputElement).value));
-                  }
-                }}
-                className="block"
-                style={{ width: '6rem', accentColor: isSilentMode ? '#ffffff' : '#22c55e' }}
-                aria-label="Volume"
-                title={`Volume: ${Math.round(volume * 100)}%`}
-              />
+                the chosen level with a single alarm burst. The gap next to
+                the button is padding (not margin) so the pointer can cross
+                it without leaving the hover group. */}
+            <div className="absolute left-full top-0 h-full pl-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 z-50 flex items-center">
+              <div className="border-3 border-white bg-black p-2 flex items-center h-full">
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={volume}
+                  onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                  onPointerUp={(e) => playVolumePreview(Number((e.target as HTMLInputElement).value))}
+                  onKeyUp={(e) => {
+                    if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
+                      playVolumePreview(Number((e.target as HTMLInputElement).value));
+                    }
+                  }}
+                  className="block"
+                  style={{ width: '6rem', accentColor: isSilentMode ? '#ffffff' : '#22c55e' }}
+                  aria-label="Volume"
+                  title={`Volume: ${Math.round(volume * 100)}%`}
+                />
+              </div>
             </div>
           </div>
+
+          <button
+            onClick={() => setDialog({ type: 'clearCache' })}
+            className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 border-red-500 text-red-500 transition-all duration-200 hover:opacity-80"
+            style={{ backgroundColor: 'transparent' }}
+            title="Clear cache — reset the website to defaults"
+            aria-label="Clear cache"
+          >
+            <Trash2 size={22} />
+          </button>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto lg:overflow-hidden">
