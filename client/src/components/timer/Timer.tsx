@@ -8,7 +8,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatTime, toTotalSeconds } from './format';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 
@@ -193,25 +193,26 @@ export default function Timer() {
     };
   }, [isRunning, isPaused]);
 
-  // Alarm while in negative time: a fixed ALARM_TOTAL_BURSTS bursts of
-  // ALARM_BURST_COUNT beeps, then it stops on its own rather than looping
+  // Alarm while in negative time: ALARM_TOTAL_BURSTS bursts of
+  // ALARM_BURST_COUNT beeps, then a longer pause, then the whole group
+  // repeats for as long as the alarm stays active
   const isAlarmActive = isRunning && !isPaused && seconds < 0 && !isSilentMode;
   useEffect(() => {
     if (!isAlarmActive) return;
 
-    const ticksPerBurst = ALARM_BURST_COUNT + ALARM_BURST_GAP_TICKS;
-    const totalTicks = (ALARM_TOTAL_BURSTS - 1) * ticksPerBurst + ALARM_BURST_COUNT;
+    const pattern: boolean[] = [];
+    for (let burst = 0; burst < ALARM_TOTAL_BURSTS; burst++) {
+      for (let i = 0; i < ALARM_BURST_COUNT; i++) pattern.push(true);
+      const gapTicks = burst === ALARM_TOTAL_BURSTS - 1 ? ALARM_GROUP_GAP_TICKS : ALARM_BURST_GAP_TICKS;
+      for (let i = 0; i < gapTicks; i++) pattern.push(false);
+    }
 
     let tick = 0;
     const playTick = () => {
-      if (tick % ticksPerBurst < ALARM_BURST_COUNT) {
+      if (pattern[tick % pattern.length]) {
         beep(...TONES.alarm);
       }
       tick++;
-      if (tick >= totalTicks && beepIntervalRef.current) {
-        clearInterval(beepIntervalRef.current);
-        beepIntervalRef.current = null;
-      }
     };
     playTick();
     beepIntervalRef.current = setInterval(playTick, ALARM_TICK_MS);
