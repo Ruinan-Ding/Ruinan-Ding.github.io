@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { MAX_PRESETS } from './constants';
-import { formatEntryLabel, formatPresetDisplay, parsePresetDigits, presetDigits } from './format';
+import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
 import type { TimeParts, TimerEntry } from './types';
 
 // Sized so the 8-character HH:MM:SS display spans the input's inner width
@@ -14,15 +14,16 @@ interface PresetsPanelProps {
   onSelect: (entry: TimerEntry) => void;
 }
 
-// Digit entry is keydown-driven rather than derived from onChange: the
-// display re-pads to a full 6-digit shape, so onChange can't tell a partial
-// entry from a complete one. Track the raw typed digits instead.
+// Digit entry is keydown-driven rather than derived from onChange, since
+// onChange alone can't tell a partial entry from a complete one. Track the
+// raw typed digits instead, and render them unpadded (same style used
+// everywhere else in the app: "1:30", not "00:01:30").
 function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
 
-  const displayValue = digits === '' ? '' : formatPresetDisplay(digits);
+  const displayValue = digits === '' ? '' : formatEntryLabel(parsePresetDigits(digits));
 
   // keep the caret parked at the far right; digits enter from there
   useEffect(() => {
