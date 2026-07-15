@@ -23,14 +23,18 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
   const atCapacity = presets.length >= MAX_PRESETS;
 
   const displayValue = digits === '' ? '' : formatEntryLabel(parsePresetDigits(digits));
+  // the input's real value matches the hint's character count while empty
+  // (rendered invisible) purely so the caret lands right after the hint's
+  // last "S" instead of in the middle of the empty box
+  const inputValue = digits === '' ? 'HH:MM:SS' : displayValue;
 
-  // keep the caret parked at the far right; digits enter from there
+  // keep the caret parked at the end; digits enter from there
   useEffect(() => {
     const el = inputRef.current;
     if (el && document.activeElement === el) {
       el.setSelectionRange(el.value.length, el.value.length);
     }
-  }, [displayValue]);
+  }, [inputValue]);
 
   const handleAdd = () => {
     if (atCapacity || digits === '') return;
@@ -117,7 +121,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
               ref={inputRef}
               type="text"
               inputMode="numeric"
-              value={displayValue}
+              value={inputValue}
               onChange={() => {}}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
@@ -129,14 +133,17 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: 'clamp(0.375rem, 1vw, 0.5rem)',
                 fontSize: PRESET_INPUT_FONT_SIZE,
-                color: '#ffffff',
+                // invisible while showing the hint's character count, so the
+                // decorative hint div shows through underneath instead
+                color: digits === '' ? 'transparent' : '#ffffff',
                 backgroundColor: 'transparent',
                 position: 'relative',
                 zIndex: 1,
                 letterSpacing: '0.05em',
                 minWidth: 0,
                 // centered, so the caret naturally lands right after the
-                // last typed digit instead of at the box's outer edge
+                // last typed digit (or the hint's last "S") instead of at
+                // the box's outer edge
                 textAlign: 'center',
               }}
             />
