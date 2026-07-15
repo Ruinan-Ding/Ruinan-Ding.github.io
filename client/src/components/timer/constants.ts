@@ -38,7 +38,7 @@ export const TONES = {
   alarm: [600, 150],
 } as const;
 
-export const DEFAULT_TIME: TimeParts = { hours: 0, minutes: 1, seconds: 5 };
+export const DEFAULT_TIME: TimeParts = { hours: 0, minutes: 5, seconds: 0 };
 export const DEFAULT_VOLUME = 0.5;
 
 export const DEFAULT_PRESETS: TimerEntry[] = [

@@ -389,11 +389,19 @@ export default function Timer() {
       setDialog({ type: 'switch', data: parts });
       return;
     }
+    // a beeping timer hands off to the new preset and keeps running;
+    // a stopped one just loads it
+    const wasBeeping = isRunning && timeRef.current.seconds < 0;
     clearAlarmInterval();
     loadEntry(parts);
-    setIsRunning(false);
     setIsPaused(false);
-  }, [isRunning, loadEntry]);
+    if (wasBeeping) {
+      recordHistory(parts);
+      playTone('start');
+    } else {
+      setIsRunning(false);
+    }
+  }, [isRunning, loadEntry, isSilentMode, beep]);
 
   // a confirmed switch starts the new timer immediately
   const handleConfirmSwitch = (parts: TimeParts) => {
