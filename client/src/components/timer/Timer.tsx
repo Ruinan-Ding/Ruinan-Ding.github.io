@@ -223,13 +223,16 @@ export default function Timer() {
       }
       return true;
     }
+    // a timer that's never run — idle at its configured time — has
+    // nothing for STOP or RESET to act on
+    const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
     if (code === 'KeyS') {
-      // mirrors the STOP button, including its disabled state
-      if (!isRunning && seconds >= 0 && seconds === configuredTotalSeconds) return false;
+      if (isIdleAtConfigured) return false;
       handleStopClick();
       return true;
     }
     if (code === 'KeyR') {
+      if (isIdleAtConfigured) return false;
       handleResetClick();
       return true;
     }
@@ -533,6 +536,10 @@ export default function Timer() {
   const remaining = formatTime(seconds, milliseconds);
   const configuredDisplay = formatTime(configuredTotalSeconds);
 
+  // a timer that's never run — idle at its configured time — has nothing
+  // for STOP or RESET to act on
+  const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
+
   const status = seconds < 0
     ? (isPaused ? 'PAUSED' : 'FINISHED')
     : isRunning
@@ -705,7 +712,7 @@ export default function Timer() {
 
               <button
                 onClick={handleStopClick}
-                disabled={!isRunning && seconds >= 0 && seconds === configuredTotalSeconds}
+                disabled={isIdleAtConfigured}
                 className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={controlButtonStyle('#ef4444')}
               >
@@ -714,7 +721,8 @@ export default function Timer() {
 
               <button
                 onClick={handleResetClick}
-                className="border-4 font-bold hover:opacity-80 transition-all duration-200"
+                disabled={isIdleAtConfigured}
+                className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={controlButtonStyle('#eab308')}
               >
                 RESET
@@ -728,11 +736,10 @@ export default function Timer() {
 
               {(() => {
                 const subject = seconds < 0 ? 'alarm' : 'timer';
-                const isStopDisabled = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
                 const hints = [
                   { key: 'SPACE', text: `Press SPACE to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${subject}`, disabled: false },
-                  { key: 'S', text: `Press S to STOP the ${subject}`, disabled: isStopDisabled },
-                  { key: 'R', text: `Press R to RESET the ${subject}`, disabled: false },
+                  { key: 'S', text: `Press S to STOP the ${subject}`, disabled: isIdleAtConfigured },
+                  { key: 'R', text: `Press R to RESET the ${subject}`, disabled: isIdleAtConfigured },
                 ];
                 return hints.map(({ key, text, disabled }) => (
                   <div
