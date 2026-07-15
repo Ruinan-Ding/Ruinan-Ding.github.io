@@ -64,6 +64,15 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
     setDigits(`${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}${String(seconds).padStart(2, '0')}`);
   };
 
+  // Digits enter from the right, so the caret always belongs after the last
+  // one; onSelect catches every way it could move (click, drag, arrow keys)
+  const pinCaret = (el: HTMLInputElement) => {
+    const end = el.value.length;
+    if (el.selectionStart !== end || el.selectionEnd !== end) {
+      el.setSelectionRange(end, end);
+    }
+  };
+
   return (
     <div>
       <h2 className="text-white font-bold mb-4 border-b-2 border-white pb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1.125rem)' }}>PRESETS</h2>
@@ -109,11 +118,8 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               onBlur={handleBlur}
-              onFocus={(e) => e.target.setSelectionRange(e.target.value.length, e.target.value.length)}
-              onMouseUp={(e) => {
-                const el = e.target as HTMLInputElement;
-                el.setSelectionRange(el.value.length, el.value.length);
-              }}
+              onFocus={(e) => pinCaret(e.target)}
+              onSelect={(e) => pinCaret(e.target as HTMLInputElement)}
               className="border-4 border-white font-bold transition-colors duration-0 w-full preset-input"
               style={{
                 fontFamily: "'IBM Plex Mono', monospace",

@@ -54,7 +54,17 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
 
   return (
     <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss()}>
-      <AlertDialogContent className="bg-black border-4 border-white">
+      <AlertDialogContent
+        className="bg-black border-4 border-white"
+        onKeyDown={(e) => {
+          // Enter confirms regardless of which button holds focus
+          // (Escape already dismisses via Radix)
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onConfirm();
+          }
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle className="text-white text-2xl font-bold">{copy?.title}</AlertDialogTitle>
           <AlertDialogDescription className="text-white text-lg">{copy?.description}</AlertDialogDescription>
@@ -64,13 +74,13 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             onClick={onDismiss}
             className="border-4 border-white text-white font-bold px-6 py-3 hover:bg-white hover:text-black"
           >
-            CANCEL
+            CANCEL <span className="opacity-60 font-normal">(ESC)</span>
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
           >
-            {copy?.action}
+            {copy?.action} <span className="opacity-60 font-normal">(ENTER)</span>
           </AlertDialogAction>
         </div>
       </AlertDialogContent>

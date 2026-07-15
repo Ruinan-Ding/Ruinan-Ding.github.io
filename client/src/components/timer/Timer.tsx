@@ -588,16 +588,30 @@ export default function Timer() {
             </div>
           </div>
 
-          <button
-            onClick={() => setDialog({ type: 'clearCache' })}
-            className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 border-red-500 text-red-500 transition-all duration-200 hover:opacity-80"
-            style={{ backgroundColor: 'transparent' }}
-            title="Clear cache — reset the website to defaults"
-            aria-label="Clear cache"
-          >
-            <Trash2 size={22} />
-          </button>
         </div>
+
+        {/* Link to my main site */}
+        <a
+          href="https://ruinan-ding.github.io/Ruinan-Ding/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute top-2 sm:top-3 md:top-4 left-1/2 -translate-x-1/2 z-50 text-white underline hover:opacity-80 transition-opacity whitespace-nowrap"
+          style={{ fontSize: 'clamp(0.75rem, 1.5vw, 1rem)', fontFamily: "'IBM Plex Mono', monospace" }}
+        >
+          Check out my website
+        </a>
+
+        {/* Reset the whole site to defaults */}
+        <button
+          onClick={() => setDialog({ type: 'clearCache' })}
+          className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-50 flex items-center gap-2 border-3 border-red-500 text-red-500 font-bold px-3 h-10 sm:h-12 md:h-14 transition-all duration-200 hover:opacity-80"
+          style={{ backgroundColor: 'transparent', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 1rem)' }}
+          title="Reset the website to defaults"
+          aria-label="Reset the website to defaults"
+        >
+          <Trash2 size={22} />
+          RESET
+        </button>
 
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto lg:overflow-hidden">
           <div className="flex-1 hidden lg:block"></div>
