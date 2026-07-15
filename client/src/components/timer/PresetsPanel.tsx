@@ -3,9 +3,8 @@ import { MAX_PRESETS } from './constants';
 import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
 import type { TimeParts, TimerEntry } from './types';
 
-// Sized so the 8-character HH:MM:SS display spans the input's inner width
-// (100cqw minus border/padding, divided across the monospace glyphs)
-const PRESET_INPUT_FONT_SIZE = 'clamp(0.75rem, calc((100cqw - 1.6rem) / 5.3), 2.5rem)';
+// matches the font size of the preset list buttons below
+const PRESET_INPUT_FONT_SIZE = 'clamp(0.75rem, 1.5vw, 0.875rem)';
 
 interface PresetsPanelProps {
   presets: TimerEntry[];
@@ -110,7 +109,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
           >
             +
           </button>
-          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', minWidth: 0, containerType: 'inline-size' }}>
+          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', minWidth: 0 }}>
             <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: PRESET_INPUT_FONT_SIZE, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
               {displayValue === '' ? 'HH:MM:SS' : ''}
             </div>
@@ -136,9 +135,9 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
                 zIndex: 1,
                 letterSpacing: '0.05em',
                 minWidth: 0,
-                // right-aligned so the caret sits at the right edge even
-                // while the field is empty
-                textAlign: 'right',
+                // centered visually; pinCaret still keeps the actual caret
+                // position locked to the end of the typed digits
+                textAlign: 'center',
               }}
             />
           </div>
