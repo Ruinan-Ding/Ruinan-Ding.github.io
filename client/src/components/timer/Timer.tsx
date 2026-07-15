@@ -428,6 +428,14 @@ export default function Timer() {
   // alarm kicks in on the next tick.
   const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
     setterFor(unit)(value);
+    // a finished (beeping) timer restarts from the new configured time
+    // instead of clamping the negative remainder to zero
+    if (timeRef.current.seconds < 0) {
+      clearAlarmInterval();
+      setTime({ seconds: toTotalSeconds({ ...configured, [unit]: value }), milliseconds: 0 });
+      setIsPaused(false);
+      return;
+    }
     const delta = (value - previous) * (unit === 'hours' ? 3600 : unit === 'minutes' ? 60 : 1);
     if (isRunning || isPaused) {
       // at most one tick stale while running, which the countdown absorbs
@@ -440,7 +448,7 @@ export default function Timer() {
     } else {
       setTime((prev) => ({ ...prev, seconds: Math.max(0, prev.seconds + delta) }));
     }
-  }, [isRunning, isPaused, setterFor]);
+  }, [isRunning, isPaused, setterFor, configured]);
 
   // Changing a field while running/paused asks for confirmation first
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
@@ -449,7 +457,8 @@ export default function Timer() {
 
     if (value === previous) return;
 
-    if ((isRunning || isPaused) && !promptShownInStateRef.current) {
+    // no confirmation while beeping — the adjustment restarts the timer
+    if ((isRunning || isPaused) && timeRef.current.seconds >= 0 && !promptShownInStateRef.current) {
       setDialog({ type: 'adjust', data: { unit, value, previous } });
       promptShownInStateRef.current = true;
     } else {
