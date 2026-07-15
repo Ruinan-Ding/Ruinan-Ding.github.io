@@ -726,24 +726,27 @@ export default function Timer() {
                 {status}
               </div>
 
-              {isWordCounterFocused && (
-                <div className="text-red-500 opacity-75 tracking-wider" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 1rem)' }}>
-                  Spacebar disabled for timer
-                </div>
-              )}
-              {isRunning && !isWordCounterFocused && (
-                <>
-                  <div className="text-white opacity-75 tracking-wider" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 1rem)' }}>
-                    Press SPACE to {isPaused ? 'RESUME' : 'PAUSE'} the {seconds < 0 ? 'alarm' : 'timer'}
+              {(() => {
+                const subject = seconds < 0 ? 'alarm' : 'timer';
+                const isStopDisabled = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
+                const hints = [
+                  { key: 'SPACE', text: `Press SPACE to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${subject}`, disabled: false },
+                  { key: 'S', text: `Press S to STOP the ${subject}`, disabled: isStopDisabled },
+                  { key: 'R', text: `Press R to RESET the ${subject}`, disabled: false },
+                ];
+                return hints.map(({ key, text, disabled }) => (
+                  <div
+                    key={key}
+                    className="opacity-75 tracking-wider"
+                    style={{
+                      fontSize: 'clamp(0.75rem, 1.8vw, 1rem)',
+                      color: isWordCounterFocused ? '#ef4444' : '#ffffff',
+                    }}
+                  >
+                    {isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text}
                   </div>
-                  <div className="text-white opacity-75 tracking-wider" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 1rem)' }}>
-                    Press S to STOP the {seconds < 0 ? 'alarm' : 'timer'}
-                  </div>
-                  <div className="text-white opacity-75 tracking-wider" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 1rem)' }}>
-                    Press R to RESET the {seconds < 0 ? 'alarm' : 'timer'}
-                  </div>
-                </>
-              )}
+                ));
+              })()}
             </div>
           </div>
 
