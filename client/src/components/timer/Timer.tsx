@@ -8,7 +8,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_TICK_MS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatTime, toTotalSeconds } from './format';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 
@@ -90,6 +90,11 @@ export default function Timer() {
     const saved = localStorage.getItem(STORAGE_KEYS.volume);
     return saved ? JSON.parse(saved) : DEFAULT_VOLUME;
   });
+  // gates the one-time "are you sure?" the first time this browser mutes
+  const [hasMutedBefore, setHasMutedBefore] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.hasMutedBefore);
+    return saved ? JSON.parse(saved) : false;
+  });
 
   const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
@@ -139,7 +144,8 @@ export default function Timer() {
     localStorage.setItem(STORAGE_KEYS.silentMode, JSON.stringify(isSilentMode));
     localStorage.setItem(STORAGE_KEYS.presets, JSON.stringify(presets));
     localStorage.setItem(STORAGE_KEYS.volume, JSON.stringify(volume));
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume]);
+    localStorage.setItem(STORAGE_KEYS.hasMutedBefore, JSON.stringify(hasMutedBefore));
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore]);
 
   useEffect(() => {
     promptShownInStateRef.current = false;
@@ -187,24 +193,31 @@ export default function Timer() {
     };
   }, [isRunning, isPaused]);
 
-  // Alarm while in negative time: bursts of beeps with gaps between them
+  // Alarm while in negative time: a fixed ALARM_TOTAL_BURSTS bursts of
+  // ALARM_BURST_COUNT beeps, then it stops on its own rather than looping
   const isAlarmActive = isRunning && !isPaused && seconds < 0 && !isSilentMode;
   useEffect(() => {
     if (!isAlarmActive) return;
 
+    const ticksPerBurst = ALARM_BURST_COUNT + ALARM_BURST_GAP_TICKS;
+    const totalTicks = (ALARM_TOTAL_BURSTS - 1) * ticksPerBurst + ALARM_BURST_COUNT;
+
     let tick = 0;
     const playTick = () => {
-      if (tick % (ALARM_BURST_COUNT + ALARM_BURST_GAP_TICKS) < ALARM_BURST_COUNT) {
+      if (tick % ticksPerBurst < ALARM_BURST_COUNT) {
         beep(...TONES.alarm);
       }
       tick++;
+      if (tick >= totalTicks && beepIntervalRef.current) {
+        clearInterval(beepIntervalRef.current);
+        beepIntervalRef.current = null;
+      }
     };
     playTick();
-    const id = setInterval(playTick, ALARM_TICK_MS);
-    beepIntervalRef.current = id;
+    beepIntervalRef.current = setInterval(playTick, ALARM_TICK_MS);
 
     return () => {
-      clearInterval(id);
+      if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
       beepIntervalRef.current = null;
     };
   }, [isAlarmActive, beep]);
@@ -269,6 +282,29 @@ export default function Timer() {
     if (!isSilentMode) {
       beep(...TONES[tone]);
     }
+  };
+
+  // Muting is silent — no confirmation tone — except the very first time
+  // this browser has ever muted, which asks for confirmation first
+  const handleMuteToggle = () => {
+    if (isSilentMode) {
+      beep(...TONES.silentToggle);
+      // unmuting with the slider parked at 0 restores a usable level
+      if (volume === 0) setVolume(DEFAULT_VOLUME);
+      setIsSilentMode(false);
+      return;
+    }
+    if (!hasMutedBefore) {
+      setDialog({ type: 'mute' });
+      return;
+    }
+    setIsSilentMode(true);
+  };
+
+  const handleConfirmMute = () => {
+    setIsSilentMode(true);
+    setHasMutedBefore(true);
+    closeDialog();
   };
 
   // Dragging the slider to 0 mutes; dragging back off 0 unmutes
@@ -506,6 +542,9 @@ export default function Timer() {
       case 'stop':
         handleConfirmStop();
         break;
+      case 'mute':
+        handleConfirmMute();
+        break;
       case 'clearCache':
         // wipe saved state and reload so every piece of state re-initializes
         Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
@@ -593,12 +632,7 @@ export default function Timer() {
 
           <div className="relative group">
             <button
-              onClick={() => {
-                beep(...TONES.silentToggle);
-                // unmuting with the slider parked at 0 restores a usable level
-                if (isSilentMode && volume === 0) setVolume(DEFAULT_VOLUME);
-                setIsSilentMode(!isSilentMode);
-              }}
+              onClick={handleMuteToggle}
               className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
               style={{
                 borderColor: isSilentMode ? '#ffffff' : '#22c55e',

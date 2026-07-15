@@ -16,6 +16,12 @@ const getCopy = (dialog: DialogState) => {
         description: 'Are you sure you want to stop the timer? This will reset it to the initial time.',
         action: 'CONFIRM',
       };
+    case 'mute':
+      return {
+        title: 'CONFIRM MUTE',
+        description: "Mute the alarm? You won't hear it when the timer runs out.",
+        action: 'MUTE',
+      };
     case 'clearCache':
       return {
         title: 'CLEAR CACHE',

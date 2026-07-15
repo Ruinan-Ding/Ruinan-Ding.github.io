@@ -20,5 +20,6 @@ export type DialogState =
   | { type: 'stop' }
   | { type: 'reset' }
   | { type: 'clearCache' }
+  | { type: 'mute' }
   | { type: 'switch'; data: TimeParts }
   | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number } };

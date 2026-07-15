@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   silentMode: 'timerSilentMode',
   presets: 'timerAppPresets',
   volume: 'timerVolume',
+  hasMutedBefore: 'timerHasMutedBefore',
 } as const;
 
 // countdown floor: -99:59:59
@@ -15,11 +16,13 @@ export const MIN_TOTAL_SECONDS = -359999;
 
 export const TICK_MS = 10;
 
-// alarm pattern: ALARM_BURST_COUNT beeps every ALARM_TICK_MS, then
-// ALARM_BURST_GAP_TICKS slots of silence
+// alarm pattern: ALARM_TOTAL_BURSTS groups of ALARM_BURST_COUNT beeps every
+// ALARM_TICK_MS, separated by ALARM_BURST_GAP_TICKS slots of silence, then
+// it stops on its own
 export const ALARM_TICK_MS = 250;
 export const ALARM_BURST_COUNT = 3;
 export const ALARM_BURST_GAP_TICKS = 3;
+export const ALARM_TOTAL_BURSTS = 3;
 
 export const MAX_HOURS = 99;
 export const MAX_MINUTES = 59;
