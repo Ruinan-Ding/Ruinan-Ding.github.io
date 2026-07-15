@@ -383,13 +383,16 @@ export default function Timer() {
 
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
-    if (isRunning) {
+    // also confirm when stopped-with-progress (e.g. a reload mid-countdown
+    // leaves isRunning false but the elapsed time still off from configured)
+    // so that progress isn't silently discarded
+    if (isRunning || timeRef.current.seconds !== configuredTotalSeconds) {
       setDialog({ type: 'switch', data: parts });
       return;
     }
     loadEntry(parts);
     setIsPaused(false);
-  }, [isRunning, loadEntry]);
+  }, [isRunning, configuredTotalSeconds, loadEntry]);
 
   const handleConfirmSwitch = (parts: TimeParts) => {
     loadEntry(parts);

@@ -31,7 +31,7 @@ const getCopy = (dialog: DialogState) => {
     case 'switch':
       return {
         title: 'SWITCH TIMER',
-        description: `A timer is currently running. Do you want to switch to ${formatEntryLabel(dialog.data)}?`,
+        description: `Switch to ${formatEntryLabel(dialog.data)}? Current progress will be lost.`,
         action: 'SWITCH',
       };
     case 'adjust': {
