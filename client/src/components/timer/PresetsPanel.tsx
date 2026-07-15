@@ -3,6 +3,10 @@ import { MAX_PRESETS } from './constants';
 import { formatEntryLabel, formatPresetDisplay, parsePresetDigits, presetDigits } from './format';
 import type { TimeParts, TimerEntry } from './types';
 
+// Sized so the 8-character HH:MM:SS display spans the input's inner width
+// (100cqw minus border/padding, divided across the monospace glyphs)
+const PRESET_INPUT_FONT_SIZE = 'clamp(0.75rem, calc((100cqw - 1.6rem) / 5.3), 2.5rem)';
+
 interface PresetsPanelProps {
   presets: TimerEntry[];
   onAdd: (parts: TimeParts) => void;
@@ -105,8 +109,8 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
           >
             +
           </button>
-          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', minWidth: 0 }}>
-            <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)', color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', minWidth: 0, containerType: 'inline-size' }}>
+            <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: PRESET_INPUT_FONT_SIZE, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
               {displayValue === '' ? 'HH:MM:SS' : ''}
             </div>
             <input
@@ -124,14 +128,16 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
               style={{
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: 'clamp(0.375rem, 1vw, 0.5rem)',
-                fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)',
+                fontSize: PRESET_INPUT_FONT_SIZE,
                 color: '#ffffff',
                 backgroundColor: 'transparent',
                 position: 'relative',
                 zIndex: 1,
                 letterSpacing: '0.05em',
                 minWidth: 0,
-                textAlign: 'center',
+                // right-aligned so the caret sits at the right edge even
+                // while the field is empty
+                textAlign: 'right',
               }}
             />
           </div>

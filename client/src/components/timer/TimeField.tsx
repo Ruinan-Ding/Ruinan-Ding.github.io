@@ -46,6 +46,9 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      // preventDefault, or the same key press activates the cancel button
+      // the confirmation dialog focuses on open, instantly dismissing it
+      e.preventDefault();
       inputRef.current?.blur();
     } else if (e.key === 'Escape') {
       cancelledRef.current = true;

@@ -145,6 +145,12 @@ export default function Timer() {
     promptShownInStateRef.current = false;
   }, [isRunning, isPaused]);
 
+  // Confirming via Enter closes the dialog without a Radix close event, so
+  // the flag isn't consumed by onOpenChange; clear it as each dialog opens
+  useEffect(() => {
+    if (dialog.type !== null) justConfirmedRef.current = false;
+  }, [dialog.type]);
+
   // Tab title/favicon shows the remaining time
   const remainingWholeSeconds = Math.floor(Math.abs(seconds * 1000 + milliseconds) / 1000);
   useFavicon(
