@@ -113,13 +113,6 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
             <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: PRESET_INPUT_FONT_SIZE, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
               {displayValue === '' ? 'HH:MM:SS' : ''}
             </div>
-            {/* the visible, centered text; the real input's own glyphs are
-                transparent so its right-aligned caret can sit at the box's
-                right edge (where digits enter from) without the text itself
-                also being right-aligned */}
-            <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: PRESET_INPUT_FONT_SIZE, color: '#ffffff', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
-              {displayValue}
-            </div>
             <input
               ref={inputRef}
               type="text"
@@ -136,16 +129,15 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: 'clamp(0.375rem, 1vw, 0.5rem)',
                 fontSize: PRESET_INPUT_FONT_SIZE,
-                color: 'transparent',
-                caretColor: '#ffffff',
+                color: '#ffffff',
                 backgroundColor: 'transparent',
                 position: 'relative',
                 zIndex: 1,
                 letterSpacing: '0.05em',
                 minWidth: 0,
-                // right-aligned so the caret sits at the box's right edge;
-                // the visible text is the centered overlay above instead
-                textAlign: 'right',
+                // centered, so the caret naturally lands right after the
+                // last typed digit instead of at the box's outer edge
+                textAlign: 'center',
               }}
             />
           </div>
