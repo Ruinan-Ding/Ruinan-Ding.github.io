@@ -209,25 +209,39 @@ export default function Timer() {
     };
   }, [isAlarmActive, beep]);
 
-  // Spacebar mirrors the on-screen controls; the ref lets the keydown
+  // Space/S/R mirror the on-screen controls; the ref lets the keydown
   // listener stay registered once instead of rebinding every tick
-  const spacebarActionRef = useRef<() => boolean>(() => false);
-  spacebarActionRef.current = () => {
+  const keyActionRef = useRef<(code: string) => boolean>(() => false);
+  keyActionRef.current = (code) => {
     // let the dialog own the keyboard while open
     if (dialog.type !== null) return false;
-    if (isRunning) {
-      togglePause();
-    } else {
-      handleStart();
+    if (code === 'Space') {
+      if (isRunning) {
+        togglePause();
+      } else {
+        handleStart();
+      }
+      return true;
     }
-    return true;
+    if (code === 'KeyS') {
+      // mirrors the STOP button, including its disabled state
+      if (!isRunning && seconds >= 0 && seconds === configuredTotalSeconds) return false;
+      handleStopClick();
+      return true;
+    }
+    if (code === 'KeyR') {
+      handleResetClick();
+      return true;
+    }
+    return false;
   };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== 'Space') return;
+      if (e.code !== 'Space' && e.code !== 'KeyS' && e.code !== 'KeyR') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
-      if (spacebarActionRef.current()) {
+      if (keyActionRef.current(e.code)) {
         e.preventDefault();
       }
     };
@@ -718,9 +732,17 @@ export default function Timer() {
                 </div>
               )}
               {isRunning && !isWordCounterFocused && (
-                <div className="text-white opacity-75 tracking-wider" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 1rem)' }}>
-                  Press SPACE to {isPaused ? 'RESUME' : 'PAUSE'} the {seconds < 0 ? 'alarm' : 'timer'}
-                </div>
+                <>
+                  <div className="text-white opacity-75 tracking-wider" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 1rem)' }}>
+                    Press SPACE to {isPaused ? 'RESUME' : 'PAUSE'} the {seconds < 0 ? 'alarm' : 'timer'}
+                  </div>
+                  <div className="text-white opacity-75 tracking-wider" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 1rem)' }}>
+                    Press S to STOP the {seconds < 0 ? 'alarm' : 'timer'}
+                  </div>
+                  <div className="text-white opacity-75 tracking-wider" style={{ fontSize: 'clamp(0.75rem, 1.8vw, 1rem)' }}>
+                    Press R to RESET the {seconds < 0 ? 'alarm' : 'timer'}
+                  </div>
+                </>
               )}
             </div>
           </div>
