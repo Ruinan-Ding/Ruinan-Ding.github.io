@@ -746,21 +746,21 @@ export default function Timer() {
               )}
 
               <button
-                onClick={handleStopClick}
-                disabled={isIdleAtConfigured}
-                className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={controlButtonStyle('#ef4444')}
-              >
-                STOP
-              </button>
-
-              <button
                 onClick={handleResetClick}
                 disabled={isIdleAtConfigured}
                 className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={controlButtonStyle('#eab308')}
               >
                 RESET
+              </button>
+
+              <button
+                onClick={handleStopClick}
+                disabled={isIdleAtConfigured}
+                className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={controlButtonStyle('#ef4444')}
+              >
+                STOP
               </button>
             </div>
 
@@ -773,8 +773,8 @@ export default function Timer() {
                 const subject = seconds < 0 ? 'alarm' : 'timer';
                 const hints = [
                   { key: 'SPACE', text: `Press SPACE to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${subject}`, disabled: false },
-                  { key: 'S', text: `Press S to STOP the ${subject}`, disabled: isIdleAtConfigured },
                   { key: 'R', text: `Press R to RESET the ${subject}`, disabled: isIdleAtConfigured },
+                  { key: 'S', text: `Press S to STOP the ${subject}`, disabled: isIdleAtConfigured },
                 ];
                 return hints.map(({ key, text, disabled }) => (
                   <div
