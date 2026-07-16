@@ -52,7 +52,8 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
 
   const appendDigits = (text: string) => {
     const typed = text.replace(/\D/g, '');
-    if (typed) setDigits((prev) => ((prev ?? '') + typed).slice(-2));
+    // blocks further digits once at 2, rather than shifting the window
+    if (typed) setDigits((prev) => ((prev ?? '') + typed).slice(0, 2));
   };
 
   const handleBlur = () => {
