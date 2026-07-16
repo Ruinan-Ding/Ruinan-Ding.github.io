@@ -134,8 +134,11 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
                 padding: 'clamp(0.375rem, 1vw, 0.5rem)',
                 fontSize: PRESET_INPUT_FONT_SIZE,
                 // invisible while showing the hint's character count, so the
-                // decorative hint div shows through underneath instead
+                // decorative hint div shows through underneath instead —
+                // caretColor is set separately since it inherits from color
+                // and would otherwise vanish along with the text
                 color: digits === '' ? 'transparent' : '#ffffff',
+                caretColor: '#ffffff',
                 backgroundColor: 'transparent',
                 position: 'relative',
                 zIndex: 1,
