@@ -745,7 +745,7 @@ export default function Timer() {
                     ? 'text-black bg-green-500 animate-none'
                     : `text-white ${isRunning && isPaused ? 'animate-pauseFlash' : ''}`
               }`}
-              style={{ fontSize: 'clamp(2.5rem, 12vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
+              style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
             >
               <div className="flex items-baseline gap-1">
                 {remaining.hours && <span style={{ fontSize: '0.5em' }}>{remaining.sign}{remaining.hours}</span>}
