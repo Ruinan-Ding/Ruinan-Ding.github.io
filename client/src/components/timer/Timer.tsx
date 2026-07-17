@@ -203,6 +203,8 @@ export default function Timer() {
   // ALARM_BURST_COUNT beeps, then a longer pause, then the whole group
   // repeats for as long as the alarm stays active
   const isAlarmActive = isRunning && !isPaused && seconds < 0 && !isSilentMode;
+  const alarmLoopRef = useRef(isAlarmLooping);
+  alarmLoopRef.current = isAlarmLooping;
   useEffect(() => {
     if (!isAlarmActive) return;
 
@@ -213,9 +215,15 @@ export default function Timer() {
       for (let i = 0; i < gapTicks; i++) pattern.push(false);
     }
 
+    // the flag is read through a ref so a mid-ring toggle doesn't restart
+    // the pattern; turning looping off after it was on this ring mutes
+    // immediately instead of ringing another finite set
     let tick = 0;
+    let loopedThisRing = alarmLoopRef.current;
     const playTick = () => {
-      if (!isAlarmLooping && tick >= pattern.length * ALARM_FINITE_GROUPS) {
+      if (alarmLoopRef.current) loopedThisRing = true;
+      const done = loopedThisRing || tick >= pattern.length * ALARM_FINITE_GROUPS;
+      if (!alarmLoopRef.current && done) {
         if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
         beepIntervalRef.current = null;
         return;
@@ -232,7 +240,7 @@ export default function Timer() {
       if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
       beepIntervalRef.current = null;
     };
-  }, [isAlarmActive, beep, isAlarmLooping]);
+  }, [isAlarmActive, beep]);
 
   // Space/S/R mirror the on-screen controls; the ref lets the keydown
   // listener stay registered once instead of rebinding every tick
