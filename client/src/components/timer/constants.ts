@@ -26,7 +26,7 @@ export const ALARM_BURST_COUNT = 3;
 export const ALARM_BURST_GAP_TICKS = 3;
 export const ALARM_TOTAL_BURSTS = 3;
 export const ALARM_GROUP_GAP_TICKS = 10;
-export const ALARM_FINITE_GROUPS = 3;
+export const ALARM_FINITE_GROUPS = 1;
 
 export const MAX_HOURS = 99;
 export const MAX_MINUTES = 59;
