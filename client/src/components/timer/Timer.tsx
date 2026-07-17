@@ -1,4 +1,4 @@
-import { Menu, Trash2, X } from 'lucide-react';
+import { Menu, Repeat, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
@@ -8,7 +8,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_FINITE_GROUPS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatTime, toTotalSeconds } from './format';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 
@@ -95,6 +95,11 @@ export default function Timer() {
     const saved = localStorage.getItem(STORAGE_KEYS.hasMutedBefore);
     return saved ? JSON.parse(saved) : false;
   });
+  // on = alarm groups repeat forever; off = ring ALARM_FINITE_GROUPS groups then go quiet
+  const [isAlarmLooping, setIsAlarmLooping] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.alarmLoop);
+    return saved ? JSON.parse(saved) : true;
+  });
 
   const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
@@ -145,7 +150,8 @@ export default function Timer() {
     localStorage.setItem(STORAGE_KEYS.presets, JSON.stringify(presets));
     localStorage.setItem(STORAGE_KEYS.volume, JSON.stringify(volume));
     localStorage.setItem(STORAGE_KEYS.hasMutedBefore, JSON.stringify(hasMutedBefore));
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore]);
+    localStorage.setItem(STORAGE_KEYS.alarmLoop, JSON.stringify(isAlarmLooping));
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping]);
 
   useEffect(() => {
     promptShownInStateRef.current = false;
@@ -209,6 +215,11 @@ export default function Timer() {
 
     let tick = 0;
     const playTick = () => {
+      if (!isAlarmLooping && tick >= pattern.length * ALARM_FINITE_GROUPS) {
+        if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
+        beepIntervalRef.current = null;
+        return;
+      }
       if (pattern[tick % pattern.length]) {
         beep(...TONES.alarm);
       }
@@ -221,7 +232,7 @@ export default function Timer() {
       if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
       beepIntervalRef.current = null;
     };
-  }, [isAlarmActive, beep]);
+  }, [isAlarmActive, beep, isAlarmLooping]);
 
   // Space/S/R mirror the on-screen controls; the ref lets the keydown
   // listener stay registered once instead of rebinding every tick
@@ -620,7 +631,7 @@ export default function Timer() {
       </div>
 
       <div className="flex-1 flex flex-col items-center p-2 sm:p-3 md:p-4 gap-2 overflow-hidden min-h-0 relative">
-        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-50 flex items-center gap-2">
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-50 flex items-start gap-2">
           <button
             onClick={() => setIsSidebarOpen((prev) => !prev)}
             className="lg:hidden w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center border-3 border-white text-white transition-all duration-200 hover:opacity-80"
@@ -631,6 +642,7 @@ export default function Timer() {
             {isSidebarOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
 
+          <div className="flex flex-col gap-2">
           <div className="relative group">
             <button
               onClick={handleMuteToggle}
@@ -672,6 +684,20 @@ export default function Timer() {
                 />
               </div>
             </div>
+          </div>
+
+          <button
+            onClick={() => setIsAlarmLooping((prev: boolean) => !prev)}
+            className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
+            style={{
+              borderColor: isAlarmLooping ? '#22c55e' : '#ffffff',
+              backgroundColor: 'transparent',
+            }}
+            title={isAlarmLooping ? 'Alarm repeats until stopped — click to ring a limited number of times' : 'Alarm rings a limited number of times — click to repeat until stopped'}
+            aria-label={isAlarmLooping ? 'Disable alarm repeat' : 'Enable alarm repeat'}
+          >
+            <Repeat size={22} color={isAlarmLooping ? '#22c55e' : '#ffffff'} />
+          </button>
           </div>
 
         </div>
