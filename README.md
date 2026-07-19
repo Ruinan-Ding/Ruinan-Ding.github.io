@@ -5,10 +5,10 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 ## Features
 
 - Millisecond-precision countdown that keeps counting (and beeping) past zero
-- Presets and run history, saved in localStorage
+- Editable presets and run history, saved in localStorage
 - Word counter with per-line and total line/word/character counts
-- Spacebar to start/pause/resume
-- Silent mode toggle
+- Spacebar to start/pause/resume, R to reset, S to stop
+- Mute toggle with a volume slider, plus an alarm repeat toggle (ring forever or ring once)
 - Live favicon and tab title showing timer state
 
 ## Usage
