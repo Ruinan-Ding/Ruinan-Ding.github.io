@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { pad } from './format';
+import { useDigitEntry } from './useDigitEntry';
 
 interface TimeFieldProps {
   label: string;
@@ -34,27 +35,22 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
   // after it instead of in the middle of the empty box
   const inputValue = isEditing ? (digits === '' ? placeholder : digits) : pad(value);
 
-  // digits enter from the right, so the caret always belongs at the end;
-  // onSelect catches every way it could move (click, drag, arrow keys)
-  const pinCaret = (el: HTMLInputElement) => {
-    const end = el.value.length;
-    if (el.selectionStart !== end || el.selectionEnd !== end) {
-      el.setSelectionRange(end, end);
-    }
-  };
-
-  useEffect(() => {
-    const el = inputRef.current;
-    if (el && document.activeElement === el) {
-      el.setSelectionRange(el.value.length, el.value.length);
-    }
-  }, [inputValue]);
-
   const appendDigits = (text: string) => {
     const typed = text.replace(/\D/g, '');
     // blocks further digits once at 2, rather than shifting the window
     if (typed) setDigits((prev) => ((prev ?? '') + typed).slice(0, 2));
   };
+
+  const { handleKeyDown, handlePaste, handleSelect } = useDigitEntry(inputRef, inputValue, {
+    append: appendDigits,
+    remove: () => setDigits((prev) => (prev ?? '').slice(0, -1)),
+    // committing is just blurring — handleBlur applies the digits
+    onCommit: () => inputRef.current?.blur(),
+    onCancel: () => {
+      cancelledRef.current = true;
+      inputRef.current?.blur();
+    },
+  });
 
   const handleBlur = () => {
     const wasCancelled = cancelledRef.current;
@@ -64,26 +60,6 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
     if (wasCancelled || finished === null || finished === '') return;
     const next = clamp(parseInt(finished, 10));
     if (next !== value) onRequestChange(next);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      // preventDefault, or the same key press activates the cancel button
-      // the confirmation dialog focuses on open, instantly dismissing it
-      e.preventDefault();
-      inputRef.current?.blur();
-    } else if (e.key === 'Escape') {
-      cancelledRef.current = true;
-      inputRef.current?.blur();
-    } else if (e.key === 'Backspace' || e.key === 'Delete') {
-      e.preventDefault();
-      setDigits((prev) => (prev ?? '').slice(0, -1));
-    } else if (/^\d$/.test(e.key)) {
-      e.preventDefault();
-      appendDigits(e.key);
-    } else if (e.key.length === 1) {
-      e.preventDefault();
-    }
   };
 
   return (
@@ -114,14 +90,8 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
             onFocus={() => setDigits('')}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
-            onSelect={(e) => pinCaret(e.target as HTMLInputElement)}
-            onBeforeInput={(e) => {
-              // soft keyboards don't always send useful keydown events
-              e.preventDefault();
-              const native = e.nativeEvent as InputEvent;
-              const data = native.data ?? native.dataTransfer?.getData('text') ?? '';
-              if (data) appendDigits(data);
-            }}
+            onPaste={handlePaste}
+            onSelect={handleSelect}
             onChange={() => {}}
             className="bg-black border-4 border-white font-bold text-center outline-none w-full"
             style={{
@@ -137,6 +107,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
           <button
             onClick={() => onRequestChange(clamp(value + 1))}
             disabled={value >= max}
+            aria-label={`Increase ${label.toLowerCase()}`}
             className={chevronButtonClass}
             style={chevronButtonStyle}
           >
@@ -145,6 +116,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
           <button
             onClick={() => onRequestChange(clamp(value - 1))}
             disabled={value <= 0}
+            aria-label={`Decrease ${label.toLowerCase()}`}
             className={chevronButtonClass}
             style={chevronButtonStyle}
           >

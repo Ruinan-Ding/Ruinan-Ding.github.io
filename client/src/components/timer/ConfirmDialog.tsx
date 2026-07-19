@@ -1,5 +1,6 @@
+import { useRef } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { formatEntryLabel, pad } from './format';
+import { formatEntryLabel } from './format';
 import type { DialogState } from './types';
 
 interface ConfirmDialogProps {
@@ -34,19 +35,26 @@ const getCopy = (dialog: DialogState) => {
         description: 'Are you sure you want to reset the timer? It will restart from the beginning.',
         action: 'CONFIRM',
       };
-    case 'switch':
-      return {
-        title: 'SWITCH TIMER',
-        description: `Switch to ${formatEntryLabel(dialog.data)}? Current progress will be lost.`,
-        action: 'SWITCH',
-      };
+    case 'switch': {
+      const label = formatEntryLabel(dialog.data);
+      // start=false replaces a stopped timer: confirming only loads it
+      return dialog.start
+        ? {
+            title: 'SWITCH TIMER',
+            description: `Switch to ${label}? It will start immediately, and current progress will be lost.`,
+            action: 'SWITCH',
+          }
+        : {
+            title: 'LOAD TIMER',
+            description: `Load ${label}? The stopped timer's remaining time will be discarded. Press START to run it.`,
+            action: 'LOAD',
+          };
+    }
     case 'adjust': {
       const { unit, value } = dialog.data;
       return {
-        title: unit === 'hours' ? 'CONFIRM CHANGE' : 'ADJUST TIME',
-        description: unit === 'minutes'
-          ? `Change minutes to ${value}?`
-          : `Change ${unit} to ${pad(value)}?`,
+        title: 'ADJUST TIME',
+        description: `Change ${unit} to ${value}?`,
         action: 'CONFIRM',
       };
     }
@@ -56,7 +64,13 @@ const getCopy = (dialog: DialogState) => {
 };
 
 export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmDialogProps) {
-  const copy = getCopy(dialog);
+  // dialog.type resets to null the instant a choice is made, but Radix
+  // keeps the dialog mounted through its exit animation — hold on to the
+  // last real copy so the text doesn't blank out mid-fade
+  const lastCopyRef = useRef<ReturnType<typeof getCopy>>(null);
+  const currentCopy = getCopy(dialog);
+  if (currentCopy) lastCopyRef.current = currentCopy;
+  const copy = currentCopy ?? lastCopyRef.current;
 
   return (
     <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss()}>

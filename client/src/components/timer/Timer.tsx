@@ -2,6 +2,7 @@ import { Menu, Repeat, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
+import { readJSON, writeJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
 import HistoryPanel from './HistoryPanel';
@@ -9,7 +10,7 @@ import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_FINITE_GROUPS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
-import { formatTime, toTotalSeconds } from './format';
+import { formatEntryLabel, formatTime, toTotalSeconds } from './format';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 
 // Speaker with sound waves that grow in as the volume rises; an X when muted
@@ -46,21 +47,12 @@ export default function Timer() {
   // Parse persisted state once, before first render, so the persist effect
   // can't save defaults over it. isRunning/isPaused are not restored.
   const initial = useMemo(() => {
-    let saved: Record<string, unknown> = {};
-    let history: TimerEntry[] = [];
-    try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.timerState) ?? 'null');
-      if (parsed && typeof parsed === 'object') saved = parsed;
-    } catch (e) {
-      console.error('Failed to load timer state:', e);
-    }
-    try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS.history) ?? 'null');
-      if (Array.isArray(parsed)) history = parsed;
-    } catch (e) {
-      console.error('Failed to load history:', e);
-    }
-    return { saved, history };
+    const savedState = readJSON<unknown>(STORAGE_KEYS.timerState, null);
+    const savedHistory = readJSON<unknown>(STORAGE_KEYS.history, null);
+    return {
+      saved: (savedState && typeof savedState === 'object' ? savedState : {}) as Record<string, unknown>,
+      history: Array.isArray(savedHistory) ? (savedHistory as TimerEntry[]) : [],
+    };
   }, []);
   const savedNumber = (key: string, fallback: number) =>
     typeof initial.saved[key] === 'number' ? (initial.saved[key] as number) : fallback;
@@ -83,32 +75,31 @@ export default function Timer() {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isSilentMode, setIsSilentMode] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.silentMode);
-    return saved ? JSON.parse(saved) : false;
+    const saved = readJSON<unknown>(STORAGE_KEYS.silentMode, null);
+    return typeof saved === 'boolean' ? saved : false;
   });
   const [volume, setVolume] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.volume);
-    return saved ? JSON.parse(saved) : DEFAULT_VOLUME;
+    const saved = readJSON<unknown>(STORAGE_KEYS.volume, null);
+    return typeof saved === 'number' && Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : DEFAULT_VOLUME;
   });
   // gates the one-time "are you sure?" the first time this browser mutes
   const [hasMutedBefore, setHasMutedBefore] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.hasMutedBefore);
-    return saved ? JSON.parse(saved) : false;
+    const saved = readJSON<unknown>(STORAGE_KEYS.hasMutedBefore, null);
+    return typeof saved === 'boolean' ? saved : false;
   });
   // on = alarm groups repeat forever; off = ring ALARM_FINITE_GROUPS groups then go quiet
   const [isAlarmLooping, setIsAlarmLooping] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.alarmLoop);
-    return saved ? JSON.parse(saved) : true;
+    const saved = readJSON<unknown>(STORAGE_KEYS.alarmLoop, null);
+    return typeof saved === 'boolean' ? saved : true;
   });
 
   const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.presets);
-    if (!saved) return DEFAULT_PRESETS;
+    const parsed = readJSON<unknown>(STORAGE_KEYS.presets, null);
+    if (!Array.isArray(parsed)) return DEFAULT_PRESETS;
     try {
-      const parsed: TimerEntry[] = JSON.parse(saved);
       // older saves packed hours into minutes
-      return parsed.map((p) => ({
+      return (parsed as TimerEntry[]).map((p) => ({
         ...p,
         hours: (p.hours ?? 0) + Math.floor(p.minutes / 60),
         minutes: p.minutes % 60,
@@ -142,15 +133,16 @@ export default function Timer() {
 
   const closeDialog = () => setDialog({ type: null });
 
-  // Persist state
+  // Persist state; each key writes independently so one failing write
+  // (e.g. quota exceeded on the large history value) can't drop the rest
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.timerState, JSON.stringify({ seconds, isPaused, isRunning, hours, minutes, timerSeconds }));
-    localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(history));
-    localStorage.setItem(STORAGE_KEYS.silentMode, JSON.stringify(isSilentMode));
-    localStorage.setItem(STORAGE_KEYS.presets, JSON.stringify(presets));
-    localStorage.setItem(STORAGE_KEYS.volume, JSON.stringify(volume));
-    localStorage.setItem(STORAGE_KEYS.hasMutedBefore, JSON.stringify(hasMutedBefore));
-    localStorage.setItem(STORAGE_KEYS.alarmLoop, JSON.stringify(isAlarmLooping));
+    writeJSON(STORAGE_KEYS.timerState, { seconds, isPaused, isRunning, hours, minutes, timerSeconds });
+    writeJSON(STORAGE_KEYS.history, history);
+    writeJSON(STORAGE_KEYS.silentMode, isSilentMode);
+    writeJSON(STORAGE_KEYS.presets, presets);
+    writeJSON(STORAGE_KEYS.volume, volume);
+    writeJSON(STORAGE_KEYS.hasMutedBefore, hasMutedBefore);
+    writeJSON(STORAGE_KEYS.alarmLoop, isAlarmLooping);
   }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping]);
 
   useEffect(() => {
@@ -182,7 +174,8 @@ export default function Timer() {
     let lastTime = Date.now();
     intervalRef.current = setInterval(() => {
       const now = Date.now();
-      const elapsed = now - lastTime;
+      // a backwards clock step (NTP/manual adjustment) must not add time
+      const elapsed = Math.max(0, now - lastTime);
       lastTime = now;
 
       setTime((prev) => {
@@ -203,10 +196,28 @@ export default function Timer() {
   // ALARM_BURST_COUNT beeps, then a longer pause, then the whole group
   // repeats for as long as the alarm stays active
   const isAlarmActive = isRunning && !isPaused && seconds < 0 && !isSilentMode;
-  const alarmLoopRef = useRef(isAlarmLooping);
-  alarmLoopRef.current = isAlarmLooping;
+  // With repeat off, the alarm gets one finite ring per overtime period.
+  // The allowance is consumed the moment ringing starts — so pause/resume
+  // or mute toggles can't squeeze out extra groups, and toggling repeat
+  // off mid-ring mutes immediately — and it resets once the timer leaves
+  // negative time.
+  const isOvertime = seconds < 0;
+  const alarmRungThisOvertimeRef = useRef(false);
+  // the pattern position also lives in a ref so effect re-runs (repeat
+  // toggles, pause/resume) continue the ring where it left off instead of
+  // restarting it at the first burst
+  const alarmTickRef = useRef(0);
+  useEffect(() => {
+    if (!isOvertime) {
+      alarmRungThisOvertimeRef.current = false;
+      alarmTickRef.current = 0;
+    }
+  }, [isOvertime]);
+
   useEffect(() => {
     if (!isAlarmActive) return;
+    if (!isAlarmLooping && alarmRungThisOvertimeRef.current) return;
+    alarmRungThisOvertimeRef.current = true;
 
     const pattern: boolean[] = [];
     for (let burst = 0; burst < ALARM_TOTAL_BURSTS; burst++) {
@@ -215,23 +226,16 @@ export default function Timer() {
       for (let i = 0; i < gapTicks; i++) pattern.push(false);
     }
 
-    // the flag is read through a ref so a mid-ring toggle doesn't restart
-    // the pattern; turning looping off after it was on this ring mutes
-    // immediately instead of ringing another finite set
-    let tick = 0;
-    let loopedThisRing = alarmLoopRef.current;
     const playTick = () => {
-      if (alarmLoopRef.current) loopedThisRing = true;
-      const done = loopedThisRing || tick >= pattern.length * ALARM_FINITE_GROUPS;
-      if (!alarmLoopRef.current && done) {
+      if (!isAlarmLooping && alarmTickRef.current >= pattern.length * ALARM_FINITE_GROUPS) {
         if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
         beepIntervalRef.current = null;
         return;
       }
-      if (pattern[tick % pattern.length]) {
+      if (pattern[alarmTickRef.current % pattern.length]) {
         beep(...TONES.alarm);
       }
-      tick++;
+      alarmTickRef.current++;
     };
     playTick();
     beepIntervalRef.current = setInterval(playTick, ALARM_TICK_MS);
@@ -240,7 +244,7 @@ export default function Timer() {
       if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
       beepIntervalRef.current = null;
     };
-  }, [isAlarmActive, beep]);
+  }, [isAlarmActive, isAlarmLooping, beep]);
 
   // Space/S/R mirror the on-screen controls; the ref lets the keydown
   // listener stay registered once instead of rebinding every tick
@@ -308,8 +312,9 @@ export default function Timer() {
   // this browser has ever muted, which asks for confirmation first
   const handleMuteToggle = () => {
     if (isSilentMode) {
-      beep(...TONES.silentToggle);
-      // unmuting with the slider parked at 0 restores a usable level
+      // unmuting with the slider parked at 0 restores a usable level; the
+      // confirmation tone plays at the restored level, not the stale 0
+      beep(...TONES.silentToggle, volume === 0 ? DEFAULT_VOLUME : undefined);
       if (volume === 0) setVolume(DEFAULT_VOLUME);
       setIsSilentMode(false);
       return;
@@ -332,6 +337,9 @@ export default function Timer() {
     setVolume(value);
     if (value === 0) {
       setIsSilentMode(true);
+      // sliding to 0 is already an explicit mute — the button's one-time
+      // "are you sure?" would be redundant after this
+      setHasMutedBefore(true);
     } else if (isSilentMode) {
       setIsSilentMode(false);
     }
@@ -377,13 +385,12 @@ export default function Timer() {
   };
 
   const togglePause = () => {
-    setIsPaused((prev) => {
-      const nextIsPaused = !prev;
-      if (!isSilentMode) {
-        beep(...(nextIsPaused ? TONES.pause : TONES.resume));
-      }
-      return nextIsPaused;
-    });
+    // the beep is a side effect, so it stays out of the state updater
+    const nextIsPaused = !isPaused;
+    if (!isSilentMode) {
+      beep(...(nextIsPaused ? TONES.pause : TONES.resume));
+    }
+    setIsPaused(nextIsPaused);
   };
 
   const handleStart = () => {
@@ -454,36 +461,41 @@ export default function Timer() {
     setIsSidebarOpen(false);
   }, []);
 
+  // the one switch sequence, shared by the direct path and the dialog
+  // confirm; start=false only loads the preset without running it
+  const applySwitch = (parts: TimeParts, start: boolean) => {
+    clearAlarmInterval();
+    loadEntry(parts);
+    setIsPaused(false);
+    setIsRunning(start);
+    if (start) {
+      recordHistory(parts);
+      playTone('start');
+    }
+  };
+
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
-    // confirm only while actively counting down; a stopped or finished
-    // timer switches straight over
-    if (isRunning && timeRef.current.seconds >= 0) {
-      setDialog({ type: 'switch', data: parts });
+    // confirm while counting down or paused (even paused in overtime);
+    // an actively beeping timer switches straight over
+    if (isRunning && (isPaused || timeRef.current.seconds >= 0)) {
+      setDialog({ type: 'switch', data: parts, start: true });
+      return;
+    }
+    // a stopped timer showing anything other than its configured time —
+    // mid-run or overtime after a reload — still has progress on screen;
+    // confirm before discarding it, but confirming only loads the preset
+    if (!isRunning && timeRef.current.seconds !== configuredTotalSeconds) {
+      setDialog({ type: 'switch', data: parts, start: false });
       return;
     }
     // a beeping timer hands off to the new preset and keeps running;
     // a stopped one just loads it
-    const wasBeeping = isRunning && timeRef.current.seconds < 0;
-    clearAlarmInterval();
-    loadEntry(parts);
-    setIsPaused(false);
-    if (wasBeeping) {
-      recordHistory(parts);
-      playTone('start');
-    } else {
-      setIsRunning(false);
-    }
-  }, [isRunning, loadEntry, isSilentMode, beep]);
+    applySwitch(parts, isRunning && timeRef.current.seconds < 0);
+  }, [isRunning, isPaused, configuredTotalSeconds, loadEntry, isSilentMode, beep]);
 
-  // a confirmed switch starts the new timer immediately
-  const handleConfirmSwitch = (parts: TimeParts) => {
-    clearAlarmInterval();
-    loadEntry(parts);
-    setIsPaused(false);
-    setIsRunning(true);
-    recordHistory(parts);
-    playTone('start');
+  const handleConfirmSwitch = (parts: TimeParts, start: boolean) => {
+    applySwitch(parts, start);
     closeDialog();
   };
 
@@ -574,7 +586,7 @@ export default function Timer() {
         handleConfirmReset();
         break;
       case 'switch':
-        handleConfirmSwitch(dialog.data);
+        handleConfirmSwitch(dialog.data, dialog.start);
         break;
       case 'adjust':
         handleConfirmAdjust(dialog.data.unit, dialog.data.value, dialog.data.previous);
@@ -593,7 +605,8 @@ export default function Timer() {
   };
 
   const remaining = formatTime(seconds, milliseconds);
-  const configuredDisplay = formatTime(configuredTotalSeconds);
+  // same label style as the presets/history lists ("1:30", not "01:30:00")
+  const configuredLabel = formatEntryLabel(configured);
 
   // a timer that's never run — idle at its configured time — has nothing
   // for STOP or RESET to act on
@@ -653,7 +666,12 @@ export default function Timer() {
           <div className="flex flex-col gap-2">
           <div className="relative group">
             <button
-              onClick={handleMuteToggle}
+              onClick={(e) => {
+                // touch devices have no hover — focus keeps the volume
+                // popup open (group-focus-within) so a tap can reach it
+                e.currentTarget.focus();
+                handleMuteToggle();
+              }}
               className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
               style={{
                 borderColor: isSilentMode ? '#ffffff' : '#22c55e',
@@ -753,7 +771,7 @@ export default function Timer() {
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
                 {/* configured time, for reference */}
                 <span className="opacity-60" style={{ fontSize: 'clamp(0.85rem, 1.6vw, 1.15rem)', letterSpacing: '0.05em', marginLeft: '0.25em' }}>
-                  /{configuredDisplay.hours && `${configuredDisplay.hours}:`}{configuredDisplay.main}
+                  /{configuredLabel}
                 </span>
               </div>
             </div>
@@ -804,7 +822,8 @@ export default function Timer() {
               </div>
 
               {(() => {
-                const subject = seconds < 0 ? 'alarm' : 'timer';
+                // a reloaded overtime timer isn't ringing — the keys act on the timer
+                const subject = isRunning && seconds < 0 ? 'alarm' : 'timer';
                 const hints = [
                   { key: 'SPACE', text: `Press SPACE to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${subject}`, disabled: false },
                   { key: 'R', text: `Press R to RESET the ${subject}`, disabled: isIdleAtConfigured },

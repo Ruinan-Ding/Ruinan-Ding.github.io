@@ -70,10 +70,12 @@ export const useFavicon = (
     };
 
     const getTimeDisplay = () => {
-      const { hours, minutes, seconds } = stateRef.current;
-      return hours > 0
+      const { hours, minutes, seconds, isFinished } = stateRef.current;
+      const base = hours > 0
         ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
         : `${pad(minutes)}:${pad(seconds)}`;
+      // the values are magnitudes; overtime shows as negative in the tab
+      return isFinished ? `-${base}` : base;
     };
 
     const updateFavicon = () => {
@@ -82,20 +84,22 @@ export const useFavicon = (
       const now = Date.now();
       let opacity = 1;
 
-      if (isFinished) {
-        const cycleTime = 300;
-        const cycle = Math.floor((now / cycleTime) % 2);
-        const progress = (now % cycleTime) / cycleTime;
-        opacity = cycle === 0 ? progress : 1 - progress;
-        document.title = `${timeDisplay} - Study Timer`;
-        drawFavicon('square', opacity);
-      } else if (isPaused) {
+      // paused wins over finished so a paused overtime alarm shows the
+      // pause bars, matching the on-page PAUSED status
+      if (isPaused) {
         const cycleTime = 1000;
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
         opacity = cycle === 0 ? progress : 1 - progress;
         document.title = `${timeDisplay} - Study Timer`;
         drawFavicon('bars', opacity);
+      } else if (isFinished) {
+        const cycleTime = 300;
+        const cycle = Math.floor((now / cycleTime) % 2);
+        const progress = (now % cycleTime) / cycleTime;
+        opacity = cycle === 0 ? progress : 1 - progress;
+        document.title = `${timeDisplay} - Study Timer`;
+        drawFavicon('square', opacity);
       } else if (isRunning) {
         document.title = `${timeDisplay} - Study Timer`;
         drawFavicon('triangle', 1);

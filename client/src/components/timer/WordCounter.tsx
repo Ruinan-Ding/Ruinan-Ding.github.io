@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { readRaw, writeRaw } from '@/lib/storage';
 import { STORAGE_KEYS } from './constants';
 
 interface WordCounterProps {
@@ -14,13 +15,13 @@ const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 
 function WordCounter({ onFocusChange }: WordCounterProps) {
-  const [text, setText] = useState(() => localStorage.getItem(STORAGE_KEYS.wordCounter) || '');
+  const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const rowsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.wordCounter, text);
+    writeRaw(STORAGE_KEYS.wordCounter, text);
   }, [text]);
 
   const { lineStats, totalLines, totalWords, totalChars } = useMemo(() => {
