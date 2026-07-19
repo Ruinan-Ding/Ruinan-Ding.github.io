@@ -4,6 +4,9 @@ import { STORAGE_KEYS } from './constants';
 
 interface WordCounterProps {
   onFocusChange: (focused: boolean) => void;
+  // the window turns solid green while the timer runs; the header sits
+  // directly on it, so its red/green/white colors need a black fallback
+  isWindowGreen: boolean;
 }
 
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
@@ -14,7 +17,7 @@ const COUNTER_LINE_HEIGHT = 1.6;
 const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 
-function WordCounter({ onFocusChange }: WordCounterProps) {
+function WordCounter({ onFocusChange, isWindowGreen }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -56,11 +59,11 @@ function WordCounter({ onFocusChange }: WordCounterProps) {
   return (
     <div className="flex flex-col items-start gap-1 w-full flex-1 overflow-hidden min-h-0">
       <div className="flex justify-between items-center w-full">
-        <label className={`font-bold text-left ${isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
+        <label className={`font-bold text-left ${isWindowGreen ? 'text-black' : isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
         {text !== '' && (
           <button
             onClick={() => setText('')}
-            className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors"
+            className={`border px-2 py-1 transition-colors ${isWindowGreen ? 'text-black border-black hover:bg-black hover:text-white' : 'text-white border-white hover:bg-white hover:text-black'}`}
             style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.75rem)' }}
           >
             Clear

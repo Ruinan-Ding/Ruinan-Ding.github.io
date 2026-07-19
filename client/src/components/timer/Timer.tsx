@@ -214,6 +214,11 @@ export default function Timer() {
     }
   }, [isOvertime]);
 
+  // Window flash synced to the alarm: isAlarmRinging while the beep
+  // interval runs, isBeepFlash pulsing red for each individual beep
+  const [isAlarmRinging, setIsAlarmRinging] = useState(false);
+  const [isBeepFlash, setIsBeepFlash] = useState(false);
+
   useEffect(() => {
     if (!isAlarmActive) return;
     if (!isAlarmLooping && alarmRungThisOvertimeRef.current) return;
@@ -230,19 +235,26 @@ export default function Timer() {
       if (!isAlarmLooping && alarmTickRef.current >= pattern.length * ALARM_FINITE_GROUPS) {
         if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
         beepIntervalRef.current = null;
+        setIsAlarmRinging(false);
         return;
       }
       if (pattern[alarmTickRef.current % pattern.length]) {
         beep(...TONES.alarm);
+        // flash red for exactly as long as the beep sounds
+        setIsBeepFlash(true);
+        window.setTimeout(() => setIsBeepFlash(false), TONES.alarm[1]);
       }
       alarmTickRef.current++;
     };
+    setIsAlarmRinging(true);
     playTick();
     beepIntervalRef.current = setInterval(playTick, ALARM_TICK_MS);
 
     return () => {
       if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
       beepIntervalRef.current = null;
+      setIsAlarmRinging(false);
+      setIsBeepFlash(false);
     };
   }, [isAlarmActive, isAlarmLooping, beep]);
 
@@ -612,17 +624,22 @@ export default function Timer() {
   // for STOP or RESET to act on
   const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
 
+  // The whole window carries the state color: solid green while running,
+  // flashing yellow when paused, red in overtime — pulsing with each beep
+  // while the alarm rings, slow ambient flash while it's silent.
+  // Free-floating text switches to black on the solid green for contrast
+  // (white already reads fine against both flash colors).
+  const isWindowGreen = isRunning && !isPaused && seconds >= 0;
+
   const status = seconds < 0
     ? (isPaused ? 'PAUSED' : 'FINISHED')
     : isRunning
       ? (isPaused ? 'PAUSED' : 'RUNNING')
       : (seconds === configuredTotalSeconds ? 'READY' : 'STOPPED');
 
-  const statusColor = seconds < 0
-    ? (isPaused ? '#eab308' : '#ef4444')
-    : isRunning
-      ? (isPaused ? '#eab308' : '#22c55e')
-      : '#ffffff';
+  // the window background shows the state color now, so the status text
+  // only needs contrast against it
+  const statusColor = isWindowGreen ? '#000000' : '#ffffff';
 
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
@@ -630,12 +647,33 @@ export default function Timer() {
     fontSize: 'clamp(0.75rem, 1.5vw, 1.25rem)',
     borderColor: color,
     color,
-    backgroundColor: 'transparent',
+    // black chip so the colored borders stay readable on the colored window
+    backgroundColor: '#000000',
     minWidth: 'clamp(5rem, 12vw, 8rem)',
   });
 
   return (
-    <div className="h-screen bg-black flex overflow-hidden">
+    <div
+      className={`h-screen flex overflow-hidden ${isAlarmRinging ? '' : 'transition-colors duration-200'} ${
+        seconds < 0
+          ? isPaused
+            ? 'animate-pauseFlash'
+            : isAlarmRinging
+              // while ringing, the red tracks each beep; the color snaps
+              // (no transition) so the pulses stay crisp
+              ? isBeepFlash
+                ? 'bg-red-500'
+                : 'bg-black'
+              // overtime without sound (muted, ring-once finished, stopped
+              // after a reload) keeps the slow ambient flash
+              : 'animate-finishFlash'
+          : isRunning
+            ? isPaused
+              ? 'animate-pauseFlash'
+              : 'bg-green-500'
+            : 'bg-black'
+      }`}
+    >
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/70 lg:hidden"
@@ -656,7 +694,7 @@ export default function Timer() {
           <button
             onClick={() => setIsSidebarOpen((prev) => !prev)}
             className="lg:hidden w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center border-3 border-white text-white transition-all duration-200 hover:opacity-80"
-            style={{ backgroundColor: 'transparent' }}
+            style={{ backgroundColor: '#000000' }}
             title={isSidebarOpen ? 'Close presets & history' : 'Open presets & history'}
             aria-label={isSidebarOpen ? 'Close presets & history' : 'Open presets & history'}
           >
@@ -675,7 +713,7 @@ export default function Timer() {
               className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
               style={{
                 borderColor: isSilentMode ? '#ffffff' : '#22c55e',
-                backgroundColor: 'transparent',
+                backgroundColor: '#000000',
                 fontFamily: "'IBM Plex Mono', monospace",
               }}
               title={`${isSilentMode ? 'Click to unmute' : 'Click to mute'} — Tip: for a count-up timer (stopwatch), mute this and set the time to 00:00:00`}
@@ -717,7 +755,7 @@ export default function Timer() {
             className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
             style={{
               borderColor: isAlarmLooping ? '#22c55e' : '#ffffff',
-              backgroundColor: 'transparent',
+              backgroundColor: '#000000',
             }}
             title={isAlarmLooping ? 'Alarm repeats until stopped — click to ring a limited number of times' : 'Alarm rings a limited number of times — click to repeat until stopped'}
             aria-label={isAlarmLooping ? 'Disable alarm repeat' : 'Enable alarm repeat'}
@@ -733,7 +771,7 @@ export default function Timer() {
           href="https://ruinan-ding.github.io/Ruinan-Ding/"
           target="_blank"
           rel="noopener noreferrer"
-          className="absolute top-2 sm:top-3 md:top-4 left-1/2 -translate-x-1/2 z-50 text-white underline hover:opacity-80 transition-opacity whitespace-nowrap"
+          className={`absolute top-2 sm:top-3 md:top-4 left-1/2 -translate-x-1/2 z-50 ${isWindowGreen ? 'text-black' : 'text-white'} underline hover:opacity-80 transition-opacity whitespace-nowrap`}
           style={{ fontSize: 'clamp(0.75rem, 1.5vw, 1rem)', fontFamily: "'IBM Plex Mono', monospace" }}
         >
           Check out my website
@@ -743,7 +781,7 @@ export default function Timer() {
         <button
           onClick={() => setDialog({ type: 'clearCache' })}
           className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-50 flex items-center gap-2 border-3 border-red-500 text-red-500 font-bold px-3 h-10 sm:h-12 md:h-14 transition-all duration-200 hover:opacity-80"
-          style={{ backgroundColor: 'transparent', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 1rem)' }}
+          style={{ backgroundColor: '#000000', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 1rem)' }}
           title="Reset the website to defaults"
           aria-label="Reset the website to defaults"
         >
@@ -756,13 +794,7 @@ export default function Timer() {
 
           <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
             <div
-              className={`font-bold tracking-wider transition-all duration-200 ${
-                seconds < 0
-                  ? `text-white ${isPaused ? 'animate-pauseFlash' : 'animate-finishFlash'}`
-                  : isRunning && !isPaused
-                    ? 'text-black bg-green-500 animate-none'
-                    : `text-white ${isRunning && isPaused ? 'animate-pauseFlash' : ''}`
-              }`}
+              className={`font-bold tracking-wider transition-colors duration-200 ${isWindowGreen ? 'text-black' : 'text-white'}`}
               style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
             >
               <div className="flex items-baseline gap-1">
@@ -835,7 +867,10 @@ export default function Timer() {
                     className="opacity-75 tracking-wider"
                     style={{
                       fontSize: 'clamp(0.75rem, 1.8vw, 1rem)',
-                      color: isWordCounterFocused ? '#ef4444' : '#ffffff',
+                      // red disappears against the green window; darken it there
+                      color: isWordCounterFocused
+                        ? (isWindowGreen ? '#7f1d1d' : '#ef4444')
+                        : isWindowGreen ? '#000000' : '#ffffff',
                     }}
                   >
                     {isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text}
@@ -847,14 +882,14 @@ export default function Timer() {
 
           <div className="flex-1 hidden lg:block"></div>
 
-          <div className="border-4 border-white p-2 sm:p-3 md:p-4 flex flex-col gap-2 flex-shrink-0 min-w-0 w-full max-w-sm lg:w-[clamp(12rem,22vw,16rem)] lg:max-w-none">
+          <div className="border-4 border-white bg-black p-2 sm:p-3 md:p-4 flex flex-col gap-2 flex-shrink-0 min-w-0 w-full max-w-sm lg:w-[clamp(12rem,22vw,16rem)] lg:max-w-none">
             <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
             <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
             <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />
           </div>
         </div>
 
-        <WordCounter onFocusChange={setIsWordCounterFocused} />
+        <WordCounter onFocusChange={setIsWordCounterFocused} isWindowGreen={isWindowGreen} />
       </div>
 
       <ConfirmDialog
