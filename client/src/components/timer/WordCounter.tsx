@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { readRaw, writeRaw } from '@/lib/storage';
 import { STORAGE_KEYS } from './constants';
+import { shrinkClamp } from './responsive';
 
 interface WordCounterProps {
   onFocusChange: (focused: boolean) => void;
@@ -12,8 +13,10 @@ interface WordCounterProps {
 }
 
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
-const COUNTER_FONT_SIZE = 'clamp(0.55rem, 1.3vw, 0.75rem)';
-const COUNTER_PADDING = 'clamp(0.5rem, 1vw, 0.75rem)';
+// used identically in both the decorative row-rules overlay and the
+// textarea itself, so they stay in sync regardless of viewport
+const COUNTER_FONT_SIZE = shrinkClamp(0.55, 1.3, 1.4, 0.75);
+const COUNTER_PADDING = shrinkClamp(0.5, 1, 1.1, 0.75);
 const COUNTER_GAP = '0.5rem';
 const COUNTER_LINE_HEIGHT = 1.6;
 const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
@@ -63,7 +66,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
       <div className="flex justify-between items-center w-full">
         <label
           className={`font-bold text-left ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isFocused ? 'text-green-500' : 'text-red-500'}`}
-          style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)', ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
+          style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
         >
           WORD COUNTER
         </label>
@@ -71,7 +74,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
           <button
             onClick={() => setText('')}
             className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors"
-            style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.75rem)' }}
+            style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
           >
             Clear
           </button>
@@ -86,7 +89,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
             <div className="border-2 border-white px-1 py-1">C</div>
           </div>
           {isFocused && (
-            <span className="text-green-500 opacity-75" style={{ fontSize: 'clamp(0.875rem, 2vw, 1.25rem)' }}>Spacebar disabled for timer</span>
+            <span className="text-green-500 opacity-75" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>Spacebar disabled for timer</span>
           )}
         </div>
         <div className="flex flex-col gap-2 px-3 pb-3 flex-1 overflow-hidden min-h-0">
@@ -139,9 +142,9 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
             />
           </div>
         </div>
-        <div className="flex justify-between items-start px-3 py-1 gap-4" style={{ fontSize: 'clamp(0.5rem, 1vw, 0.65rem)' }}>
+        <div className="flex justify-between items-start px-3 py-1 gap-4" style={{ fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}>
           <div className="text-white font-bold flex flex-col gap-0">
-            <div className="text-white mb-0.5" style={{ fontSize: 'clamp(0.35rem, 0.8vw, 0.55rem)' }}>TOTAL</div>
+            <div className="text-white mb-0.5" style={{ fontSize: shrinkClamp(0.35, 0.8, 0.9, 0.55) }}>TOTAL</div>
             <div className="grid grid-cols-3 text-center" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
               <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalLines}</div>
               <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalWords}</div>

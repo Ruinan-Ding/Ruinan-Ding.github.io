@@ -1,11 +1,17 @@
 import { memo, useRef, useState } from 'react';
 import { MAX_PRESETS } from './constants';
 import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
+import { shrinkClamp } from './responsive';
 import type { TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
 
-// matches the font size of the preset list buttons below
-const PRESET_INPUT_FONT_SIZE = 'clamp(0.75rem, 1.5vw, 0.875rem)';
+// matches the font size of the preset list buttons below. This sidebar
+// sits in a fixed, overflow-hidden column, so its own controls need to
+// shrink first on a short window just like the main column's do — nothing
+// here scrolls if it overflows.
+const PRESET_INPUT_FONT_SIZE = shrinkClamp(0.75, 1.5, 1.6, 0.875);
+// shared by the +/- preset buttons
+const PRESET_BUTTON_STYLE = { padding: shrinkClamp(0.25, 0.5, 0.55, 0.375), fontSize: shrinkClamp(0.7, 1.2, 1.3, 0.875), minWidth: shrinkClamp(1.5, 3, 3, 2) };
 
 interface PresetsPanelProps {
   presets: TimerEntry[];
@@ -52,7 +58,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
 
   return (
     <div>
-      <h2 className="text-white font-bold mb-4 border-b-2 border-white pb-2" style={{ fontSize: 'clamp(0.875rem, 2vw, 1.125rem)' }}>PRESETS</h2>
+      <h2 className="text-white font-bold mb-4 border-b-2 border-white pb-2" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.125) }}>PRESETS</h2>
       <div className="flex flex-col gap-2">
         {presets.map((preset) => (
           <div key={preset.id} className="flex items-center gap-2">
@@ -60,14 +66,14 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
               onClick={() => onRemove(preset.id)}
               aria-label={`Remove preset ${formatEntryLabel(preset)}`}
               className="border-2 border-red-500 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-colors flex-shrink-0"
-              style={{ padding: 'clamp(0.25rem, 0.5vw, 0.375rem)', fontSize: 'clamp(0.7rem, 1.2vw, 0.875rem)', minWidth: 'clamp(1.5rem, 3vw, 2rem)' }}
+              style={PRESET_BUTTON_STYLE}
             >
               −
             </button>
             <button
               onClick={() => onSelect(preset)}
               className="flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0"
-              style={{ fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.375rem, 1vw, 0.5rem)', fontSize: 'clamp(0.75rem, 1.5vw, 0.875rem)' }}
+              style={{ fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.375, 1, 1.1, 0.5), fontSize: shrinkClamp(0.75, 1.5, 1.6, 0.875) }}
             >
               {formatEntryLabel(preset)}
             </button>
@@ -105,7 +111,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
               className="border-4 border-white font-bold transition-colors duration-0 w-full disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 fontFamily: "'IBM Plex Mono', monospace",
-                padding: 'clamp(0.375rem, 1vw, 0.5rem)',
+                padding: shrinkClamp(0.375, 1, 1.1, 0.5),
                 fontSize: PRESET_INPUT_FONT_SIZE,
                 // invisible while showing the hint's character count, so the
                 // decorative hint div shows through underneath instead —

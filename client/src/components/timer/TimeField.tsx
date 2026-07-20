@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { memo, useRef, useState } from 'react';
 import { pad } from './format';
+import { shrinkClamp } from './responsive';
 import { useDigitEntry } from './useDigitEntry';
 
 interface TimeFieldProps {
@@ -13,8 +14,11 @@ interface TimeFieldProps {
 
 const chevronButtonClass =
   'border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed';
-const chevronButtonStyle = { padding: 'clamp(0.25rem, 0.5vw, 0.375rem)' };
-const FIELD_FONT_SIZE = 'clamp(1rem, 1.8vw, 1.5rem)';
+// This panel sits beside the digits column in the same row, so it
+// shrinks first on a short window like every other non-digit control
+const chevronButtonStyle = { padding: shrinkClamp(0.25, 0.5, 0.55, 0.375) };
+const FIELD_FONT_SIZE = shrinkClamp(1, 1.8, 2, 1.5);
+const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.9, 1.4, 1.5, 1.25), height: shrinkClamp(0.9, 1.4, 1.5, 1.25) };
 
 // Two-digit time input; digits enter from the right, calculator-style, and
 // nothing is clamped or applied until the edit commits (blur or Enter).
@@ -77,7 +81,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
     <div className="flex items-center gap-1 sm:gap-2 md:gap-4 min-w-0 flex-wrap justify-between">
       <label
         className="text-white font-bold whitespace-nowrap"
-        style={{ fontSize: 'clamp(0.8rem, 1.6vw, 1.1rem)', fontFamily: "'IBM Plex Mono', monospace", width: 'clamp(2.2rem, 5.5vw, 3.5rem)' }}
+        style={{ fontSize: shrinkClamp(0.8, 1.6, 1.8, 1.1), fontFamily: "'IBM Plex Mono', monospace", width: 'clamp(2.2rem, 5.5vw, 3.5rem)' }}
       >
         {label}:
       </label>
@@ -108,7 +112,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
             style={{
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: FIELD_FONT_SIZE,
-              padding: 'clamp(0.25rem, 0.5vw, 0.375rem)',
+              padding: shrinkClamp(0.25, 0.5, 0.55, 0.375),
               color: digits === '' ? 'transparent' : '#ffffff',
               caretColor: '#ffffff',
             }}
@@ -122,7 +126,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
             className={chevronButtonClass}
             style={chevronButtonStyle}
           >
-            <ChevronUp size={20} />
+            <ChevronUp style={CHEVRON_ICON_SIZE} />
           </button>
           <button
             onClick={() => onRequestChange(step(value, -1))}
@@ -131,7 +135,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
             className={chevronButtonClass}
             style={chevronButtonStyle}
           >
-            <ChevronDown size={20} />
+            <ChevronDown style={CHEVRON_ICON_SIZE} />
           </button>
         </div>
       </div>

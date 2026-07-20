@@ -11,7 +11,15 @@ import TimeField from './TimeField';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_FINITE_GROUPS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, toTotalSeconds } from './format';
+import { shrinkClamp } from './responsive';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
+
+// Shared by every header icon (menu/mute/repeat/reset/the site link)
+const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkClamp(1.1, 3, 3, 1.375) };
+// Shared by the square icon buttons (mute, repeat); the hamburger uses the
+// same floor but a smaller ceiling since it's hidden past the lg breakpoint
+const HEADER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3.5), height: shrinkClamp(2, 5, 5, 3.5) };
+const HAMBURGER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3), height: shrinkClamp(2, 5, 5, 3) };
 
 // Speaker with sound waves that grow in as the volume rises; an X when muted
 function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean; color: string }) {
@@ -24,7 +32,7 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
-      style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 2rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 2rem)' }}
+      style={{ width: shrinkClamp(1.1, 3, 3, 2), height: shrinkClamp(1.1, 3, 3, 2) }}
     >
       <polygon points="9 5 4 9 1 9 1 15 4 15 9 19 9 5" fill={color} />
       {muted ? (
@@ -726,13 +734,13 @@ export default function Timer() {
   // else in this column.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: 'clamp(0.4rem, min(0.9vw, 1vh), 0.9rem) clamp(0.8rem, min(1.8vw, 2vh), 1.8rem)',
-    fontSize: 'clamp(0.65rem, min(1.3vw, 1.6vh), 1.1rem)',
+    padding: `${shrinkClamp(0.4, 0.9, 1, 0.9)} ${shrinkClamp(0.8, 1.8, 2, 1.8)}`,
+    fontSize: shrinkClamp(0.65, 1.3, 1.6, 1.1),
     borderColor: color,
     color,
     // black chip so the colored borders stay readable on the colored window
     backgroundColor: '#000000',
-    minWidth: 'clamp(4.5rem, min(11vw, 12vh), 7.5rem)',
+    minWidth: shrinkClamp(4.5, 11, 12, 7.5),
   });
 
   return (
@@ -778,13 +786,11 @@ export default function Timer() {
           <button
             onClick={() => setIsSidebarOpen((prev) => !prev)}
             className="lg:hidden flex items-center justify-center border-3 border-white text-white transition-all duration-200 hover:opacity-80"
-            style={{ width: 'clamp(2rem, min(5vw, 5vh), 3rem)', height: 'clamp(2rem, min(5vw, 5vh), 3rem)', backgroundColor: '#000000' }}
+            style={{ ...HAMBURGER_BUTTON_SIZE, backgroundColor: '#000000' }}
             title={isSidebarOpen ? 'Close presets & history' : 'Open presets & history'}
             aria-label={isSidebarOpen ? 'Close presets & history' : 'Open presets & history'}
           >
-            {isSidebarOpen
-              ? <X style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)' }} />
-              : <Menu style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)' }} />}
+            {isSidebarOpen ? <X style={HEADER_ICON_SIZE} /> : <Menu style={HEADER_ICON_SIZE} />}
           </button>
 
           <div className="flex flex-col gap-2">
@@ -798,8 +804,7 @@ export default function Timer() {
               }}
               className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
               style={{
-                width: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
-                height: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
+                ...HEADER_BUTTON_SIZE,
                 borderColor: isSilentMode ? '#ffffff' : '#22c55e',
                 backgroundColor: '#000000',
                 fontFamily: "'IBM Plex Mono', monospace",
@@ -842,8 +847,7 @@ export default function Timer() {
             onClick={() => setIsAlarmLooping((prev: boolean) => !prev)}
             className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
             style={{
-              width: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
-              height: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
+              ...HEADER_BUTTON_SIZE,
               borderColor: isAlarmLooping ? '#22c55e' : '#ffffff',
               backgroundColor: '#000000',
             }}
@@ -852,7 +856,7 @@ export default function Timer() {
           >
             <Repeat
               color={isAlarmLooping ? '#22c55e' : '#ffffff'}
-              style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)' }}
+              style={HEADER_ICON_SIZE}
             />
           </button>
           </div>
@@ -867,12 +871,12 @@ export default function Timer() {
             aria-pressed={skipConfirmations}
             className="flex items-center gap-2 border-3 font-bold px-3 transition-all duration-200 hover:opacity-80"
             style={{
-              height: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
+              height: HEADER_BUTTON_SIZE.height,
               borderColor: skipConfirmations ? '#eab308' : '#ffffff',
               color: skipConfirmations ? '#eab308' : '#ffffff',
               backgroundColor: '#000000',
               fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: 'clamp(0.65rem, min(1.5vw, 1.6vh), 1rem)',
+              fontSize: shrinkClamp(0.65, 1.5, 1.6, 1),
             }}
             title={skipConfirmations
               ? 'Confirmations are off — actions apply immediately (the RESET button still asks). Click to turn them back on'
@@ -897,15 +901,15 @@ export default function Timer() {
             onClick={() => setDialog({ type: 'clearCache' })}
             className="flex items-center gap-2 border-3 border-red-500 text-red-500 font-bold px-3 transition-all duration-200 hover:opacity-80"
             style={{
-              height: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
+              height: HEADER_BUTTON_SIZE.height,
               backgroundColor: '#000000',
               fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: 'clamp(0.65rem, min(1.5vw, 1.6vh), 1rem)',
+              fontSize: shrinkClamp(0.65, 1.5, 1.6, 1),
             }}
             title="Reset the website to defaults"
             aria-label="Reset the website to defaults"
           >
-            <Trash2 style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)' }} />
+            <Trash2 style={HEADER_ICON_SIZE} />
             RESET
           </button>
         </div>
@@ -914,10 +918,17 @@ export default function Timer() {
             (horizontally at mobile, vertically at lg, where the column now
             sits taller thanks to the link above the digits). Plain center
             alignment clips part of an overflowing item in a way scrolling
-            can't reach; "safe center" falls back to start-alignment
-            instead once it would overflow. Tailwind's arbitrary-value
-            class for this didn't generate real CSS here, so it's set via
-            inline style, which wins over the items-center class */}
+            can't reach; the inline alignItems: 'safe center' falls back to
+            start-alignment instead once it would overflow (Tailwind's
+            arbitrary-value class for this didn't generate real CSS here).
+            Keep the items-center CLASS too, even though the inline style
+            normally wins outright: a browser that doesn't parse the "safe"
+            keyword drops that whole inline declaration as invalid, and the
+            class is what it falls back to — without it, unsupported
+            browsers would get no alignment at all instead of plain
+            center. Verified: an unparseable inline value is dropped by the
+            engine rather than resolving to blank/normal, so this class is
+            live protection, not dead weight. */}
         <div
           className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto"
           style={{ alignItems: 'safe center' }}
@@ -942,21 +953,24 @@ export default function Timer() {
               target="_blank"
               rel="noopener noreferrer"
               className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
-              style={{ fontSize: 'clamp(0.7rem, min(1.6vw, 2.2vh), 1.1rem)', fontFamily: "'IBM Plex Mono', monospace" }}
+              style={{ fontSize: shrinkClamp(0.7, 1.6, 2.2, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
             >
-              <ExternalLink size={18} />
+              {/* shrinks at the same min(vw, vh) rate as this link's own
+                  text (not the header icons' rate), so it never grows
+                  disproportionate to the label it sits beside */}
+              <ExternalLink style={{ width: shrinkClamp(0.9, 1.6, 2.2, 1.25), height: shrinkClamp(0.9, 1.6, 2.2, 1.25) }} />
               Check out my website
             </a>
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-              // the digits' own font-size clamps on vw only — the one
-              // size in this column a short window never shrinks; the
-              // padding around them is chrome, so it yields like everything
-              // else
-              style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.25rem, min(1.2vw, 1.3vh), 1rem)' }}
+              // the digits' own font-size clamps on vw only (not
+              // shrinkClamp) — the one size in this column a short window
+              // never shrinks; the padding around them is chrome, so it
+              // yields like everything else
+              style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.25, 1.2, 1.3, 1) }}
             >
               {/* configured time, for reference */}
-              <div className="opacity-60 text-center" style={{ fontSize: 'clamp(0.7rem, min(1.4vw, 1.5vh), 1.15rem)', letterSpacing: '0.05em' }}>
+              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(0.7, 1.4, 1.5, 1.15), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
               <div className="flex items-baseline justify-center gap-1">
@@ -1062,7 +1076,7 @@ export default function Timer() {
             <div className="flex flex-col items-center gap-1 mt-2">
               <div
                 className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-                style={{ fontSize: 'clamp(0.6rem, min(1.3vw, 1.4vh), 0.875rem)', ...textGlowStyle }}
+                style={{ fontSize: shrinkClamp(0.6, 1.3, 1.4, 0.875), ...textGlowStyle }}
               >
                 {status}
               </div>
@@ -1080,7 +1094,7 @@ export default function Timer() {
                     key={key}
                     className={`opacity-75 tracking-wider ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
                     style={{
-                      fontSize: 'clamp(0.65rem, min(1.5vw, 1.6vh), 1rem)',
+                      fontSize: shrinkClamp(0.65, 1.5, 1.6, 1),
                       color: isWordCounterFocused ? '#ef4444' : '#ffffff',
                       ...textGlowStyle,
                     }}
