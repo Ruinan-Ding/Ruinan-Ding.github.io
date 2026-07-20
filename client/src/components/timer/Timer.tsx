@@ -620,6 +620,13 @@ export default function Timer() {
   // same label style as the presets/history lists ("1:30", not "01:30:00")
   const configuredLabel = formatEntryLabel(configured);
 
+  // Drain bar under the digits: full at the configured time, empty at 0
+  // (and through overtime), its left edge receding rightward as time runs
+  // out while the hue sweeps green (120) -> red (0)
+  const configuredMs = configuredTotalSeconds * 1000;
+  const remainingMs = Math.max(0, seconds * 1000 + milliseconds);
+  const timeFraction = configuredMs > 0 ? Math.min(1, remainingMs / configuredMs) : 0;
+
   // a timer that's never run — idle at its configured time — has nothing
   // for STOP or RESET to act on
   const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
@@ -800,6 +807,17 @@ export default function Timer() {
                 <span className="opacity-60" style={{ fontSize: 'clamp(0.85rem, 1.6vw, 1.15rem)', letterSpacing: '0.05em', marginLeft: '0.25em' }}>
                   /{configuredLabel}
                 </span>
+              </div>
+              {/* inside the digits box so it matches the digits' width;
+                  em units keep its size proportional to the digit size */}
+              <div className="flex justify-end" style={{ height: '0.12em', marginTop: '0.08em' }}>
+                <div
+                  style={{
+                    width: `${timeFraction * 100}%`,
+                    height: '100%',
+                    backgroundColor: `hsl(${120 * timeFraction}, 75%, 50%)`,
+                  }}
+                />
               </div>
             </div>
 
