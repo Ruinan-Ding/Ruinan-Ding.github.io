@@ -6,8 +6,9 @@ interface WordCounterProps {
   onFocusChange: (focused: boolean) => void;
   // the window flashes green and fades toward black while the timer
   // runs; the header sits directly on it, so its label fades black ->
-  // white in step (runFadeText) to stay readable through the fade
-  isWindowGreen: boolean;
+  // white in step. Holds the runFadeText A/B class while the window is
+  // green, '' otherwise
+  greenFadeTextClass: string;
 }
 
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
@@ -18,7 +19,7 @@ const COUNTER_LINE_HEIGHT = 1.6;
 const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 
-function WordCounter({ onFocusChange, isWindowGreen }: WordCounterProps) {
+function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -60,7 +61,7 @@ function WordCounter({ onFocusChange, isWindowGreen }: WordCounterProps) {
   return (
     <div className="flex flex-col items-start gap-1 w-full flex-1 overflow-hidden min-h-0">
       <div className="flex justify-between items-center w-full">
-        <label className={`font-bold text-left ${isWindowGreen ? 'text-white animate-runFadeText' : isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
+        <label className={`font-bold text-left ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
         {text !== '' && (
           <button
             onClick={() => setText('')}

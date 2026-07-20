@@ -113,6 +113,11 @@ export default function Timer() {
   const [isWordCounterFocused, setIsWordCounterFocused] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // bumps when a fresh countdown starts so the green fade replays even if
+  // the window never left the running state (see runFadeClass below)
+  const [runCycle, setRunCycle] = useState(0);
+  const restartRunFade = () => setRunCycle((c) => c + 1);
+
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
   // only prompt for time adjustments once per running/paused state
@@ -415,6 +420,7 @@ export default function Timer() {
     recordHistory(configured);
     setIsRunning(true);
     setIsPaused(false);
+    restartRunFade();
     playTone('start');
   };
 
@@ -450,6 +456,7 @@ export default function Timer() {
       recordHistory(configured);
       setIsRunning(true);
       setIsPaused(false);
+      restartRunFade();
       return;
     }
     setDialog({ type: 'reset' });
@@ -462,6 +469,7 @@ export default function Timer() {
     recordHistory(configured);
     setIsRunning(true);
     setIsPaused(false);
+    restartRunFade();
     closeDialog();
   };
 
@@ -482,6 +490,7 @@ export default function Timer() {
     setIsRunning(start);
     if (start) {
       recordHistory(parts);
+      restartRunFade();
       playTone('start');
     }
   };
@@ -533,6 +542,7 @@ export default function Timer() {
   // alarm kicks in on the next tick.
   const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
     setterFor(unit)(value);
+    restartRunFade();
     // a finished (beeping) timer restarts from the new configured time
     // instead of clamping the negative remainder to zero
     if (timeRef.current.seconds < 0) {
@@ -634,10 +644,13 @@ export default function Timer() {
   // The whole window carries the state color: running flashes bright
   // green and fades to a near-black dark green within 5s (runFade);
   // paused flashes yellow; overtime pulses red in sync with the alarm
-  // beeps and stays black while silent. Text sitting directly on the
-  // window fades black -> white in step with the green (runFadeText) so
-  // it stays readable at both ends of the fade.
+  // beeps and stays black while silent. The small text sitting directly
+  // on the window fades black -> white in step (runFadeText); the digits
+  // stay white throughout. The A/B swap keyed on runCycle restarts the
+  // fade for a fresh countdown while the window is already green.
   const isWindowGreen = isRunning && !isPaused && seconds >= 0;
+  const runFadeClass = runCycle % 2 === 0 ? 'animate-runFadeA' : 'animate-runFadeB';
+  const runFadeTextClass = runCycle % 2 === 0 ? 'animate-runFadeTextA' : 'animate-runFadeTextB';
 
   const status = seconds < 0
     ? (isPaused ? 'PAUSED' : 'FINISHED')
@@ -672,7 +685,7 @@ export default function Timer() {
           : isRunning
             ? isPaused
               ? 'animate-pauseFlash'
-              : 'animate-runFade'
+              : runFadeClass
             : 'bg-black'
       }`}
     >
@@ -796,7 +809,7 @@ export default function Timer() {
 
           <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
             <div
-              className={`font-bold tracking-wider transition-colors duration-200 text-white ${isWindowGreen ? 'animate-runFadeText' : ''}`}
+              className="font-bold tracking-wider text-white"
               style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
             >
               <div className="flex items-baseline gap-1">
@@ -809,10 +822,8 @@ export default function Timer() {
                 </span>
               </div>
               {/* inside the digits box so it matches the digits' width;
-                  em units keep its size proportional to the digit size.
-                  border-current makes the track's outline follow the
-                  digits' animated black -> white color */}
-              <div className="flex justify-end border-2 border-current" style={{ height: '0.16em', minHeight: '0.5rem', marginTop: '0.08em' }}>
+                  em units keep its size proportional to the digit size */}
+              <div className="flex justify-end border-2 border-white" style={{ height: '0.16em', minHeight: '0.5rem', marginTop: '0.08em' }}>
                 <div
                   style={{
                     width: `${timeFraction * 100}%`,
@@ -864,7 +875,7 @@ export default function Timer() {
             </div>
 
             <div className="flex flex-col items-center gap-1 mt-2">
-              <div className={`font-bold tracking-wider text-white ${isWindowGreen ? 'animate-runFadeText' : ''}`} style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)' }}>
+              <div className={`font-bold tracking-wider text-white ${isWindowGreen ? runFadeTextClass : ''}`} style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)' }}>
                 {status}
               </div>
 
@@ -879,7 +890,7 @@ export default function Timer() {
                 return hints.map(({ key, text, disabled }) => (
                   <div
                     key={key}
-                    className={`opacity-75 tracking-wider ${isWindowGreen && !isWordCounterFocused ? 'animate-runFadeText' : ''}`}
+                    className={`opacity-75 tracking-wider ${isWindowGreen && !isWordCounterFocused ? runFadeTextClass : ''}`}
                     style={{
                       fontSize: 'clamp(0.75rem, 1.8vw, 1rem)',
                       color: isWordCounterFocused ? '#ef4444' : '#ffffff',
@@ -901,7 +912,7 @@ export default function Timer() {
           </div>
         </div>
 
-        <WordCounter onFocusChange={setIsWordCounterFocused} isWindowGreen={isWindowGreen} />
+        <WordCounter onFocusChange={setIsWordCounterFocused} greenFadeTextClass={isWindowGreen ? runFadeTextClass : ''} />
       </div>
 
       <ConfirmDialog
