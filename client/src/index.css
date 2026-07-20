@@ -76,11 +76,12 @@
 /* Running: flash bright green, fade the window to black within 5s, then
    snap the text to that same green at the 5s mark. Small text sitting
    directly on the window fades black -> white during the window fade so
-   it stays readable at both ends; the digits hold white through it. Each
-   fade exists as two identical A/B copies: starting a fresh countdown
-   while the window is already green (reset, preset switch, time change
-   mid-run) swaps between them, since only an animation-name change
-   restarts a finished CSS animation */
+   it stays readable at both ends (via the --glow-from custom property);
+   the digits hold white through it, since they don't set --glow-from and
+   the keyframes fall back to white. Each fade exists as two identical A/B
+   copies: starting a fresh countdown while the window is already green
+   (reset, preset switch, time change mid-run) swaps between them, since
+   only an animation-name change restarts a finished CSS animation */
 @keyframes runFadeA {
   from {
     background-color: #22c55e;
@@ -99,38 +100,11 @@
   }
 }
 
-@keyframes runFadeTextA {
+@keyframes glowFadeA {
   0% {
-    color: #000000;
+    color: var(--glow-from, #ffffff);
   }
   50% {
-    color: #ffffff;
-  }
-  50.01% {
-    color: #22c55e;
-  }
-  100% {
-    color: #22c55e;
-  }
-}
-
-@keyframes runFadeTextB {
-  0% {
-    color: #000000;
-  }
-  50% {
-    color: #ffffff;
-  }
-  50.01% {
-    color: #22c55e;
-  }
-  100% {
-    color: #22c55e;
-  }
-}
-
-@keyframes digitFadeA {
-  0%, 50% {
     color: #ffffff;
   }
   50.01%, 100% {
@@ -138,8 +112,11 @@
   }
 }
 
-@keyframes digitFadeB {
-  0%, 50% {
+@keyframes glowFadeB {
+  0% {
+    color: var(--glow-from, #ffffff);
+  }
+  50% {
     color: #ffffff;
   }
   50.01%, 100% {
@@ -180,20 +157,12 @@
   animation: runFadeB 5s ease-out forwards;
 }
 
-.animate-runFadeTextA {
-  animation: runFadeTextA 10s ease-out forwards;
+.animate-glowFadeA {
+  animation: glowFadeA 10s ease-out forwards;
 }
 
-.animate-runFadeTextB {
-  animation: runFadeTextB 10s ease-out forwards;
-}
-
-.animate-digitFadeA {
-  animation: digitFadeA 10s ease-out forwards;
-}
-
-.animate-digitFadeB {
-  animation: digitFadeB 10s ease-out forwards;
+.animate-glowFadeB {
+  animation: glowFadeB 10s ease-out forwards;
 }
 
 @layer components {

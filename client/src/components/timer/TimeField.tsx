@@ -23,6 +23,9 @@ const FIELD_FONT_SIZE = 'clamp(1rem, 1.8vw, 1.5rem)';
 // placeholder's length while empty), never drifting to the box's left edge.
 function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFieldProps) {
   const clamp = (next: number) => Math.max(0, Math.min(max, next));
+  // shared by the chevrons and arrow-key stepping — the only difference is
+  // which base value they step from and how the result is applied
+  const step = (base: number, direction: number) => clamp(base + direction);
 
   // null = not editing; '' = editing but untouched (placeholder shown)
   const [digits, setDigits] = useState<string | null>(null);
@@ -55,7 +58,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
     onStep: (direction) => {
       setDigits((prev) => {
         const base = prev === null || prev === '' ? value : clamp(parseInt(prev, 10));
-        return pad(clamp(base + direction));
+        return pad(step(base, direction));
       });
     },
   });
@@ -113,7 +116,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
         </div>
         <div className="flex flex-col gap-1">
           <button
-            onClick={() => onRequestChange(clamp(value + 1))}
+            onClick={() => onRequestChange(step(value, 1))}
             disabled={value >= max}
             aria-label={`Increase ${label.toLowerCase()}`}
             className={chevronButtonClass}
@@ -122,7 +125,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
             <ChevronUp size={20} />
           </button>
           <button
-            onClick={() => onRequestChange(clamp(value - 1))}
+            onClick={() => onRequestChange(step(value, -1))}
             disabled={value <= 0}
             aria-label={`Decrease ${label.toLowerCase()}`}
             className={chevronButtonClass}

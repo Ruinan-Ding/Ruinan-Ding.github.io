@@ -411,6 +411,16 @@ export default function Timer() {
     }
   };
 
+  // Shared by every path that restarts the countdown from a fresh total
+  // (adjusting a field, resetting, auto-restarting after finishing): stop
+  // any ringing alarm, snap the clock to the new total, and replay the
+  // green fade.
+  const restartCountdown = (totalSeconds: number) => {
+    clearAlarmInterval();
+    setTime({ seconds: totalSeconds, milliseconds: 0 });
+    restartRunFade();
+  };
+
   const recordHistory = (parts: TimeParts) => {
     const entry: TimerEntry = { id: uniqueId(), ...parts, timestamp: Date.now() };
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
@@ -470,12 +480,10 @@ export default function Timer() {
   const handleResetClick = () => {
     // If finished, auto-restart without confirmation
     if (seconds < 0) {
-      clearAlarmInterval();
-      setTime({ seconds: configuredTotalSeconds, milliseconds: 0 });
+      restartCountdown(configuredTotalSeconds);
       recordHistory(configured);
       setIsRunning(true);
       setIsPaused(false);
-      restartRunFade();
       return;
     }
     if (skipConfirmations) {
@@ -487,12 +495,10 @@ export default function Timer() {
 
   const handleConfirmReset = () => {
     playTone('reset');
-    clearAlarmInterval();
-    setTime({ seconds: configuredTotalSeconds, milliseconds: 0 });
+    restartCountdown(configuredTotalSeconds);
     recordHistory(configured);
     setIsRunning(true);
     setIsPaused(false);
-    restartRunFade();
     closeDialog();
   };
 
@@ -572,10 +578,8 @@ export default function Timer() {
   // and a finished (beeping) one restarts running.
   const applyAdjustment = useCallback((unit: TimeUnit, value: number) => {
     setterFor(unit)(value);
-    clearAlarmInterval();
     if (timeRef.current.seconds < 0) setIsPaused(false);
-    setTime({ seconds: toTotalSeconds({ ...configured, [unit]: value }), milliseconds: 0 });
-    restartRunFade();
+    restartCountdown(toTotalSeconds({ ...configured, [unit]: value }));
   }, [setterFor, configured]);
 
   // Changing a field while running/paused asks for confirmation first
@@ -622,8 +626,9 @@ export default function Timer() {
     }
     // every seek confirms — a never-run timer included, since its first
     // click would otherwise apply silently while later ones (the seek
-    // leaves it paused) would ask
-    setDialog({ type: 'seek', data: { targetSeconds, willPause: !isRunning } });
+    // leaves it paused) would ask. willPause mirrors applySeek's own
+    // condition for leaving the timer paused: never-run, or already paused.
+    setDialog({ type: 'seek', data: { targetSeconds, willPause: !isRunning || isPaused } });
   };
 
   // maps a mouse position on the track to its time: the bar drains left
@@ -684,6 +689,9 @@ export default function Timer() {
   const configuredMs = configuredTotalSeconds * 1000;
   const remainingMs = Math.max(0, seconds * 1000 + milliseconds);
   const timeFraction = configuredMs > 0 ? Math.min(1, remainingMs / configuredMs) : 0;
+  // ringing red wins over the hue (the animate-alarmFlashBar class then
+  // wins over this, alternating it with black); gray while never started
+  const barFillColor = isAlarmRinging ? '#ef4444' : isRunning ? `hsl(${120 * timeFraction}, 75%, 50%)` : '#6b7280';
 
   // a timer that's never run — idle at its configured time — has nothing
   // for STOP or RESET to act on
@@ -691,17 +699,19 @@ export default function Timer() {
 
   // The whole window carries the state color: running flashes bright
   // green and fades to black within 5s (runFade), after which the text
-  // glows to that same green over the next 5s; paused flashes yellow;
-  // overtime pulses red in sync with the alarm beeps and stays black
-  // while silent. The small text sitting directly on the window fades
-  // black -> white during the window fade (runFadeText); the digits hold
-  // white until the glow (digitFade). The A/B swap keyed on runCycle
-  // restarts the fades for a fresh countdown while the window is already
-  // green.
+  // glows to that same green (glowFade); paused flashes yellow; overtime
+  // pulses red in sync with the alarm beeps and stays black while silent.
+  // The small text sitting directly on the window fades black -> white
+  // during the window fade before glowing green (it sets --glow-from:
+  // black); the digits hold white through it (no override, so the
+  // keyframes' white fallback applies) before glowing the same green. The
+  // A/B swap keyed on runCycle restarts both fades for a fresh countdown
+  // while the window is already green.
   const isWindowGreen = isRunning && !isPaused && seconds >= 0;
-  const runFadeClass = runCycle % 2 === 0 ? 'animate-runFadeA' : 'animate-runFadeB';
-  const runFadeTextClass = runCycle % 2 === 0 ? 'animate-runFadeTextA' : 'animate-runFadeTextB';
-  const digitFadeClass = runCycle % 2 === 0 ? 'animate-digitFadeA' : 'animate-digitFadeB';
+  const fadeSuffix = runCycle % 2 === 0 ? 'A' : 'B';
+  const runFadeClass = `animate-runFade${fadeSuffix}`;
+  const glowFadeClass = `animate-glowFade${fadeSuffix}`;
+  const textGlowStyle = { '--glow-from': '#000000' } as React.CSSProperties;
 
   const status = seconds < 0
     ? (isPaused ? 'PAUSED' : 'FINISHED')
@@ -893,7 +903,7 @@ export default function Timer() {
 
           <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
             <div
-              className={`font-bold tracking-wider text-white ${isWindowGreen ? digitFadeClass : ''}`}
+              className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
               style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
             >
               {/* configured time, for reference */}
@@ -954,11 +964,7 @@ export default function Timer() {
                   style={{
                     width: `${(isAlarmRinging ? 1 : timeFraction) * 100}%`,
                     height: '100%',
-                    backgroundColor: isAlarmRinging
-                      ? '#ef4444'
-                      : isRunning
-                        ? `hsl(${120 * timeFraction}, 75%, 50%)`
-                        : '#6b7280',
+                    backgroundColor: barFillColor,
                   }}
                 />
               </div>
@@ -1005,7 +1011,10 @@ export default function Timer() {
             </div>
 
             <div className="flex flex-col items-center gap-1 mt-2">
-              <div className={`font-bold tracking-wider text-white ${isWindowGreen ? runFadeTextClass : ''}`} style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)' }}>
+              <div
+                className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
+                style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)', ...textGlowStyle }}
+              >
                 {status}
               </div>
 
@@ -1020,10 +1029,11 @@ export default function Timer() {
                 return hints.map(({ key, text, disabled }) => (
                   <div
                     key={key}
-                    className={`opacity-75 tracking-wider ${isWindowGreen && !isWordCounterFocused ? runFadeTextClass : ''}`}
+                    className={`opacity-75 tracking-wider ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
                     style={{
                       fontSize: 'clamp(0.75rem, 1.8vw, 1rem)',
                       color: isWordCounterFocused ? '#ef4444' : '#ffffff',
+                      ...textGlowStyle,
                     }}
                   >
                     {isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text}
@@ -1042,7 +1052,7 @@ export default function Timer() {
           </div>
         </div>
 
-        <WordCounter onFocusChange={setIsWordCounterFocused} greenFadeTextClass={isWindowGreen ? runFadeTextClass : ''} />
+        <WordCounter onFocusChange={setIsWordCounterFocused} greenFadeTextClass={isWindowGreen ? glowFadeClass : ''} />
       </div>
 
       <ConfirmDialog
