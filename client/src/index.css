@@ -73,21 +73,8 @@
   }
 }
 
-@keyframes finishFlash {
-  0%, 100% {
-    background-color: oklch(0 0 0);
-  }
-  50% {
-    background-color: oklch(0.577 0.245 27.325);
-  }
-}
-
 .animate-pauseFlash {
   animation: pauseFlash 2s ease-in-out infinite;
-}
-
-.animate-finishFlash {
-  animation: finishFlash 0.6s ease-in-out infinite;
 }
 
 @layer components {

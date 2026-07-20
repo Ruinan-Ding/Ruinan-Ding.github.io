@@ -625,8 +625,8 @@ export default function Timer() {
   const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
 
   // The whole window carries the state color: solid green while running,
-  // flashing yellow when paused, red in overtime — pulsing with each beep
-  // while the alarm rings, slow ambient flash while it's silent.
+  // flashing yellow when paused, and in overtime red pulses that mirror
+  // the alarm beeps exactly — silent overtime stays black.
   // Free-floating text switches to black on the solid green for contrast
   // (white already reads fine against both flash colors).
   const isWindowGreen = isRunning && !isPaused && seconds >= 0;
@@ -658,15 +658,13 @@ export default function Timer() {
         seconds < 0
           ? isPaused
             ? 'animate-pauseFlash'
-            : isAlarmRinging
-              // while ringing, the red tracks each beep; the color snaps
-              // (no transition) so the pulses stay crisp
-              ? isBeepFlash
-                ? 'bg-red-500'
-                : 'bg-black'
-              // overtime without sound (muted, ring-once finished, stopped
-              // after a reload) keeps the slow ambient flash
-              : 'animate-finishFlash'
+            // red only while a beep actually sounds — silent overtime
+            // (muted, ring-once finished, stopped after a reload) stays
+            // black, so the flashing always matches the audio; the color
+            // snaps (no transition) to keep the pulses crisp
+            : isBeepFlash
+              ? 'bg-red-500'
+              : 'bg-black'
           : isRunning
             ? isPaused
               ? 'animate-pauseFlash'
