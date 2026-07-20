@@ -86,7 +86,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect }: PresetsPanelProps)
             aria-label="Add preset"
             title={atCapacity ? `Preset limit reached (${MAX_PRESETS})` : 'Add preset'}
             className="border-2 border-green-500 text-green-500 font-bold hover:bg-green-500 hover:text-white transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ padding: 'clamp(0.25rem, 0.5vw, 0.375rem)', fontSize: 'clamp(0.7rem, 1.2vw, 0.875rem)', minWidth: 'clamp(1.5rem, 3vw, 2rem)' }}
+            style={PRESET_BUTTON_STYLE}
           >
             +
           </button>
