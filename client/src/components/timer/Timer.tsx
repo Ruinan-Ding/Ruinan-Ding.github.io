@@ -624,11 +624,12 @@ export default function Timer() {
   // for STOP or RESET to act on
   const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
 
-  // The whole window carries the state color: solid green while running,
-  // flashing yellow when paused, and in overtime red pulses that mirror
-  // the alarm beeps exactly — silent overtime stays black.
-  // Free-floating text switches to black on the solid green for contrast
-  // (white already reads fine against both flash colors).
+  // The whole window carries the state color: running flashes bright
+  // green and fades to a near-black dark green within 5s (runFade);
+  // paused flashes yellow; overtime pulses red in sync with the alarm
+  // beeps and stays black while silent. Text sitting directly on the
+  // window fades black -> white in step with the green (runFadeText) so
+  // it stays readable at both ends of the fade.
   const isWindowGreen = isRunning && !isPaused && seconds >= 0;
 
   const status = seconds < 0
@@ -636,10 +637,6 @@ export default function Timer() {
     : isRunning
       ? (isPaused ? 'PAUSED' : 'RUNNING')
       : (seconds === configuredTotalSeconds ? 'READY' : 'STOPPED');
-
-  // the window background shows the state color now, so the status text
-  // only needs contrast against it
-  const statusColor = isWindowGreen ? '#000000' : '#ffffff';
 
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
@@ -668,7 +665,7 @@ export default function Timer() {
           : isRunning
             ? isPaused
               ? 'animate-pauseFlash'
-              : 'bg-green-500'
+              : 'animate-runFade'
             : 'bg-black'
       }`}
     >
@@ -769,7 +766,7 @@ export default function Timer() {
           href="https://ruinan-ding.github.io/Ruinan-Ding/"
           target="_blank"
           rel="noopener noreferrer"
-          className={`absolute top-2 sm:top-3 md:top-4 left-1/2 -translate-x-1/2 z-50 ${isWindowGreen ? 'text-black' : 'text-white'} underline hover:opacity-80 transition-opacity whitespace-nowrap`}
+          className="absolute top-2 sm:top-3 md:top-4 left-1/2 -translate-x-1/2 z-50 text-white underline hover:opacity-80 transition-opacity whitespace-nowrap"
           style={{ fontSize: 'clamp(0.75rem, 1.5vw, 1rem)', fontFamily: "'IBM Plex Mono', monospace" }}
         >
           Check out my website
@@ -792,7 +789,7 @@ export default function Timer() {
 
           <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
             <div
-              className={`font-bold tracking-wider transition-colors duration-200 ${isWindowGreen ? 'text-black' : 'text-white'}`}
+              className={`font-bold tracking-wider transition-colors duration-200 text-white ${isWindowGreen ? 'animate-runFadeText' : ''}`}
               style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
             >
               <div className="flex items-baseline gap-1">
@@ -847,7 +844,7 @@ export default function Timer() {
             </div>
 
             <div className="flex flex-col items-center gap-1 mt-2">
-              <div className="font-bold tracking-wider" style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)', color: statusColor }}>
+              <div className={`font-bold tracking-wider text-white ${isWindowGreen ? 'animate-runFadeText' : ''}`} style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)' }}>
                 {status}
               </div>
 
@@ -862,13 +859,10 @@ export default function Timer() {
                 return hints.map(({ key, text, disabled }) => (
                   <div
                     key={key}
-                    className="opacity-75 tracking-wider"
+                    className={`opacity-75 tracking-wider ${isWindowGreen && !isWordCounterFocused ? 'animate-runFadeText' : ''}`}
                     style={{
                       fontSize: 'clamp(0.75rem, 1.8vw, 1rem)',
-                      // red disappears against the green window; darken it there
-                      color: isWordCounterFocused
-                        ? (isWindowGreen ? '#7f1d1d' : '#ef4444')
-                        : isWindowGreen ? '#000000' : '#ffffff',
+                      color: isWordCounterFocused ? '#ef4444' : '#ffffff',
                     }}
                   >
                     {isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text}

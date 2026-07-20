@@ -4,8 +4,9 @@ import { STORAGE_KEYS } from './constants';
 
 interface WordCounterProps {
   onFocusChange: (focused: boolean) => void;
-  // the window turns solid green while the timer runs; the header sits
-  // directly on it, so its red/green/white colors need a black fallback
+  // the window flashes green and fades toward black while the timer
+  // runs; the header sits directly on it, so its label fades black ->
+  // white in step (runFadeText) to stay readable through the fade
   isWindowGreen: boolean;
 }
 
@@ -59,11 +60,11 @@ function WordCounter({ onFocusChange, isWindowGreen }: WordCounterProps) {
   return (
     <div className="flex flex-col items-start gap-1 w-full flex-1 overflow-hidden min-h-0">
       <div className="flex justify-between items-center w-full">
-        <label className={`font-bold text-left ${isWindowGreen ? 'text-black' : isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
+        <label className={`font-bold text-left ${isWindowGreen ? 'text-white animate-runFadeText' : isFocused ? 'text-green-500' : 'text-red-500'}`} style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1.5rem)' }}>WORD COUNTER</label>
         {text !== '' && (
           <button
             onClick={() => setText('')}
-            className={`border px-2 py-1 transition-colors ${isWindowGreen ? 'text-black border-black hover:bg-black hover:text-white' : 'text-white border-white hover:bg-white hover:text-black'}`}
+            className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors"
             style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.75rem)' }}
           >
             Clear

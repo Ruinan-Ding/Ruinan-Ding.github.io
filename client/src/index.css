@@ -73,8 +73,37 @@
   }
 }
 
+/* Running: flash bright green, then settle to a near-black dark green
+   within 5s; text sitting directly on the window fades black -> white in
+   step so it stays readable at both ends */
+@keyframes runFade {
+  from {
+    background-color: #22c55e;
+  }
+  to {
+    background-color: #052e16;
+  }
+}
+
+@keyframes runFadeText {
+  from {
+    color: #000000;
+  }
+  to {
+    color: #ffffff;
+  }
+}
+
 .animate-pauseFlash {
   animation: pauseFlash 2s ease-in-out infinite;
+}
+
+.animate-runFade {
+  animation: runFade 5s ease-out forwards;
+}
+
+.animate-runFadeText {
+  animation: runFadeText 5s ease-out forwards;
 }
 
 @layer components {
