@@ -915,20 +915,15 @@ export default function Timer() {
         </div>
 
         {/* items-center centers the digits column in the row's cross axis
-            (horizontally at mobile, vertically at lg, where the column now
-            sits taller thanks to the link above the digits). Plain center
-            alignment clips part of an overflowing item in a way scrolling
-            can't reach; the inline alignItems: 'safe center' falls back to
-            start-alignment instead once it would overflow (Tailwind's
-            arbitrary-value class for this didn't generate real CSS here).
-            Keep the items-center CLASS too, even though the inline style
-            normally wins outright: a browser that doesn't parse the "safe"
-            keyword drops that whole inline declaration as invalid, and the
-            class is what it falls back to — without it, unsupported
-            browsers would get no alignment at all instead of plain
-            center. Verified: an unparseable inline value is dropped by the
-            engine rather than resolving to blank/normal, so this class is
-            live protection, not dead weight. */}
+            (horizontally at mobile, vertically at lg, where the column is
+            taller now that the link sits above the digits). The inline
+            alignItems: 'safe center' falls back to start-alignment instead
+            of clipping an overflowing item in a way scrolling can't reach
+            (set via inline style since Tailwind's arbitrary-value class for
+            it didn't generate real CSS here). Keep the items-center class
+            too: an invalid inline value is dropped rather than resolving to
+            blank, so this class is the fallback for browsers that reject
+            the "safe" keyword, not dead weight. */}
         <div
           className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto"
           style={{ alignItems: 'safe center' }}
