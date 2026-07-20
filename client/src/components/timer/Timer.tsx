@@ -910,12 +910,15 @@ export default function Timer() {
                 vw alone, so on a short-but-wide window the vh term takes
                 over and shrinks it — yielding vertical room to the digits
                 (sized purely by vw, so a short window never shrinks them)
-                and the START/RESET/STOP row below */}
+                and the START/RESET/STOP row below. Pink instead of a timer
+                state color so it never blends into the window's own green
+                run-start flash; the glow is suppressed during pause/alarm
+                so it doesn't compete with those higher-priority signals */}
             <a
               href="https://ruinan-ding.github.io/Ruinan-Ding/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 font-bold text-black bg-[#22c55e] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-transform duration-200 animate-linkGlow"
+              className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
               style={{ fontSize: 'clamp(0.7rem, min(1.6vw, 2.2vh), 1.1rem)', fontFamily: "'IBM Plex Mono', monospace" }}
             >
               <ExternalLink size={18} />

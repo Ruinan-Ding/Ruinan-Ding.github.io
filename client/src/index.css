@@ -65,13 +65,15 @@
 }
 
 /* Pulsing glow on the "check out my website" link, drawing the eye
-   without being as urgent as the alarm/pause flashes */
+   without being as urgent as the alarm/pause flashes. Pink rather than
+   the timer's own green/yellow/red so it never reads as a state color
+   and never blends into the window's own green run-start flash */
 @keyframes linkGlow {
   0%, 100% {
-    box-shadow: 0 0 2px 0 rgba(34, 197, 94, 0.5);
+    box-shadow: 0 0 2px 0 rgba(255, 128, 191, 0.5);
   }
   50% {
-    box-shadow: 0 0 18px 4px rgba(34, 197, 94, 0.9);
+    box-shadow: 0 0 18px 4px rgba(255, 128, 191, 0.9);
   }
 }
 
