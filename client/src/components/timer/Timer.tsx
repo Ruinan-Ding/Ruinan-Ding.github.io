@@ -906,13 +906,17 @@ export default function Timer() {
                 the absolute-positioned header strip) means it's centered
                 by the same items-center that centers the digits below it,
                 at every window size, without fighting the header icons
-                for space */}
+                for space. Its font-size clamps on min(vw, vh) rather than
+                vw alone, so on a short-but-wide window the vh term takes
+                over and shrinks it — yielding vertical room to the digits
+                (sized purely by vw, so a short window never shrinks them)
+                and the START/RESET/STOP row below */}
             <a
               href="https://ruinan-ding.github.io/Ruinan-Ding/"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 font-bold text-black bg-[#22c55e] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-transform duration-200 animate-linkGlow"
-              style={{ fontSize: 'clamp(0.8rem, 1.9vw, 1.2rem)', fontFamily: "'IBM Plex Mono', monospace" }}
+              style={{ fontSize: 'clamp(0.7rem, min(1.6vw, 2.2vh), 1.1rem)', fontFamily: "'IBM Plex Mono', monospace" }}
             >
               <ExternalLink size={18} />
               Check out my website
