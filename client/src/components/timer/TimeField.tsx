@@ -50,6 +50,14 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
       cancelledRef.current = true;
       inputRef.current?.blur();
     },
+    // arrows step the pending entry — or the committed value, when nothing
+    // has been typed yet; the result commits on blur/Enter like typing
+    onStep: (direction) => {
+      setDigits((prev) => {
+        const base = prev === null || prev === '' ? value : clamp(parseInt(prev, 10));
+        return pad(clamp(base + direction));
+      });
+    },
   });
 
   const handleBlur = () => {

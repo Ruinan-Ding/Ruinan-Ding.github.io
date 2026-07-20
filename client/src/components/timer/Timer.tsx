@@ -566,35 +566,17 @@ export default function Timer() {
     []
   );
 
-  // Apply a change to one unit of the configured time, shifting the
-  // remaining time by the same delta so elapsed progress is kept (changing
-  // hours must not reset the minutes/seconds already counted down).
-  // Dropping to 0 or below while running/paused zeroes the clock so the
-  // alarm kicks in on the next tick.
-  const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
+  // Apply a change to one unit of the configured time and restart the
+  // countdown from the new configured total, refilling the drain bar. A
+  // running timer keeps running from the top, a paused one waits there,
+  // and a finished (beeping) one restarts running.
+  const applyAdjustment = useCallback((unit: TimeUnit, value: number) => {
     setterFor(unit)(value);
+    clearAlarmInterval();
+    if (timeRef.current.seconds < 0) setIsPaused(false);
+    setTime({ seconds: toTotalSeconds({ ...configured, [unit]: value }), milliseconds: 0 });
     restartRunFade();
-    // a finished (beeping) timer restarts from the new configured time
-    // instead of clamping the negative remainder to zero
-    if (timeRef.current.seconds < 0) {
-      clearAlarmInterval();
-      setTime({ seconds: toTotalSeconds({ ...configured, [unit]: value }), milliseconds: 0 });
-      setIsPaused(false);
-      return;
-    }
-    const delta = (value - previous) * (unit === 'hours' ? 3600 : unit === 'minutes' ? 60 : 1);
-    if (isRunning || isPaused) {
-      // at most one tick stale while running, which the countdown absorbs
-      if (timeRef.current.seconds + delta <= 0) {
-        setTime({ seconds: 0, milliseconds: 0 });
-        setIsPaused(false);
-      } else {
-        setTime((prev) => ({ ...prev, seconds: prev.seconds + delta }));
-      }
-    } else {
-      setTime((prev) => ({ ...prev, seconds: Math.max(0, prev.seconds + delta) }));
-    }
-  }, [isRunning, isPaused, setterFor, configured]);
+  }, [setterFor, configured]);
 
   // Changing a field while running/paused asks for confirmation first
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
@@ -608,7 +590,7 @@ export default function Timer() {
       setDialog({ type: 'adjust', data: { unit, value, previous } });
       promptShownInStateRef.current = true;
     } else {
-      applyAdjustment(unit, value, previous);
+      applyAdjustment(unit, value);
     }
   }, [configured, isRunning, isPaused, setterFor, applyAdjustment, skipConfirmations]);
 
@@ -616,8 +598,8 @@ export default function Timer() {
   const handleMinutesChange = useCallback((value: number) => requestConfiguredChange('minutes', value), [requestConfiguredChange]);
   const handleSecondsChange = useCallback((value: number) => requestConfiguredChange('seconds', value), [requestConfiguredChange]);
 
-  const handleConfirmAdjust = (unit: TimeUnit, value: number, previous: number) => {
-    applyAdjustment(unit, value, previous);
+  const handleConfirmAdjust = (unit: TimeUnit, value: number) => {
+    applyAdjustment(unit, value);
     closeDialog();
   };
 
@@ -634,12 +616,14 @@ export default function Timer() {
   };
 
   const requestSeek = (targetSeconds: number) => {
-    // a live timer (running or paused) confirms before jumping
-    if (isRunning && !skipConfirmations) {
-      setDialog({ type: 'seek', data: { targetSeconds } });
+    if (skipConfirmations) {
+      applySeek(targetSeconds);
       return;
     }
-    applySeek(targetSeconds);
+    // every seek confirms — a never-run timer included, since its first
+    // click would otherwise apply silently while later ones (the seek
+    // leaves it paused) would ask
+    setDialog({ type: 'seek', data: { targetSeconds, willPause: !isRunning } });
   };
 
   // maps a mouse position on the track to its time: the bar drains left
@@ -675,7 +659,7 @@ export default function Timer() {
         closeDialog();
         break;
       case 'adjust':
-        handleConfirmAdjust(dialog.data.unit, dialog.data.value, dialog.data.previous);
+        handleConfirmAdjust(dialog.data.unit, dialog.data.value);
         break;
     }
   };
@@ -911,7 +895,7 @@ export default function Timer() {
             >
               {/* configured time, for reference */}
               <div className="opacity-60 text-center" style={{ fontSize: 'clamp(0.85rem, 1.6vw, 1.15rem)', letterSpacing: '0.05em' }}>
-                /{configuredLabel}
+                {configuredLabel}
               </div>
               <div className="flex items-baseline gap-1">
                 {remaining.hours && <span style={{ fontSize: '0.5em' }}>{remaining.sign}{remaining.hours}</span>}

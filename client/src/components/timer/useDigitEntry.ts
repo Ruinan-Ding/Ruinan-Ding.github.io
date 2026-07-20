@@ -9,6 +9,8 @@ interface DigitEntryHandlers {
   onCommit?: () => void;
   /** Escape */
   onCancel?: () => void;
+  /** ArrowUp (+1) / ArrowDown (-1) */
+  onStep?: (direction: 1 | -1) => void;
 }
 
 // Shared plumbing for the calculator-style digit inputs (the HH/MM/SS
@@ -82,6 +84,11 @@ export function useDigitEntry(
       // modifiers included — Ctrl+Backspace still deletes a digit
       e.preventDefault();
       handlersRef.current.remove();
+      return;
+    }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      handlersRef.current.onStep?.(e.key === 'ArrowUp' ? 1 : -1);
       return;
     }
     // remaining shortcuts (Ctrl+V/C/A) keep their defaults — cancelling

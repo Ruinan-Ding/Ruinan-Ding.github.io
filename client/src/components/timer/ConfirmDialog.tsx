@@ -52,9 +52,12 @@ const getCopy = (dialog: DialogState) => {
     }
     case 'seek': {
       const label = formatEntryLabel(fromTotalSeconds(dialog.data.targetSeconds));
+      // willPause: the timer wasn't running, so the seek leaves it paused
       return {
         title: 'MOVE TIMER',
-        description: `Move the remaining time to ${label}? The configured time stays the same.`,
+        description: dialog.data.willPause
+          ? `Move the timer to ${label}? It will wait there paused; the configured time stays the same.`
+          : `Move the remaining time to ${label}? The configured time stays the same.`,
         action: 'MOVE',
       };
     }
@@ -62,7 +65,7 @@ const getCopy = (dialog: DialogState) => {
       const { unit, value } = dialog.data;
       return {
         title: 'ADJUST TIME',
-        description: `Change ${unit} to ${value}?`,
+        description: `Change ${unit} to ${value}? The timer will restart from the new time.`,
         action: 'CONFIRM',
       };
     }
