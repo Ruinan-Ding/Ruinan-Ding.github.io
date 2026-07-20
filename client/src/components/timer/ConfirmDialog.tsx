@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { formatEntryLabel } from './format';
+import { formatEntryLabel, fromTotalSeconds } from './format';
 import type { DialogState } from './types';
 
 interface ConfirmDialogProps {
@@ -49,6 +49,14 @@ const getCopy = (dialog: DialogState) => {
             description: `Load ${label}? The stopped timer's remaining time will be discarded. Press START to run it.`,
             action: 'LOAD',
           };
+    }
+    case 'seek': {
+      const label = formatEntryLabel(fromTotalSeconds(dialog.data.targetSeconds));
+      return {
+        title: 'MOVE TIMER',
+        description: `Move the remaining time to ${label}? The configured time stays the same.`,
+        action: 'MOVE',
+      };
     }
     case 'adjust': {
       const { unit, value } = dialog.data;

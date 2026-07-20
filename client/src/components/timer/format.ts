@@ -6,6 +6,12 @@ export const pad = (value: number) => String(value).padStart(2, '0');
 export const toTotalSeconds = ({ hours, minutes, seconds }: TimeParts) =>
   hours * 3600 + minutes * 60 + seconds;
 
+export const fromTotalSeconds = (total: number): TimeParts => ({
+  hours: Math.floor(total / 3600),
+  minutes: Math.floor((total % 3600) / 60),
+  seconds: total % 60,
+});
+
 // Combine seconds + ms into one signed value before formatting, otherwise
 // the two parts double-count around the zero crossing
 export const formatTime = (totalSeconds: number, ms: number = 0) => {

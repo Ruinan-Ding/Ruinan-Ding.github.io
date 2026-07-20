@@ -22,4 +22,5 @@ export type DialogState =
   | { type: 'clearCache' }
   | { type: 'mute' }
   | { type: 'switch'; data: TimeParts; start: boolean }
+  | { type: 'seek'; data: { targetSeconds: number } }
   | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number } };

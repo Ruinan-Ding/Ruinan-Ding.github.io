@@ -10,7 +10,7 @@ import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_FINITE_GROUPS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
-import { formatEntryLabel, formatTime, toTotalSeconds } from './format';
+import { formatEntryLabel, formatTime, fromTotalSeconds, toTotalSeconds } from './format';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 
 // Speaker with sound waves that grow in as the volume rises; an X when muted
@@ -92,6 +92,12 @@ export default function Timer() {
     const saved = readJSON<unknown>(STORAGE_KEYS.alarmLoop, null);
     return typeof saved === 'boolean' ? saved : true;
   });
+  // skips every confirmation dialog except the site-wide RESET, which is
+  // destructive enough to always ask
+  const [skipConfirmations, setSkipConfirmations] = useState(() => {
+    const saved = readJSON<unknown>(STORAGE_KEYS.skipConfirmations, null);
+    return typeof saved === 'boolean' ? saved : false;
+  });
 
   const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
@@ -117,6 +123,10 @@ export default function Timer() {
   // the window never left the running state (see runFadeClass below)
   const [runCycle, setRunCycle] = useState(0);
   const restartRunFade = () => setRunCycle((c) => c + 1);
+
+  // hover preview over the drain bar: x offset within the track and the
+  // time that point corresponds to
+  const [barHover, setBarHover] = useState<{ x: number; seconds: number } | null>(null);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -148,7 +158,8 @@ export default function Timer() {
     writeJSON(STORAGE_KEYS.volume, volume);
     writeJSON(STORAGE_KEYS.hasMutedBefore, hasMutedBefore);
     writeJSON(STORAGE_KEYS.alarmLoop, isAlarmLooping);
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping]);
+    writeJSON(STORAGE_KEYS.skipConfirmations, skipConfirmations);
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations]);
 
   useEffect(() => {
     promptShownInStateRef.current = false;
@@ -337,7 +348,11 @@ export default function Timer() {
       return;
     }
     if (!hasMutedBefore) {
-      setDialog({ type: 'mute' });
+      if (skipConfirmations) {
+        handleConfirmMute();
+      } else {
+        setDialog({ type: 'mute' });
+      }
       return;
     }
     setIsSilentMode(true);
@@ -439,6 +454,10 @@ export default function Timer() {
       stopToConfigured();
       return;
     }
+    if (skipConfirmations) {
+      handleConfirmStop();
+      return;
+    }
     setDialog({ type: 'stop' });
   };
 
@@ -457,6 +476,10 @@ export default function Timer() {
       setIsRunning(true);
       setIsPaused(false);
       restartRunFade();
+      return;
+    }
+    if (skipConfirmations) {
+      handleConfirmReset();
       return;
     }
     setDialog({ type: 'reset' });
@@ -500,20 +523,28 @@ export default function Timer() {
     // confirm while counting down or paused (even paused in overtime);
     // an actively beeping timer switches straight over
     if (isRunning && (isPaused || timeRef.current.seconds >= 0)) {
-      setDialog({ type: 'switch', data: parts, start: true });
+      if (skipConfirmations) {
+        applySwitch(parts, true);
+      } else {
+        setDialog({ type: 'switch', data: parts, start: true });
+      }
       return;
     }
     // a stopped timer showing anything other than its configured time —
     // mid-run or overtime after a reload — still has progress on screen;
     // confirm before discarding it, but confirming only loads the preset
     if (!isRunning && timeRef.current.seconds !== configuredTotalSeconds) {
-      setDialog({ type: 'switch', data: parts, start: false });
+      if (skipConfirmations) {
+        applySwitch(parts, false);
+      } else {
+        setDialog({ type: 'switch', data: parts, start: false });
+      }
       return;
     }
     // a beeping timer hands off to the new preset and keeps running;
     // a stopped one just loads it
     applySwitch(parts, isRunning && timeRef.current.seconds < 0);
-  }, [isRunning, isPaused, configuredTotalSeconds, loadEntry, isSilentMode, beep]);
+  }, [isRunning, isPaused, configuredTotalSeconds, loadEntry, isSilentMode, beep, skipConfirmations]);
 
   const handleConfirmSwitch = (parts: TimeParts, start: boolean) => {
     applySwitch(parts, start);
@@ -573,13 +604,13 @@ export default function Timer() {
     if (value === previous) return;
 
     // no confirmation while beeping — the adjustment restarts the timer
-    if ((isRunning || isPaused) && timeRef.current.seconds >= 0 && !promptShownInStateRef.current) {
+    if (!skipConfirmations && (isRunning || isPaused) && timeRef.current.seconds >= 0 && !promptShownInStateRef.current) {
       setDialog({ type: 'adjust', data: { unit, value, previous } });
       promptShownInStateRef.current = true;
     } else {
       applyAdjustment(unit, value, previous);
     }
-  }, [configured, isRunning, isPaused, setterFor, applyAdjustment]);
+  }, [configured, isRunning, isPaused, setterFor, applyAdjustment, skipConfirmations]);
 
   const handleHoursChange = useCallback((value: number) => requestConfiguredChange('hours', value), [requestConfiguredChange]);
   const handleMinutesChange = useCallback((value: number) => requestConfiguredChange('minutes', value), [requestConfiguredChange]);
@@ -588,6 +619,35 @@ export default function Timer() {
   const handleConfirmAdjust = (unit: TimeUnit, value: number, previous: number) => {
     applyAdjustment(unit, value, previous);
     closeDialog();
+  };
+
+  // Seeking via the drain bar moves only the remaining time; the
+  // configured time stays as it is. A timer that wasn't running wakes up
+  // paused at the chosen point.
+  const applySeek = (targetSeconds: number) => {
+    if (!isRunning) {
+      setIsRunning(true);
+      setIsPaused(true);
+    }
+    setTime({ seconds: targetSeconds, milliseconds: 0 });
+    restartRunFade();
+  };
+
+  const requestSeek = (targetSeconds: number) => {
+    // a live timer (running or paused) confirms before jumping
+    if (isRunning && !skipConfirmations) {
+      setDialog({ type: 'seek', data: { targetSeconds } });
+      return;
+    }
+    applySeek(targetSeconds);
+  };
+
+  // maps a mouse position on the track to its time: the bar drains left
+  // to right, so the track's left end is the configured time, right is 0
+  const barPointSeconds = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.min(rect.width, Math.max(0, e.clientX - rect.left));
+    return { x, seconds: Math.round((1 - x / rect.width) * configuredTotalSeconds) };
   };
 
   const handleDialogConfirm = () => {
@@ -609,6 +669,10 @@ export default function Timer() {
         break;
       case 'switch':
         handleConfirmSwitch(dialog.data, dialog.start);
+        break;
+      case 'seek':
+        applySeek(dialog.data.targetSeconds);
+        closeDialog();
         break;
       case 'adjust':
         handleConfirmAdjust(dialog.data.unit, dialog.data.value, dialog.data.previous);
@@ -792,17 +856,50 @@ export default function Timer() {
           Check out my website
         </a>
 
-        {/* Reset the whole site to defaults */}
-        <button
-          onClick={() => setDialog({ type: 'clearCache' })}
-          className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-50 flex items-center gap-2 border-3 border-red-500 text-red-500 font-bold px-3 h-10 sm:h-12 md:h-14 transition-all duration-200 hover:opacity-80"
-          style={{ backgroundColor: '#000000', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 1rem)' }}
-          title="Reset the website to defaults"
-          aria-label="Reset the website to defaults"
-        >
-          <Trash2 size={22} />
-          RESET
-        </button>
+        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-50 flex items-center gap-2">
+          {/* skip-confirmations toggle; the site RESET next to it is
+              destructive enough that it always asks */}
+          <button
+            onClick={() => setSkipConfirmations((prev: boolean) => !prev)}
+            aria-pressed={skipConfirmations}
+            className="flex items-center gap-2 border-3 font-bold px-3 h-10 sm:h-12 md:h-14 transition-all duration-200 hover:opacity-80"
+            style={{
+              borderColor: skipConfirmations ? '#eab308' : '#ffffff',
+              color: skipConfirmations ? '#eab308' : '#ffffff',
+              backgroundColor: '#000000',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 'clamp(0.75rem, 1.5vw, 1rem)',
+            }}
+            title={skipConfirmations
+              ? 'Confirmations are off — actions apply immediately (the RESET button still asks). Click to turn them back on'
+              : 'Skip every confirmation dialog (the RESET button still asks)'}
+            aria-label={skipConfirmations ? 'Turn confirmation dialogs back on' : 'Turn confirmation dialogs off'}
+          >
+            <span
+              aria-hidden
+              className="inline-block border-2 flex-shrink-0"
+              style={{
+                width: '0.9em',
+                height: '0.9em',
+                borderColor: 'currentColor',
+                backgroundColor: skipConfirmations ? 'currentColor' : 'transparent',
+              }}
+            />
+            <span className="hidden sm:inline">DON'T ASK</span>
+          </button>
+
+          {/* Reset the whole site to defaults */}
+          <button
+            onClick={() => setDialog({ type: 'clearCache' })}
+            className="flex items-center gap-2 border-3 border-red-500 text-red-500 font-bold px-3 h-10 sm:h-12 md:h-14 transition-all duration-200 hover:opacity-80"
+            style={{ backgroundColor: '#000000', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 1rem)' }}
+            title="Reset the website to defaults"
+            aria-label="Reset the website to defaults"
+          >
+            <Trash2 size={22} />
+            RESET
+          </button>
+        </div>
 
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto lg:overflow-hidden">
           <div className="flex-1 hidden lg:block"></div>
@@ -812,18 +909,45 @@ export default function Timer() {
               className="font-bold tracking-wider text-white"
               style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
             >
+              {/* configured time, for reference */}
+              <div className="opacity-60 text-center" style={{ fontSize: 'clamp(0.85rem, 1.6vw, 1.15rem)', letterSpacing: '0.05em' }}>
+                /{configuredLabel}
+              </div>
               <div className="flex items-baseline gap-1">
                 {remaining.hours && <span style={{ fontSize: '0.5em' }}>{remaining.sign}{remaining.hours}</span>}
                 <span>{!remaining.hours && remaining.sign}{remaining.main}</span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
-                {/* configured time, for reference */}
-                <span className="opacity-60" style={{ fontSize: 'clamp(0.85rem, 1.6vw, 1.15rem)', letterSpacing: '0.05em', marginLeft: '0.25em' }}>
-                  /{configuredLabel}
-                </span>
               </div>
-              {/* inside the digits box so it matches the digits' width;
-                  em units keep its size proportional to the digit size */}
-              <div className="flex justify-end border-2 border-white" style={{ height: '0.16em', minHeight: '0.5rem', marginTop: '0.08em' }}>
+              {/* inside the digits box so it matches the digits' width; em
+                  units keep its size proportional to the digit size.
+                  Hovering previews the time at that point on the track;
+                  clicking seeks the remaining time there */}
+              <div
+                className={`relative flex justify-end border-2 border-white ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
+                style={{ height: '0.16em', minHeight: '0.5rem', marginTop: '0.08em' }}
+                onMouseMove={(e) => {
+                  if (configuredTotalSeconds > 0) setBarHover(barPointSeconds(e));
+                }}
+                onMouseLeave={() => setBarHover(null)}
+                onClick={(e) => {
+                  if (configuredTotalSeconds > 0) requestSeek(barPointSeconds(e).seconds);
+                }}
+              >
+                {barHover !== null && (
+                  <div
+                    className="absolute bg-black border-2 border-white text-white font-bold pointer-events-none whitespace-nowrap z-10"
+                    style={{
+                      left: `${barHover.x}px`,
+                      bottom: '100%',
+                      transform: 'translate(-50%, -0.25rem)',
+                      fontSize: 'clamp(0.65rem, 1.2vw, 0.8rem)',
+                      letterSpacing: '0.05em',
+                      padding: '0.125rem 0.375rem',
+                    }}
+                  >
+                    {formatEntryLabel(fromTotalSeconds(barHover.seconds))}
+                  </div>
+                )}
                 <div
                   style={{
                     width: `${timeFraction * 100}%`,

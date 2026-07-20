@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   volume: 'timerVolume',
   hasMutedBefore: 'timerHasMutedBefore',
   alarmLoop: 'timerAlarmLoop',
+  skipConfirmations: 'timerSkipConfirmations',
 } as const;
 
 // countdown floor: -99:59:59
