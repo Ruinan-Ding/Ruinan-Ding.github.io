@@ -74,13 +74,13 @@
 }
 
 /* Running: flash bright green, fade the window to black within 5s, then
-   let the text glow to that same green over the next 5s. Small text
-   sitting directly on the window fades black -> white during the window
-   fade so it stays readable at both ends; the digits hold white through
-   it. Each fade exists as two identical A/B copies: starting a fresh
-   countdown while the window is already green (reset, preset switch,
-   time change mid-run) swaps between them, since only an animation-name
-   change restarts a finished CSS animation */
+   snap the text to that same green at the 5s mark. Small text sitting
+   directly on the window fades black -> white during the window fade so
+   it stays readable at both ends; the digits hold white through it. Each
+   fade exists as two identical A/B copies: starting a fresh countdown
+   while the window is already green (reset, preset switch, time change
+   mid-run) swaps between them, since only an animation-name change
+   restarts a finished CSS animation */
 @keyframes runFadeA {
   from {
     background-color: #22c55e;
@@ -106,6 +106,9 @@
   50% {
     color: #ffffff;
   }
+  50.01% {
+    color: #22c55e;
+  }
   100% {
     color: #22c55e;
   }
@@ -118,6 +121,9 @@
   50% {
     color: #ffffff;
   }
+  50.01% {
+    color: #22c55e;
+  }
   100% {
     color: #22c55e;
   }
@@ -127,7 +133,7 @@
   0%, 50% {
     color: #ffffff;
   }
-  100% {
+  50.01%, 100% {
     color: #22c55e;
   }
 }
@@ -136,7 +142,7 @@
   0%, 50% {
     color: #ffffff;
   }
-  100% {
+  50.01%, 100% {
     color: #22c55e;
   }
 }
