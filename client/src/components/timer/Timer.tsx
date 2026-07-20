@@ -690,15 +690,18 @@ export default function Timer() {
   const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
 
   // The whole window carries the state color: running flashes bright
-  // green and fades to a near-black dark green within 5s (runFade);
-  // paused flashes yellow; overtime pulses red in sync with the alarm
-  // beeps and stays black while silent. The small text sitting directly
-  // on the window fades black -> white in step (runFadeText); the digits
-  // stay white throughout. The A/B swap keyed on runCycle restarts the
-  // fade for a fresh countdown while the window is already green.
+  // green and fades to black within 5s (runFade), after which the text
+  // glows to that same green over the next 5s; paused flashes yellow;
+  // overtime pulses red in sync with the alarm beeps and stays black
+  // while silent. The small text sitting directly on the window fades
+  // black -> white during the window fade (runFadeText); the digits hold
+  // white until the glow (digitFade). The A/B swap keyed on runCycle
+  // restarts the fades for a fresh countdown while the window is already
+  // green.
   const isWindowGreen = isRunning && !isPaused && seconds >= 0;
   const runFadeClass = runCycle % 2 === 0 ? 'animate-runFadeA' : 'animate-runFadeB';
   const runFadeTextClass = runCycle % 2 === 0 ? 'animate-runFadeTextA' : 'animate-runFadeTextB';
+  const digitFadeClass = runCycle % 2 === 0 ? 'animate-digitFadeA' : 'animate-digitFadeB';
 
   const status = seconds < 0
     ? (isPaused ? 'PAUSED' : 'FINISHED')
@@ -890,25 +893,32 @@ export default function Timer() {
 
           <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
             <div
-              className="font-bold tracking-wider text-white"
+              className={`font-bold tracking-wider text-white ${isWindowGreen ? digitFadeClass : ''}`}
               style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
             >
               {/* configured time, for reference */}
               <div className="opacity-60 text-center" style={{ fontSize: 'clamp(0.85rem, 1.6vw, 1.15rem)', letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
-              <div className="flex items-baseline gap-1">
+              <div className="flex items-baseline justify-center gap-1">
                 {remaining.hours && <span style={{ fontSize: '0.5em' }}>{remaining.sign}{remaining.hours}</span>}
                 <span>{!remaining.hours && remaining.sign}{remaining.main}</span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
               </div>
-              {/* inside the digits box so it matches the digits' width; em
-                  units keep its size proportional to the digit size.
+              {/* the track: em height keeps it proportional to the digit
+                  size, while the vw width scales with the window instead
+                  of the digits. Grayed out until the timer has started.
                   Hovering previews the time at that point on the track;
                   clicking seeks the remaining time there */}
               <div
-                className={`relative flex justify-end border-2 border-white ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
-                style={{ height: '0.16em', minHeight: '0.5rem', marginTop: '0.08em' }}
+                className={`relative flex justify-end border-2 mx-auto ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
+                style={{
+                  height: '0.16em',
+                  minHeight: '0.5rem',
+                  marginTop: '0.08em',
+                  width: 'clamp(16rem, 40vw, 44rem)',
+                  borderColor: isRunning ? '#ffffff' : '#6b7280',
+                }}
                 onMouseMove={(e) => {
                   if (configuredTotalSeconds > 0) setBarHover(barPointSeconds(e));
                 }}
@@ -932,11 +942,20 @@ export default function Timer() {
                     {formatEntryLabel(fromTotalSeconds(barHover.seconds))}
                   </div>
                 )}
+                {/* the animation's background-color wins over the inline
+                    hue while paused, flashing in step with the window;
+                    each alarm beep fills the (empty) track with a red
+                    blink in the same rhythm */}
                 <div
+                  className={isPaused ? 'animate-pauseFlash' : ''}
                   style={{
-                    width: `${timeFraction * 100}%`,
+                    width: `${(isBeepFlash ? 1 : timeFraction) * 100}%`,
                     height: '100%',
-                    backgroundColor: `hsl(${120 * timeFraction}, 75%, 50%)`,
+                    backgroundColor: isBeepFlash
+                      ? '#ef4444'
+                      : isRunning
+                        ? `hsl(${120 * timeFraction}, 75%, 50%)`
+                        : '#6b7280',
                   }}
                 />
               </div>
