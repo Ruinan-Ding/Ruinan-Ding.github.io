@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 
 // Draws the timer state into the favicon: green triangle while running,
-// pulsing yellow bars when paused, pulsing red square when finished
+// pulsing yellow bars when paused, pulsing red square when finished, and
+// an "ST" logo that writes itself stroke by stroke while idle
 
 interface FaviconState {
   isRunning: boolean;
@@ -13,6 +14,23 @@ interface FaviconState {
 }
 
 const pad = (value: number) => String(value).padStart(2, '0');
+
+// The idle "ST" logo as blocky polylines (64x64 canvas coordinates) so it
+// can be drawn stroke by stroke: the S first, then the T's bar and stem
+const ST_STROKES: [number, number][][] = [
+  [[26, 14], [8, 14], [8, 32], [26, 32], [26, 50], [8, 50]],
+  [[36, 14], [58, 14]],
+  [[47, 14], [47, 50]],
+];
+const ST_TOTAL_LENGTH = ST_STROKES.reduce((total, stroke) => {
+  for (let i = 1; i < stroke.length; i++) {
+    total += Math.hypot(stroke[i][0] - stroke[i - 1][0], stroke[i][1] - stroke[i - 1][1]);
+  }
+  return total;
+}, 0);
+// one animation cycle: the writing portion, then a hold at the full logo
+const ST_DRAW_MS = 2200;
+const ST_CYCLE_MS = 3200;
 
 export const useFavicon = (
   isRunning: boolean,
@@ -61,11 +79,31 @@ export const useFavicon = (
         ctx.fillStyle = '#f87171';
         ctx.fillRect(8, 8, 48, 48);
       } else if (shape === 'default') {
-        ctx.fillStyle = '#1a1a1a';
-        ctx.font = 'bold 48px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('ST', 32, 32);
+        // the logo writes itself, spending the length budget stroke by
+        // stroke; the redraw interval advances it every 50ms
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 6;
+        ctx.lineJoin = 'miter';
+        let budget = Math.min(1, (Date.now() % ST_CYCLE_MS) / ST_DRAW_MS) * ST_TOTAL_LENGTH;
+        for (const stroke of ST_STROKES) {
+          if (budget <= 0) break;
+          ctx.beginPath();
+          ctx.moveTo(stroke[0][0], stroke[0][1]);
+          for (let i = 1; i < stroke.length; i++) {
+            const [x1, y1] = stroke[i - 1];
+            const [x2, y2] = stroke[i];
+            const segment = Math.hypot(x2 - x1, y2 - y1);
+            if (budget >= segment) {
+              ctx.lineTo(x2, y2);
+              budget -= segment;
+            } else {
+              ctx.lineTo(x1 + ((x2 - x1) * budget) / segment, y1 + ((y2 - y1) * budget) / segment);
+              budget = 0;
+              break;
+            }
+          }
+          ctx.stroke();
+        }
       }
     };
 

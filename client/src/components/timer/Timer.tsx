@@ -809,8 +809,10 @@ export default function Timer() {
                 </span>
               </div>
               {/* inside the digits box so it matches the digits' width;
-                  em units keep its size proportional to the digit size */}
-              <div className="flex justify-end" style={{ height: '0.12em', marginTop: '0.08em' }}>
+                  em units keep its size proportional to the digit size.
+                  border-current makes the track's outline follow the
+                  digits' animated black -> white color */}
+              <div className="flex justify-end border-2 border-current" style={{ height: '0.16em', minHeight: '0.5rem', marginTop: '0.08em' }}>
                 <div
                   style={{
                     width: `${timeFraction * 100}%`,
