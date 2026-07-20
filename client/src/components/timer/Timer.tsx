@@ -1,4 +1,4 @@
-import { Menu, Repeat, Trash2, X } from 'lucide-react';
+import { ExternalLink, Menu, Repeat, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
@@ -842,17 +842,6 @@ export default function Timer() {
 
         </div>
 
-        {/* Link to my main site */}
-        <a
-          href="https://ruinan-ding.github.io/Ruinan-Ding/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="absolute top-2 sm:top-3 md:top-4 left-1/2 -translate-x-1/2 z-50 text-white underline hover:opacity-80 transition-opacity whitespace-nowrap"
-          style={{ fontSize: 'clamp(0.75rem, 1.5vw, 1rem)', fontFamily: "'IBM Plex Mono', monospace" }}
-        >
-          Check out my website
-        </a>
-
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-50 flex items-center gap-2">
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
@@ -898,10 +887,36 @@ export default function Timer() {
           </button>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto lg:overflow-hidden">
+        {/* items-center centers the digits column in the row's cross axis
+            (horizontally at mobile, vertically at lg, where the column now
+            sits taller thanks to the link above the digits). Plain center
+            alignment clips part of an overflowing item in a way scrolling
+            can't reach; "safe center" falls back to start-alignment
+            instead once it would overflow. Tailwind's arbitrary-value
+            class for this didn't generate real CSS here, so it's set via
+            inline style, which wins over the items-center class */}
+        <div
+          className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto"
+          style={{ alignItems: 'safe center' }}
+        >
           <div className="flex-1 hidden lg:block"></div>
 
           <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
+            {/* Link to my main site: living in this column (rather than
+                the absolute-positioned header strip) means it's centered
+                by the same items-center that centers the digits below it,
+                at every window size, without fighting the header icons
+                for space */}
+            <a
+              href="https://ruinan-ding.github.io/Ruinan-Ding/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 font-bold text-black bg-[#22c55e] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-transform duration-200 animate-linkGlow"
+              style={{ fontSize: 'clamp(0.8rem, 1.9vw, 1.2rem)', fontFamily: "'IBM Plex Mono', monospace" }}
+            >
+              <ExternalLink size={18} />
+              Check out my website
+            </a>
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
               style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
