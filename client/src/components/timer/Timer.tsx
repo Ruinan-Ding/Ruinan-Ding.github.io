@@ -943,15 +943,18 @@ export default function Timer() {
                   </div>
                 )}
                 {/* the animation's background-color wins over the inline
-                    hue while paused, flashing in step with the window;
-                    each alarm beep fills the (empty) track with a red
-                    blink in the same rhythm */}
+                    hue, and both bar animations run out of step with the
+                    window's flash so the bar stays visible against it:
+                    paused alternates yellow/black at half the window's
+                    rate; ringing fills the track and rapidly alternates
+                    red/black for exactly as long as the beeps sound (with
+                    repeat off, isAlarmRinging ends with the finite ring) */}
                 <div
-                  className={isPaused ? 'animate-pauseFlash' : ''}
+                  className={isPaused ? 'animate-pauseFlashBar' : isAlarmRinging ? 'animate-alarmFlashBar' : ''}
                   style={{
-                    width: `${(isBeepFlash ? 1 : timeFraction) * 100}%`,
+                    width: `${(isAlarmRinging ? 1 : timeFraction) * 100}%`,
                     height: '100%',
-                    backgroundColor: isBeepFlash
+                    backgroundColor: isAlarmRinging
                       ? '#ef4444'
                       : isRunning
                         ? `hsl(${120 * timeFraction}, 75%, 50%)`
