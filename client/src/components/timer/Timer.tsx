@@ -24,7 +24,7 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
-      style={{ width: 'clamp(1.5rem, 3vw, 2rem)', height: 'clamp(1.5rem, 3vw, 2rem)' }}
+      style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 2rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 2rem)' }}
     >
       <polygon points="9 5 4 9 1 9 1 15 4 15 9 19 9 5" fill={color} />
       {muted ? (
@@ -772,14 +772,19 @@ export default function Timer() {
 
       <div className="flex-1 flex flex-col items-center p-2 sm:p-3 md:p-4 gap-2 overflow-hidden min-h-0 relative">
         <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-50 flex items-start gap-2">
+          {/* Every header control below sizes on min(vw, vh), like the
+              digits column, so a short window shrinks these too instead
+              of competing with the digits for space */}
           <button
             onClick={() => setIsSidebarOpen((prev) => !prev)}
-            className="lg:hidden w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center border-3 border-white text-white transition-all duration-200 hover:opacity-80"
-            style={{ backgroundColor: '#000000' }}
+            className="lg:hidden flex items-center justify-center border-3 border-white text-white transition-all duration-200 hover:opacity-80"
+            style={{ width: 'clamp(2rem, min(5vw, 5vh), 3rem)', height: 'clamp(2rem, min(5vw, 5vh), 3rem)', backgroundColor: '#000000' }}
             title={isSidebarOpen ? 'Close presets & history' : 'Open presets & history'}
             aria-label={isSidebarOpen ? 'Close presets & history' : 'Open presets & history'}
           >
-            {isSidebarOpen ? <X size={22} /> : <Menu size={22} />}
+            {isSidebarOpen
+              ? <X style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)' }} />
+              : <Menu style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)' }} />}
           </button>
 
           <div className="flex flex-col gap-2">
@@ -791,8 +796,10 @@ export default function Timer() {
                 e.currentTarget.focus();
                 handleMuteToggle();
               }}
-              className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
+              className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
               style={{
+                width: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
+                height: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
                 borderColor: isSilentMode ? '#ffffff' : '#22c55e',
                 backgroundColor: '#000000',
                 fontFamily: "'IBM Plex Mono', monospace",
@@ -833,15 +840,20 @@ export default function Timer() {
 
           <button
             onClick={() => setIsAlarmLooping((prev: boolean) => !prev)}
-            className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
+            className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
             style={{
+              width: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
+              height: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
               borderColor: isAlarmLooping ? '#22c55e' : '#ffffff',
               backgroundColor: '#000000',
             }}
             title={isAlarmLooping ? 'Alarm repeats until stopped — click to ring a limited number of times' : 'Alarm rings a limited number of times — click to repeat until stopped'}
             aria-label={isAlarmLooping ? 'Disable alarm repeat' : 'Enable alarm repeat'}
           >
-            <Repeat size={22} color={isAlarmLooping ? '#22c55e' : '#ffffff'} />
+            <Repeat
+              color={isAlarmLooping ? '#22c55e' : '#ffffff'}
+              style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)' }}
+            />
           </button>
           </div>
 
@@ -853,13 +865,14 @@ export default function Timer() {
           <button
             onClick={() => setSkipConfirmations((prev: boolean) => !prev)}
             aria-pressed={skipConfirmations}
-            className="flex items-center gap-2 border-3 font-bold px-3 h-10 sm:h-12 md:h-14 transition-all duration-200 hover:opacity-80"
+            className="flex items-center gap-2 border-3 font-bold px-3 transition-all duration-200 hover:opacity-80"
             style={{
+              height: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
               borderColor: skipConfirmations ? '#eab308' : '#ffffff',
               color: skipConfirmations ? '#eab308' : '#ffffff',
               backgroundColor: '#000000',
               fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: 'clamp(0.75rem, 1.5vw, 1rem)',
+              fontSize: 'clamp(0.65rem, min(1.5vw, 1.6vh), 1rem)',
             }}
             title={skipConfirmations
               ? 'Confirmations are off — actions apply immediately (the RESET button still asks). Click to turn them back on'
@@ -882,12 +895,17 @@ export default function Timer() {
           {/* Reset the whole site to defaults */}
           <button
             onClick={() => setDialog({ type: 'clearCache' })}
-            className="flex items-center gap-2 border-3 border-red-500 text-red-500 font-bold px-3 h-10 sm:h-12 md:h-14 transition-all duration-200 hover:opacity-80"
-            style={{ backgroundColor: '#000000', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(0.75rem, 1.5vw, 1rem)' }}
+            className="flex items-center gap-2 border-3 border-red-500 text-red-500 font-bold px-3 transition-all duration-200 hover:opacity-80"
+            style={{
+              height: 'clamp(2rem, min(5vw, 5vh), 3.5rem)',
+              backgroundColor: '#000000',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 'clamp(0.65rem, min(1.5vw, 1.6vh), 1rem)',
+            }}
             title="Reset the website to defaults"
             aria-label="Reset the website to defaults"
           >
-            <Trash2 size={22} />
+            <Trash2 style={{ width: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)', height: 'clamp(1.1rem, min(3vw, 3vh), 1.375rem)' }} />
             RESET
           </button>
         </div>
