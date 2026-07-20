@@ -719,15 +719,20 @@ export default function Timer() {
       ? (isPaused ? 'PAUSED' : 'RUNNING')
       : (seconds === configuredTotalSeconds ? 'READY' : 'STOPPED');
 
+  // Every size here clamps on min(vw, vh) rather than vw alone, so a short
+  // window shrinks these controls instead of the digits: the digits'
+  // own font-size (see the clock below) clamps on vw only, so a short
+  // window never touches it — the digits keep priority over everything
+  // else in this column.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: 'clamp(0.5rem, 1vw, 1rem) clamp(1rem, 2vw, 2rem)',
-    fontSize: 'clamp(0.75rem, 1.5vw, 1.25rem)',
+    padding: 'clamp(0.4rem, min(0.9vw, 1vh), 0.9rem) clamp(0.8rem, min(1.8vw, 2vh), 1.8rem)',
+    fontSize: 'clamp(0.65rem, min(1.3vw, 1.6vh), 1.1rem)',
     borderColor: color,
     color,
     // black chip so the colored borders stay readable on the colored window
     backgroundColor: '#000000',
-    minWidth: 'clamp(5rem, 12vw, 8rem)',
+    minWidth: 'clamp(4.5rem, min(11vw, 12vh), 7.5rem)',
   });
 
   return (
@@ -926,10 +931,14 @@ export default function Timer() {
             </a>
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-              style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.5rem, 1.5vw, 1rem)' }}
+              // the digits' own font-size clamps on vw only — the one
+              // size in this column a short window never shrinks; the
+              // padding around them is chrome, so it yields like everything
+              // else
+              style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: 'clamp(0.25rem, min(1.2vw, 1.3vh), 1rem)' }}
             >
               {/* configured time, for reference */}
-              <div className="opacity-60 text-center" style={{ fontSize: 'clamp(0.85rem, 1.6vw, 1.15rem)', letterSpacing: '0.05em' }}>
+              <div className="opacity-60 text-center" style={{ fontSize: 'clamp(0.7rem, min(1.4vw, 1.5vh), 1.15rem)', letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
               <div className="flex items-baseline justify-center gap-1">
@@ -1035,7 +1044,7 @@ export default function Timer() {
             <div className="flex flex-col items-center gap-1 mt-2">
               <div
                 className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-                style={{ fontSize: 'clamp(0.65rem, 1.5vw, 0.875rem)', ...textGlowStyle }}
+                style={{ fontSize: 'clamp(0.6rem, min(1.3vw, 1.4vh), 0.875rem)', ...textGlowStyle }}
               >
                 {status}
               </div>
@@ -1053,7 +1062,7 @@ export default function Timer() {
                     key={key}
                     className={`opacity-75 tracking-wider ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
                     style={{
-                      fontSize: 'clamp(0.75rem, 1.8vw, 1rem)',
+                      fontSize: 'clamp(0.65rem, min(1.5vw, 1.6vh), 1rem)',
                       color: isWordCounterFocused ? '#ef4444' : '#ffffff',
                       ...textGlowStyle,
                     }}
