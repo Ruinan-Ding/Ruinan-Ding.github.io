@@ -954,7 +954,7 @@ export default function Timer() {
                   text (not the header icons' rate), so it never grows
                   disproportionate to the label it sits beside */}
               <ExternalLink style={{ width: shrinkClamp(0.9, 1.6, 2.2, 1.25), height: shrinkClamp(0.9, 1.6, 2.2, 1.25) }} />
-              Check out my website
+              Check Out My Website!
             </a>
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
