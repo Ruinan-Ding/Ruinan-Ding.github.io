@@ -914,42 +914,45 @@ export default function Timer() {
           </button>
         </div>
 
-        {/* items-center centers the digits column in the row's cross axis
-            (horizontally at mobile, vertically at lg). The inline
-            alignItems: 'safe center' falls back to start-alignment instead
-            of clipping an overflowing item in a way scrolling can't reach
-            (set via inline style since Tailwind's arbitrary-value class for
-            it didn't generate real CSS here). Keep the items-center class
-            too: an invalid inline value is dropped rather than resolving to
-            blank, so this class is the fallback for browsers that reject
-            the "safe" keyword, not dead weight. */}
+        {/* items-center centers the row's children in the cross axis
+            (horizontally at mobile, vertically at lg — keeping the
+            HOURS/MINUTES/SECONDS panel vertically centered there). The
+            inline alignItems: 'safe center' falls back to start-alignment
+            instead of clipping an overflowing item in a way scrolling
+            can't reach (set via inline style since Tailwind's
+            arbitrary-value class for it didn't generate real CSS here).
+            Keep the items-center class too: an invalid inline value is
+            dropped rather than resolving to blank, so this class is the
+            fallback for browsers that reject the "safe" keyword, not dead
+            weight. lg:self-start on the digits column below overrides
+            just that one child to sit at the top instead, so the link
+            living at its top always lands at the true top of the page —
+            no "safe" fallback needed there since start-alignment can't
+            clip content off the top the way center can. */}
         <div
           className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto"
           style={{ alignItems: 'safe center' }}
         >
           <div className="flex-1 hidden lg:block"></div>
 
-          <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto">
+          <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto lg:self-start">
             {/* Link to my main site: living in this column (rather than
                 the absolute-positioned header strip) means it's centered
                 by the same items-center that centers the digits below it,
                 at every window size, without fighting the header icons
-                for space. Sticky rather than static keeps it pinned to
-                the top of the scrolling row instead of drifting down with
-                the column's own vertical centering. Its font-size clamps
-                on min(vw, vh) rather than vw alone, so on a short-but-wide
-                window the vh term takes over and shrinks it — yielding
-                vertical room to the digits (sized purely by vw, so a
-                short window never shrinks them) and the START/RESET/STOP
-                row below. Pink instead of a timer state color so it never
-                blends into the window's own green run-start flash; the
-                glow is suppressed during pause/alarm so it doesn't
-                compete with those higher-priority signals */}
+                for space. Its font-size clamps on min(vw, vh) rather than
+                vw alone, so on a short-but-wide window the vh term takes
+                over and shrinks it — yielding vertical room to the digits
+                (sized purely by vw, so a short window never shrinks them)
+                and the START/RESET/STOP row below. Pink instead of a timer
+                state color so it never blends into the window's own green
+                run-start flash; the glow is suppressed during pause/alarm
+                so it doesn't compete with those higher-priority signals */}
             <a
               href="https://ruinanding.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className={`sticky top-0 z-50 flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
+              className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
               style={{ fontSize: shrinkClamp(0.7, 1.6, 2.2, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
             >
               {/* shrinks at the same min(vw, vh) rate as this link's own
