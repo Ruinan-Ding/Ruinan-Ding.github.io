@@ -51,6 +51,6 @@ export const DEFAULT_VOLUME = 0.5;
 
 export const DEFAULT_PRESETS: TimerEntry[] = [
   { id: 'preset-1', hours: 0, minutes: 1, seconds: 5, timestamp: 0 },
-  { id: 'preset-2', hours: 0, minutes: 5, seconds: 35, timestamp: 0 },
-  { id: 'preset-3', hours: 0, minutes: 30, seconds: 35, timestamp: 0 },
+  { id: 'preset-2', hours: 0, minutes: 30, seconds: 35, timestamp: 0 },
+  { id: 'preset-3', hours: 0, minutes: 5, seconds: 35, timestamp: 0 },
 ];
