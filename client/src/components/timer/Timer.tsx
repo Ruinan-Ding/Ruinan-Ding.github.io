@@ -13,6 +13,7 @@ import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_FINITE_GROUPS, ALARM_GR
 import { formatEntryLabel, formatTime, fromTotalSeconds, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
+import { useFlashOnToken } from './useFlashOnToken';
 
 // Shared by every header icon (menu/mute/repeat/reset/the site link)
 const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkClamp(1.1, 3, 3, 1.375) };
@@ -745,6 +746,13 @@ export default function Timer() {
   // same label style as the presets/history lists ("1:30", not "01:30:00")
   const configuredLabel = formatEntryLabel(configured);
 
+  // one-shot green flash on the countdown's own HH/MM/SS segment, tied to
+  // the same tokens that gate applyAdjustment's flash (so it fires only
+  // when that field's own edit actually applies, not on every render)
+  const isHoursFlashing = useFlashOnToken(hoursFlashToken);
+  const isMinutesFlashing = useFlashOnToken(minutesFlashToken);
+  const isSecondsFlashing = useFlashOnToken(secondsFlashToken);
+
   // Drain bar under the digits: full at the configured time, empty at 0
   // (and through overtime), its left edge receding rightward as time runs
   // out while the hue sweeps green (120) -> red (0)
@@ -1039,8 +1047,20 @@ export default function Timer() {
                 {configuredLabel}
               </div>
               <div className="flex items-baseline justify-center gap-1">
-                {remaining.hours && <span style={{ fontSize: '0.5em' }}>{remaining.sign}{remaining.hours}</span>}
-                <span>{!remaining.hours && remaining.sign}{remaining.main}</span>
+                {remaining.hours && (
+                  <span style={{ fontSize: '0.5em' }} className={isHoursFlashing ? 'animate-highlightFadeText' : ''}>
+                    {remaining.sign}{remaining.hours}
+                  </span>
+                )}
+                {/* minutes/seconds share one flex wrapper (no gap) so they
+                    still sit flush as "MM:SS" — the outer gap-1 only
+                    needs to separate this whole group from the hours and
+                    ms segments beside it */}
+                <span className="flex items-baseline">
+                  <span className={isMinutesFlashing ? 'animate-highlightFadeText' : ''}>{!remaining.hours && remaining.sign}{remaining.minutes}</span>
+                  <span>:</span>
+                  <span className={isSecondsFlashing ? 'animate-highlightFadeText' : ''}>{remaining.seconds}</span>
+                </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
               </div>
               {/* the track: em height keeps it proportional to the digit
@@ -1187,9 +1207,9 @@ export default function Timer() {
           <div className="flex-1 hidden lg:block"></div>
 
           <div className="border-4 border-white bg-black p-2 sm:p-3 md:p-4 flex flex-col gap-2 flex-shrink-0 min-w-0 w-full max-w-sm lg:w-[clamp(12rem,22vw,16rem)] lg:max-w-none">
-            <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} flashToken={hoursFlashToken} />
-            <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} flashToken={minutesFlashToken} />
-            <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} flashToken={secondsFlashToken} />
+            <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
+            <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
+            <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />
           </div>
         </div>
 

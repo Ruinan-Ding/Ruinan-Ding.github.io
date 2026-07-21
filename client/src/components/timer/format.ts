@@ -26,7 +26,8 @@ export const formatTime = (totalSeconds: number, ms: number = 0) => {
   return {
     sign,
     hours: hrs > 0 ? pad(hrs) : '',
-    main: `${pad(mins)}:${pad(secs)}`,
+    minutes: pad(mins),
+    seconds: pad(secs),
     ms: pad(Math.floor((absMs % 1000) / 10)),
   };
 };

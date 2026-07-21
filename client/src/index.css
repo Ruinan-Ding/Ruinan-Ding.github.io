@@ -176,10 +176,9 @@
   animation: alarmFlashBar 0.5s linear infinite;
 }
 
-/* One-shot "this just happened" cue: a new preset/history card, or a
-   HOURS/MINUTES/SECONDS box that was just adjusted, briefly flashes green
-   before settling back to black. forwards holds the end color so nothing
-   needs to remove the class once it's done. */
+/* One-shot "this just happened" cue: a new preset/history card briefly
+   flashes green before settling back to black. forwards holds the end
+   color so nothing needs to remove the class once it's done. */
 @keyframes highlightFadeGreen {
   from {
     background-color: #22c55e;
@@ -191,6 +190,23 @@
 
 .animate-highlightFade {
   animation: highlightFadeGreen 1.2s ease-out forwards;
+}
+
+/* Same cue for bare text sitting on the window rather than inside a
+   boxed card — the HH/MM/SS segments of the countdown itself — so it
+   fades the text color to white (its resting color) instead of a
+   background nothing's there to show. */
+@keyframes highlightFadeGreenText {
+  from {
+    color: #22c55e;
+  }
+  to {
+    color: #ffffff;
+  }
+}
+
+.animate-highlightFadeText {
+  animation: highlightFadeGreenText 1.2s ease-out forwards;
 }
 
 .animate-runFadeA {
