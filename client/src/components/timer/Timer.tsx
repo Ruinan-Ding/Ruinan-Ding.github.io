@@ -915,8 +915,7 @@ export default function Timer() {
         </div>
 
         {/* items-center centers the digits column in the row's cross axis
-            (horizontally at mobile, vertically at lg, where the column is
-            taller now that the link sits above the digits). The inline
+            (horizontally at mobile, vertically at lg). The inline
             alignItems: 'safe center' falls back to start-alignment instead
             of clipping an overflowing item in a way scrolling can't reach
             (set via inline style since Tailwind's arbitrary-value class for
@@ -935,19 +934,22 @@ export default function Timer() {
                 the absolute-positioned header strip) means it's centered
                 by the same items-center that centers the digits below it,
                 at every window size, without fighting the header icons
-                for space. Its font-size clamps on min(vw, vh) rather than
-                vw alone, so on a short-but-wide window the vh term takes
-                over and shrinks it — yielding vertical room to the digits
-                (sized purely by vw, so a short window never shrinks them)
-                and the START/RESET/STOP row below. Pink instead of a timer
-                state color so it never blends into the window's own green
-                run-start flash; the glow is suppressed during pause/alarm
-                so it doesn't compete with those higher-priority signals */}
+                for space. Sticky rather than static keeps it pinned to
+                the top of the scrolling row instead of drifting down with
+                the column's own vertical centering. Its font-size clamps
+                on min(vw, vh) rather than vw alone, so on a short-but-wide
+                window the vh term takes over and shrinks it — yielding
+                vertical room to the digits (sized purely by vw, so a
+                short window never shrinks them) and the START/RESET/STOP
+                row below. Pink instead of a timer state color so it never
+                blends into the window's own green run-start flash; the
+                glow is suppressed during pause/alarm so it doesn't
+                compete with those higher-priority signals */}
             <a
               href="https://ruinanding.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
+              className={`sticky top-0 z-50 flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
               style={{ fontSize: shrinkClamp(0.7, 1.6, 2.2, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
             >
               {/* shrinks at the same min(vw, vh) rate as this link's own
