@@ -53,7 +53,10 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
 
 export default function Timer() {
   // Parse persisted state once, before first render, so the persist effect
-  // can't save defaults over it. isRunning/isPaused are not restored.
+  // can't save defaults over it. A timer that was running or paused comes
+  // back paused rather than resuming the countdown blind (the elapsed
+  // wall-clock time while the page was gone is unknown/unwanted) — but it
+  // no longer drops to the unstarted look either.
   const initial = useMemo(() => {
     const savedState = readJSON<unknown>(STORAGE_KEYS.timerState, null);
     const savedHistory = readJSON<unknown>(STORAGE_KEYS.history, null);
@@ -64,11 +67,12 @@ export default function Timer() {
   }, []);
   const savedNumber = (key: string, fallback: number) =>
     typeof initial.saved[key] === 'number' ? (initial.saved[key] as number) : fallback;
+  const wasActive = initial.saved.isRunning === true;
 
   // Remaining time: signed whole seconds plus milliseconds in [0, 1000)
   const [time, setTime] = useState(() => ({
     seconds: savedNumber('seconds', toTotalSeconds(DEFAULT_TIME)),
-    milliseconds: 0,
+    milliseconds: savedNumber('milliseconds', 0),
   }));
   const { seconds, milliseconds } = time;
   // mirror for callbacks that need the current time without re-memoizing
@@ -80,8 +84,8 @@ export default function Timer() {
   const [minutes, setMinutes] = useState(() => savedNumber('minutes', DEFAULT_TIME.minutes));
   const [timerSeconds, setTimerSeconds] = useState(() => savedNumber('timerSeconds', DEFAULT_TIME.seconds));
 
-  const [isRunning, setIsRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isRunning, setIsRunning] = useState(wasActive);
+  const [isPaused, setIsPaused] = useState(wasActive);
   const [isSilentMode, setIsSilentMode] = useState(() => {
     const saved = readJSON<unknown>(STORAGE_KEYS.silentMode, null);
     return typeof saved === 'boolean' ? saved : false;
@@ -168,6 +172,27 @@ export default function Timer() {
     writeJSON(STORAGE_KEYS.alarmLoop, isAlarmLooping);
     writeJSON(STORAGE_KEYS.skipConfirmations, skipConfirmations);
   }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations]);
+
+  // The regular persist effect above only fires on whole-second changes
+  // (re-running it every 10ms tick to catch milliseconds would hammer
+  // localStorage), so it can't capture where within the current second a
+  // reload lands. Flush milliseconds separately right before the page
+  // actually goes away, reading through a ref so this listener registers
+  // once instead of rebinding every tick.
+  const persistedTimeRef = useRef(time);
+  persistedTimeRef.current = time;
+  useEffect(() => {
+    const flushMilliseconds = () => {
+      const saved = readJSON<Record<string, unknown>>(STORAGE_KEYS.timerState, {});
+      writeJSON(STORAGE_KEYS.timerState, { ...saved, milliseconds: persistedTimeRef.current.milliseconds });
+    };
+    window.addEventListener('pagehide', flushMilliseconds);
+    window.addEventListener('beforeunload', flushMilliseconds);
+    return () => {
+      window.removeEventListener('pagehide', flushMilliseconds);
+      window.removeEventListener('beforeunload', flushMilliseconds);
+    };
+  }, []);
 
   useEffect(() => {
     promptShownInStateRef.current = false;
