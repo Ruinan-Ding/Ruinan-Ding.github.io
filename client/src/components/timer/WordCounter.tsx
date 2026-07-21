@@ -36,8 +36,12 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
     const lines = text.split('\n');
     const stats = lines.map((line) => {
       const trimmed = line.trim();
+      // a whitespace-separated token only counts as a word if it has at
+      // least one alphanumeric character — pure punctuation like "$#"
+      // isn't a word on its own
+      const words = trimmed === '' ? [] : trimmed.split(/\s+/).filter((word) => /[a-zA-Z0-9]/.test(word));
       return {
-        wordCount: trimmed === '' ? 0 : trimmed.split(/\s+/).length,
+        wordCount: words.length,
         charCount: (line.match(/[a-zA-Z0-9]/g) || []).length,
       };
     });
