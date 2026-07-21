@@ -52,6 +52,21 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
   );
 }
 
+// Matches the CSS flash animations' own duration (index.css). Setting one
+// of these ids only for this long, rather than leaving it set until the
+// next insert/load, matters because animation-fill-mode: forwards pins
+// the animated property at its end value indefinitely — left set, it
+// would permanently block any later style change to that same property,
+// hover included, on whichever card last flashed.
+const FLASH_DURATION_MS = 1200;
+
+// Flags id as flashing, then clears it again after the animation
+// finishes — but only if nothing newer has already taken its place.
+const flashThenClear = (id: string, setter: React.Dispatch<React.SetStateAction<string | null>>) => {
+  setter(id);
+  setTimeout(() => setter((current) => (current === id ? null : current)), FLASH_DURATION_MS);
+};
+
 export default function Timer() {
   // Parse persisted state once, before first render, so the persist effect
   // can't save defaults over it. A timer that was running or paused comes
@@ -472,7 +487,7 @@ export default function Timer() {
   const recordHistory = (parts: TimeParts) => {
     const entry: TimerEntry = { id: uniqueId(), ...parts, timestamp: Date.now() };
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
-    setInsertedHistoryId(entry.id);
+    flashThenClear(entry.id, setInsertedHistoryId);
   };
 
   const togglePause = () => {
@@ -577,8 +592,14 @@ export default function Timer() {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
     // flashes on the click itself rather than once the switch actually
     // applies — simpler than threading the entry id through the confirm
-    // dialog, and a cancelled switch still leaves a harmless flash
-    setLoadedEntryId(entry.id);
+    // dialog, and a cancelled switch still leaves a harmless flash.
+    // Clears a still-pending insert flash for the same id immediately
+    // (rather than waiting out its own timeout), so loading a
+    // just-created entry shows green right away instead of staying
+    // yellow until the insert flash's clock runs out.
+    setInsertedPresetId((current) => (current === entry.id ? null : current));
+    setInsertedHistoryId((current) => (current === entry.id ? null : current));
+    flashThenClear(entry.id, setLoadedEntryId);
     // actively counting down (not paused): confirm, then start the new
     // preset immediately
     if (isRunning && !isPaused && timeRef.current.seconds >= 0) {
@@ -615,7 +636,7 @@ export default function Timer() {
   const handleAddPreset = useCallback((parts: TimeParts) => {
     const id = uniqueId();
     setPresets((prev) => (prev.length >= MAX_PRESETS ? prev : [...prev, { id, ...parts, timestamp: 0 }]));
-    setInsertedPresetId(id);
+    flashThenClear(id, setInsertedPresetId);
   }, []);
 
   const handleRemovePreset = useCallback((id: string) => {
