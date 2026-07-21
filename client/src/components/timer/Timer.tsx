@@ -761,13 +761,13 @@ export default function Timer() {
   // else in this column.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${shrinkClamp(0.4, 0.9, 1, 0.9)} ${shrinkClamp(0.8, 1.8, 2, 1.8)}`,
-    fontSize: shrinkClamp(0.65, 1.3, 1.6, 1.1),
+    padding: `${shrinkClamp(0.55, 1.2, 1.3, 1.2)} ${shrinkClamp(1.1, 2.4, 2.7, 2.4)}`,
+    fontSize: shrinkClamp(0.85, 1.7, 2.1, 1.45),
     borderColor: color,
     color,
     // black chip so the colored borders stay readable on the colored window
     backgroundColor: '#000000',
-    minWidth: shrinkClamp(4.5, 11, 12, 7.5),
+    minWidth: shrinkClamp(6, 14.5, 15.5, 9.75),
   });
 
   return (
