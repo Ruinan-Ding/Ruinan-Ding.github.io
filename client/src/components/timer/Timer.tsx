@@ -198,7 +198,7 @@ export default function Timer() {
     promptShownInStateRef.current = false;
   }, [isRunning, isPaused]);
 
-  // Confirming via Enter closes the dialog without a Radix close event, so
+  // Confirming via Space closes the dialog without a Radix close event, so
   // the flag isn't consumed by onOpenChange; clear it as each dialog opens
   useEffect(() => {
     if (dialog.type !== null) justConfirmedRef.current = false;

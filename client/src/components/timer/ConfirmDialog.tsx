@@ -88,10 +88,15 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
       <AlertDialogContent
         className="bg-black border-4 border-white"
         onKeyDown={(e) => {
-          // Enter confirms regardless of which button holds focus
-          // (Escape already dismisses via Radix)
-          if (e.key === 'Enter') {
+          // Space confirms regardless of which button holds focus
+          // (Escape already dismisses via Radix). Space is also the
+          // global start/pause shortcut, so stop the event here too —
+          // otherwise it keeps bubbling to that window listener, which
+          // would immediately re-trigger on the same keystroke once this
+          // closes the dialog.
+          if (e.code === 'Space') {
             e.preventDefault();
+            e.stopPropagation();
             onConfirm();
           }
         }}
@@ -111,7 +116,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             onClick={onConfirm}
             className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
           >
-            {copy?.action} <span className="opacity-60 font-normal">(ENTER)</span>
+            {copy?.action} <span className="opacity-60 font-normal">(SPACE)</span>
           </AlertDialogAction>
         </div>
       </AlertDialogContent>
