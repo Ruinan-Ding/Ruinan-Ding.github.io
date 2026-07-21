@@ -1029,8 +1029,8 @@ export default function Timer() {
                 {/* the animation's background-color wins over the inline
                     hue, and both bar animations run out of step with the
                     window's flash so the bar stays visible against it:
-                    paused alternates yellow/black at half the window's
-                    rate; ringing fills the track and rapidly alternates
+                    paused alternates yellow/black at a quarter of the
+                    window's rate; ringing fills the track and rapidly alternates
                     red/black for exactly as long as the beeps sound (with
                     repeat off, isAlarmRinging ends with the finite ring) */}
                 <div

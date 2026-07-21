@@ -146,11 +146,11 @@
 }
 
 /* Drain-bar variants that run out of step with the window's own flash so
-   the bar never blends into it: paused swaps yellow <-> black at half
-   the window's rate; ringing snaps red <-> black in time with the beep
-   ticks (250ms on, 250ms off) */
+   the bar never blends into it: paused swaps yellow <-> black at a
+   quarter of the window's rate; ringing snaps red <-> black in time
+   with the beep ticks (250ms on, 250ms off) */
 .animate-pauseFlashBar {
-  animation: pauseFlash 4s ease-in-out infinite;
+  animation: pauseFlash 8s ease-in-out infinite;
 }
 
 @keyframes alarmFlashBar {
