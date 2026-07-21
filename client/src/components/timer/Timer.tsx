@@ -112,16 +112,19 @@ export default function Timer() {
     return typeof saved === 'boolean' ? saved : false;
   });
 
-  // ids of the most recently created preset/history entry, so their cards
-  // can play a one-shot green flash — never restored from storage, so a
-  // reload never replays it
-  const [highlightedPresetId, setHighlightedPresetId] = useState<string | null>(null);
-  const [highlightedHistoryId, setHighlightedHistoryId] = useState<string | null>(null);
-  // bumped per-field whenever that field's own adjustment actually applies,
-  // so each HOURS/MINUTES/SECONDS box can flash green independently
-  const [hoursFlashToken, setHoursFlashToken] = useState(0);
-  const [minutesFlashToken, setMinutesFlashToken] = useState(0);
-  const [secondsFlashToken, setSecondsFlashToken] = useState(0);
+  // ids of the most recently created/loaded preset or history entry, so
+  // their cards can play a one-shot flash (yellow for a fresh insert,
+  // green for loading an existing one) — never restored from storage, so
+  // a reload never replays it
+  const [insertedPresetId, setInsertedPresetId] = useState<string | null>(null);
+  const [insertedHistoryId, setInsertedHistoryId] = useState<string | null>(null);
+  const [loadedEntryId, setLoadedEntryId] = useState<string | null>(null);
+  // bumped (with the direction of the change) per-field whenever that
+  // field's own adjustment actually applies, so each HOURS/MINUTES/SECONDS
+  // digit on the countdown itself can flash green/red independently
+  const [hoursFlash, setHoursFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
+  const [minutesFlash, setMinutesFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
+  const [secondsFlash, setSecondsFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
 
   const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
@@ -469,7 +472,7 @@ export default function Timer() {
   const recordHistory = (parts: TimeParts) => {
     const entry: TimerEntry = { id: uniqueId(), ...parts, timestamp: Date.now() };
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
-    setHighlightedHistoryId(entry.id);
+    setInsertedHistoryId(entry.id);
   };
 
   const togglePause = () => {
@@ -572,6 +575,10 @@ export default function Timer() {
 
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
+    // flashes on the click itself rather than once the switch actually
+    // applies — simpler than threading the entry id through the confirm
+    // dialog, and a cancelled switch still leaves a harmless flash
+    setLoadedEntryId(entry.id);
     // actively counting down (not paused): confirm, then start the new
     // preset immediately
     if (isRunning && !isPaused && timeRef.current.seconds >= 0) {
@@ -608,7 +615,7 @@ export default function Timer() {
   const handleAddPreset = useCallback((parts: TimeParts) => {
     const id = uniqueId();
     setPresets((prev) => (prev.length >= MAX_PRESETS ? prev : [...prev, { id, ...parts, timestamp: 0 }]));
-    setHighlightedPresetId(id);
+    setInsertedPresetId(id);
   }, []);
 
   const handleRemovePreset = useCallback((id: string) => {
@@ -617,7 +624,7 @@ export default function Timer() {
 
   const handleClearHistory = useCallback(() => {
     setHistory([]);
-    setHighlightedHistoryId(null);
+    setInsertedHistoryId(null);
   }, []);
 
   const setterFor = useCallback(
@@ -625,25 +632,28 @@ export default function Timer() {
     []
   );
 
-  const flashTokenSetterFor = useCallback(
-    (unit: TimeUnit) => (unit === 'hours' ? setHoursFlashToken : unit === 'minutes' ? setMinutesFlashToken : setSecondsFlashToken),
+  const flashSetterFor = useCallback(
+    (unit: TimeUnit) => (unit === 'hours' ? setHoursFlash : unit === 'minutes' ? setMinutesFlash : setSecondsFlash),
     []
   );
 
   // Apply a change to one unit of the configured time and restart the
   // countdown from the new configured total, refilling the drain bar. A
   // running timer keeps running from the top, a paused one waits there,
-  // and a finished (beeping) one restarts running.
-  const applyAdjustment = useCallback((unit: TimeUnit, value: number) => {
+  // and a finished (beeping) one restarts running. previous is passed in
+  // explicitly rather than read off `configured`, since by the time a
+  // dialog-confirmed call reaches here `configured` already reflects the
+  // eagerly-applied field edit, not the value being changed from.
+  const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
     setterFor(unit)(value);
     if (timeRef.current.seconds < 0) setIsPaused(false);
     restartCountdown(toTotalSeconds({ ...configured, [unit]: value }));
     // the hour digit drops out of the countdown display once hours hits 0,
     // so there's nothing there to draw attention to
     if (unit !== 'hours' || value > 0) {
-      flashTokenSetterFor(unit)((t) => t + 1);
+      flashSetterFor(unit)((prev) => ({ token: prev.token + 1, direction: value >= previous ? 'inc' : 'dec' }));
     }
-  }, [setterFor, flashTokenSetterFor, configured]);
+  }, [setterFor, flashSetterFor, configured]);
 
   // Changing a field while running/paused asks for confirmation first
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
@@ -657,7 +667,7 @@ export default function Timer() {
       setDialog({ type: 'adjust', data: { unit, value, previous } });
       promptShownInStateRef.current = true;
     } else {
-      applyAdjustment(unit, value);
+      applyAdjustment(unit, value, previous);
     }
   }, [configured, isRunning, isPaused, setterFor, applyAdjustment, skipConfirmations]);
 
@@ -665,8 +675,8 @@ export default function Timer() {
   const handleMinutesChange = useCallback((value: number) => requestConfiguredChange('minutes', value), [requestConfiguredChange]);
   const handleSecondsChange = useCallback((value: number) => requestConfiguredChange('seconds', value), [requestConfiguredChange]);
 
-  const handleConfirmAdjust = (unit: TimeUnit, value: number) => {
-    applyAdjustment(unit, value);
+  const handleConfirmAdjust = (unit: TimeUnit, value: number, previous: number) => {
+    applyAdjustment(unit, value, previous);
     closeDialog();
   };
 
@@ -727,7 +737,7 @@ export default function Timer() {
         closeDialog();
         break;
       case 'adjust':
-        handleConfirmAdjust(dialog.data.unit, dialog.data.value);
+        handleConfirmAdjust(dialog.data.unit, dialog.data.value, dialog.data.previous);
         break;
     }
   };
@@ -746,12 +756,15 @@ export default function Timer() {
   // same label style as the presets/history lists ("1:30", not "01:30:00")
   const configuredLabel = formatEntryLabel(configured);
 
-  // one-shot green flash on the countdown's own HH/MM/SS segment, tied to
-  // the same tokens that gate applyAdjustment's flash (so it fires only
-  // when that field's own edit actually applies, not on every render)
-  const isHoursFlashing = useFlashOnToken(hoursFlashToken);
-  const isMinutesFlashing = useFlashOnToken(minutesFlashToken);
-  const isSecondsFlashing = useFlashOnToken(secondsFlashToken);
+  // one-shot flash on the countdown's own HH/MM/SS segment — green for an
+  // increase, red for a decrease — tied to the same tokens that gate
+  // applyAdjustment's flash (so it fires only when that field's own edit
+  // actually applies, not on every render)
+  const isHoursFlashing = useFlashOnToken(hoursFlash.token);
+  const isMinutesFlashing = useFlashOnToken(minutesFlash.token);
+  const isSecondsFlashing = useFlashOnToken(secondsFlash.token);
+  const flashTextClass = (isFlashing: boolean, direction: 'inc' | 'dec') =>
+    isFlashing ? (direction === 'inc' ? 'animate-increaseFlashText' : 'animate-decreaseFlashText') : '';
 
   // Drain bar under the digits: full at the configured time, empty at 0
   // (and through overtime), its left edge receding rightward as time runs
@@ -836,8 +849,8 @@ export default function Timer() {
       <div
         className={`${isSidebarOpen ? 'flex' : 'hidden'} lg:flex fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto w-64 lg:w-48 bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden`}
       >
-        <PresetsPanel presets={presets} onAdd={handleAddPreset} onRemove={handleRemovePreset} onSelect={handleSelectEntry} highlightedId={highlightedPresetId} />
-        <HistoryPanel history={history} onSelect={handleSelectEntry} onClear={handleClearHistory} highlightedId={highlightedHistoryId} />
+        <PresetsPanel presets={presets} onAdd={handleAddPreset} onRemove={handleRemovePreset} onSelect={handleSelectEntry} insertedId={insertedPresetId} loadedId={loadedEntryId} />
+        <HistoryPanel history={history} onSelect={handleSelectEntry} onClear={handleClearHistory} insertedId={insertedHistoryId} loadedId={loadedEntryId} />
       </div>
 
       <div className="flex-1 flex flex-col items-center p-2 sm:p-3 md:p-4 gap-2 overflow-hidden min-h-0 relative">
@@ -1048,7 +1061,7 @@ export default function Timer() {
               </div>
               <div className="flex items-baseline justify-center gap-1">
                 {remaining.hours && (
-                  <span style={{ fontSize: '0.5em' }} className={isHoursFlashing ? 'animate-highlightFadeText' : ''}>
+                  <span style={{ fontSize: '0.5em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction)}>
                     {remaining.sign}{remaining.hours}
                   </span>
                 )}
@@ -1057,9 +1070,9 @@ export default function Timer() {
                     needs to separate this whole group from the hours and
                     ms segments beside it */}
                 <span className="flex items-baseline">
-                  <span className={isMinutesFlashing ? 'animate-highlightFadeText' : ''}>{!remaining.hours && remaining.sign}{remaining.minutes}</span>
+                  <span className={flashTextClass(isMinutesFlashing, minutesFlash.direction)}>{!remaining.hours && remaining.sign}{remaining.minutes}</span>
                   <span>:</span>
-                  <span className={isSecondsFlashing ? 'animate-highlightFadeText' : ''}>{remaining.seconds}</span>
+                  <span className={flashTextClass(isSecondsFlashing, secondsFlash.direction)}>{remaining.seconds}</span>
                 </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
               </div>

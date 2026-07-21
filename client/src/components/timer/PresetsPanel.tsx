@@ -18,14 +18,15 @@ interface PresetsPanelProps {
   onAdd: (parts: TimeParts) => void;
   onRemove: (id: string) => void;
   onSelect: (entry: TimerEntry) => void;
-  highlightedId: string | null;
+  insertedId: string | null;
+  loadedId: string | null;
 }
 
 // Digit entry is keydown-driven rather than derived from onChange, since
 // onChange alone can't tell a partial entry from a complete one. Track the
 // raw typed digits instead, and render them unpadded (same style used
 // everywhere else in the app: "1:30", not "00:01:30").
-function PresetsPanel({ presets, onAdd, onRemove, onSelect, highlightedId }: PresetsPanelProps) {
+function PresetsPanel({ presets, onAdd, onRemove, onSelect, insertedId, loadedId }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
@@ -73,7 +74,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, highlightedId }: Pre
             </button>
             <button
               onClick={() => onSelect(preset)}
-              className={`flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 ${preset.id === highlightedId ? 'animate-highlightFade' : ''}`}
+              className={`flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 ${preset.id === insertedId ? 'animate-insertFlash' : preset.id === loadedId ? 'animate-loadFlash' : ''}`}
               style={{ fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.375, 1, 1.1, 0.5), fontSize: shrinkClamp(0.75, 1.5, 1.6, 0.875) }}
             >
               {formatEntryLabel(preset)}

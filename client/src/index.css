@@ -176,10 +176,24 @@
   animation: alarmFlashBar 0.5s linear infinite;
 }
 
-/* One-shot "this just happened" cue: a new preset/history card briefly
-   flashes green before settling back to black. forwards holds the end
-   color so nothing needs to remove the class once it's done. */
-@keyframes highlightFadeGreen {
+/* One-shot "this just happened" cues on preset/history cards: yellow for
+   a fresh insert, green for loading an existing one back into the timer.
+   forwards holds the end color so nothing needs to remove the class once
+   it's done. */
+@keyframes insertFlashYellow {
+  from {
+    background-color: #eab308;
+  }
+  to {
+    background-color: #000000;
+  }
+}
+
+.animate-insertFlash {
+  animation: insertFlashYellow 1.2s ease-out forwards;
+}
+
+@keyframes loadFlashGreen {
   from {
     background-color: #22c55e;
   }
@@ -188,15 +202,16 @@
   }
 }
 
-.animate-highlightFade {
-  animation: highlightFadeGreen 1.2s ease-out forwards;
+.animate-loadFlash {
+  animation: loadFlashGreen 1.2s ease-out forwards;
 }
 
-/* Same cue for bare text sitting on the window rather than inside a
-   boxed card — the HH/MM/SS segments of the countdown itself — so it
-   fades the text color to white (its resting color) instead of a
-   background nothing's there to show. */
-@keyframes highlightFadeGreenText {
+/* Same "this just happened" cue for bare text sitting on the window
+   rather than inside a boxed card — the HH/MM/SS segments of the
+   countdown itself: green for an increase, red for a decrease, both
+   fading to white (their resting color) since there's no background to
+   fade to. */
+@keyframes increaseFlashGreenText {
   from {
     color: #22c55e;
   }
@@ -205,8 +220,21 @@
   }
 }
 
-.animate-highlightFadeText {
-  animation: highlightFadeGreenText 1.2s ease-out forwards;
+.animate-increaseFlashText {
+  animation: increaseFlashGreenText 1.2s ease-out forwards;
+}
+
+@keyframes decreaseFlashRedText {
+  from {
+    color: #ef4444;
+  }
+  to {
+    color: #ffffff;
+  }
+}
+
+.animate-decreaseFlashText {
+  animation: decreaseFlashRedText 1.2s ease-out forwards;
 }
 
 .animate-runFadeA {
