@@ -928,14 +928,18 @@ export default function Timer() {
             just that one child to sit at the top instead, so the link
             living at its top always lands at the true top of the page —
             no "safe" fallback needed there since start-alignment can't
-            clip content off the top the way center can. */}
+            clip content off the top the way center can. lg:self-stretch
+            (rather than self-start) gives it the row's full height so the
+            inner flex-1 wrapper around the digits/controls below can
+            still center THAT content in the leftover space, instead of
+            everything bunching up under the link. */}
         <div
           className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto"
           style={{ alignItems: 'safe center' }}
         >
           <div className="flex-1 hidden lg:block"></div>
 
-          <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto lg:self-start">
+          <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto lg:self-stretch">
             {/* Link to my main site: living in this column (rather than
                 the absolute-positioned header strip) means it's centered
                 by the same items-center that centers the digits below it,
@@ -961,6 +965,13 @@ export default function Timer() {
               <ExternalLink style={{ width: shrinkClamp(0.9, 1.6, 2.2, 1.25), height: shrinkClamp(0.9, 1.6, 2.2, 1.25) }} />
               Check Out My Website!
             </a>
+
+            {/* Everything below the link centers itself in whatever
+                vertical space is left under it (flex-1 + justify-center),
+                rather than being pulled up flush against the link now
+                that the column above sits at the top instead of being
+                vertically centered as a whole */}
+            <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-1 w-full">
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
               // the digits' own font-size clamps on vw only (not
@@ -1115,6 +1126,7 @@ export default function Timer() {
                   </div>
                 ));
               })()}
+            </div>
             </div>
           </div>
 
