@@ -1025,6 +1025,18 @@ export default function Timer() {
                     backgroundColor: barFillColor,
                   }}
                 />
+                {barHover !== null && (
+                  <div
+                    className="absolute bg-white pointer-events-none z-10"
+                    style={{
+                      left: `${barHover.x}px`,
+                      top: 0,
+                      bottom: 0,
+                      width: '2px',
+                      transform: 'translateX(-50%)',
+                    }}
+                  />
+                )}
               </div>
             </div>
 
