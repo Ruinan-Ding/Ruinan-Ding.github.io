@@ -944,7 +944,7 @@ export default function Timer() {
                 run-start flash; the glow is suppressed during pause/alarm
                 so it doesn't compete with those higher-priority signals */}
             <a
-              href="https://ruinan-ding.github.io/Ruinan-Ding/"
+              href="https://ruinanding.com/"
               target="_blank"
               rel="noopener noreferrer"
               className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
