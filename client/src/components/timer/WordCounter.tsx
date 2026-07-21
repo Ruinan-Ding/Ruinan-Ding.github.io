@@ -21,6 +21,9 @@ const COUNTER_GAP = '0.5rem';
 const COUNTER_LINE_HEIGHT = 1.6;
 const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
+// the checkbox squares are sized in em, so this scales both the label
+// text and the box together
+const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.875, 2, 2.2, 1.25);
 
 function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
@@ -115,7 +118,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
           onClick={() => setAlnumWordsOnly((prev) => !prev)}
           aria-pressed={alnumWordsOnly}
           className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-          style={{ color: alnumWordsOnly ? '#eab308' : '#ffffff', fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}
+          style={{ color: alnumWordsOnly ? '#eab308' : '#ffffff', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
           title="When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included."
           aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
         >
@@ -131,7 +134,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
           onClick={() => setAlnumCharsOnly((prev) => !prev)}
           aria-pressed={alnumCharsOnly}
           className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-          style={{ color: alnumCharsOnly ? '#eab308' : '#ffffff', fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}
+          style={{ color: alnumCharsOnly ? '#eab308' : '#ffffff', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
           title="When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces."
           aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
         >
