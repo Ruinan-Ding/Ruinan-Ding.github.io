@@ -111,6 +111,17 @@ export default function Timer() {
     return typeof saved === 'boolean' ? saved : false;
   });
 
+  // ids of the most recently created preset/history entry, so their cards
+  // can play a one-shot green flash — never restored from storage, so a
+  // reload never replays it
+  const [highlightedPresetId, setHighlightedPresetId] = useState<string | null>(null);
+  const [highlightedHistoryId, setHighlightedHistoryId] = useState<string | null>(null);
+  // bumped per-field whenever that field's own adjustment actually applies,
+  // so each HOURS/MINUTES/SECONDS box can flash green independently
+  const [hoursFlashToken, setHoursFlashToken] = useState(0);
+  const [minutesFlashToken, setMinutesFlashToken] = useState(0);
+  const [secondsFlashToken, setSecondsFlashToken] = useState(0);
+
   const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
     const parsed = readJSON<unknown>(STORAGE_KEYS.presets, null);
@@ -457,6 +468,7 @@ export default function Timer() {
   const recordHistory = (parts: TimeParts) => {
     const entry: TimerEntry = { id: uniqueId(), ...parts, timestamp: Date.now() };
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
+    setHighlightedHistoryId(entry.id);
   };
 
   const togglePause = () => {
@@ -593,17 +605,27 @@ export default function Timer() {
   };
 
   const handleAddPreset = useCallback((parts: TimeParts) => {
-    setPresets((prev) => (prev.length >= MAX_PRESETS ? prev : [...prev, { id: uniqueId(), ...parts, timestamp: 0 }]));
+    const id = uniqueId();
+    setPresets((prev) => (prev.length >= MAX_PRESETS ? prev : [...prev, { id, ...parts, timestamp: 0 }]));
+    setHighlightedPresetId(id);
   }, []);
 
   const handleRemovePreset = useCallback((id: string) => {
     setPresets((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
-  const handleClearHistory = useCallback(() => setHistory([]), []);
+  const handleClearHistory = useCallback(() => {
+    setHistory([]);
+    setHighlightedHistoryId(null);
+  }, []);
 
   const setterFor = useCallback(
     (unit: TimeUnit) => (unit === 'hours' ? setHours : unit === 'minutes' ? setMinutes : setTimerSeconds),
+    []
+  );
+
+  const flashTokenSetterFor = useCallback(
+    (unit: TimeUnit) => (unit === 'hours' ? setHoursFlashToken : unit === 'minutes' ? setMinutesFlashToken : setSecondsFlashToken),
     []
   );
 
@@ -615,7 +637,12 @@ export default function Timer() {
     setterFor(unit)(value);
     if (timeRef.current.seconds < 0) setIsPaused(false);
     restartCountdown(toTotalSeconds({ ...configured, [unit]: value }));
-  }, [setterFor, configured]);
+    // the hour digit drops out of the countdown display once hours hits 0,
+    // so there's nothing there to draw attention to
+    if (unit !== 'hours' || value > 0) {
+      flashTokenSetterFor(unit)((t) => t + 1);
+    }
+  }, [setterFor, flashTokenSetterFor, configured]);
 
   // Changing a field while running/paused asks for confirmation first
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
@@ -801,8 +828,8 @@ export default function Timer() {
       <div
         className={`${isSidebarOpen ? 'flex' : 'hidden'} lg:flex fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto w-64 lg:w-48 bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden`}
       >
-        <PresetsPanel presets={presets} onAdd={handleAddPreset} onRemove={handleRemovePreset} onSelect={handleSelectEntry} />
-        <HistoryPanel history={history} onSelect={handleSelectEntry} onClear={handleClearHistory} />
+        <PresetsPanel presets={presets} onAdd={handleAddPreset} onRemove={handleRemovePreset} onSelect={handleSelectEntry} highlightedId={highlightedPresetId} />
+        <HistoryPanel history={history} onSelect={handleSelectEntry} onClear={handleClearHistory} highlightedId={highlightedHistoryId} />
       </div>
 
       <div className="flex-1 flex flex-col items-center p-2 sm:p-3 md:p-4 gap-2 overflow-hidden min-h-0 relative">
@@ -1160,9 +1187,9 @@ export default function Timer() {
           <div className="flex-1 hidden lg:block"></div>
 
           <div className="border-4 border-white bg-black p-2 sm:p-3 md:p-4 flex flex-col gap-2 flex-shrink-0 min-w-0 w-full max-w-sm lg:w-[clamp(12rem,22vw,16rem)] lg:max-w-none">
-            <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
-            <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
-            <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />
+            <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} flashToken={hoursFlashToken} />
+            <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} flashToken={minutesFlashToken} />
+            <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} flashToken={secondsFlashToken} />
           </div>
         </div>
 

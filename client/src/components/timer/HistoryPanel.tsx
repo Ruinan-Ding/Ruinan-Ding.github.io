@@ -7,9 +7,10 @@ interface HistoryPanelProps {
   history: TimerEntry[];
   onSelect: (entry: TimerEntry) => void;
   onClear: () => void;
+  highlightedId: string | null;
 }
 
-function HistoryPanel({ history, onSelect, onClear }: HistoryPanelProps) {
+function HistoryPanel({ history, onSelect, onClear, highlightedId }: HistoryPanelProps) {
   return (
     <div className="flex flex-col min-h-0 flex-1">
       <div className="flex justify-between items-center mb-4 border-b-2 border-white pb-2 flex-shrink-0">
@@ -32,7 +33,7 @@ function HistoryPanel({ history, onSelect, onClear }: HistoryPanelProps) {
             <button
               key={entry.id}
               onClick={() => onSelect(entry)}
-              className="border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 text-left"
+              className={`border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 text-left ${entry.id === highlightedId ? 'animate-highlightFade' : ''}`}
               style={{ fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.375, 1, 1.1, 0.5), fontSize: shrinkClamp(0.75, 1.5, 1.6, 0.875) }}
             >
               {formatEntryLabel(entry)}

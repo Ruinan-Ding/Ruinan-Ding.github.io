@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { memo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { pad } from './format';
 import { shrinkClamp } from './responsive';
 import { useDigitEntry } from './useDigitEntry';
@@ -10,6 +10,10 @@ interface TimeFieldProps {
   value: number;
   max: number;
   onRequestChange: (value: number) => void;
+  // bumped by the parent whenever this field's own adjustment applies, so
+  // the digit box can flash green — a value change alone can't tell "this
+  // field was just adjusted" apart from "a preset/history entry was loaded"
+  flashToken: number;
 }
 
 const chevronButtonClass =
@@ -25,7 +29,7 @@ const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.9, 1.4, 1.5, 1.25), height: shr
 // Caret behavior mirrors the custom preset input: text stays centered, and
 // the caret always sits at the end of the typed digits (or the
 // placeholder's length while empty), never drifting to the box's left edge.
-function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFieldProps) {
+function TimeField({ label, placeholder, value, max, onRequestChange, flashToken }: TimeFieldProps) {
   const clamp = (next: number) => Math.max(0, Math.min(max, next));
   // shared by the chevrons and arrow-key stepping — the only difference is
   // which base value they step from and how the result is applied
@@ -36,6 +40,23 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
   const cancelledRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const isEditing = digits !== null;
+
+  // Flips off then on a tick later on every flashToken change so the CSS
+  // animation restarts even on back-to-back adjustments of this same
+  // field — toggling a class to the value it already holds doesn't replay
+  // a CSS animation, so a same-state trigger needs a genuine off/on cycle.
+  // setTimeout rather than requestAnimationFrame: rAF only fires once the
+  // tab is actually being composited, so it can stall well past the
+  // animation's own duration while backgrounded.
+  const [isFlashing, setIsFlashing] = useState(false);
+  const prevFlashTokenRef = useRef(flashToken);
+  useEffect(() => {
+    if (flashToken === prevFlashTokenRef.current) return;
+    prevFlashTokenRef.current = flashToken;
+    setIsFlashing(false);
+    const id = setTimeout(() => setIsFlashing(true), 0);
+    return () => clearTimeout(id);
+  }, [flashToken]);
 
   // while editing and empty, the real value matches the placeholder's
   // character count (rendered invisible) purely so the caret lands right
@@ -108,7 +129,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
             onPaste={handlePaste}
             onSelect={handleSelect}
             onChange={() => {}}
-            className="bg-black border-4 border-white font-bold text-center outline-none w-full"
+            className={`bg-black border-4 border-white font-bold text-center outline-none w-full ${isFlashing ? 'animate-highlightFade' : ''}`}
             style={{
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: FIELD_FONT_SIZE,
