@@ -5,6 +5,8 @@ export const STORAGE_KEYS = {
   timerState: 'timerAppState',
   history: 'timerAppHistory',
   wordCounter: 'wordCounterText',
+  wordCounterAlnumWordsOnly: 'wordCounterAlnumWordsOnly',
+  wordCounterAlnumCharsOnly: 'wordCounterAlnumCharsOnly',
   silentMode: 'timerSilentMode',
   presets: 'timerAppPresets',
   volume: 'timerVolume',

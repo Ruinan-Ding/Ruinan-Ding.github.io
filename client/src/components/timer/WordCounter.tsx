@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { readRaw, writeRaw } from '@/lib/storage';
+import { readJSON, readRaw, writeJSON, writeRaw } from '@/lib/storage';
 import { STORAGE_KEYS } from './constants';
 import { shrinkClamp } from './responsive';
 
@@ -28,31 +28,56 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const rowsRef = useRef<HTMLDivElement | null>(null);
 
+  const [alnumWordsOnly, setAlnumWordsOnly] = useState(() => {
+    const saved = readJSON<unknown>(STORAGE_KEYS.wordCounterAlnumWordsOnly, null);
+    return typeof saved === 'boolean' ? saved : true;
+  });
+  const [alnumCharsOnly, setAlnumCharsOnly] = useState(() => {
+    const saved = readJSON<unknown>(STORAGE_KEYS.wordCounterAlnumCharsOnly, null);
+    return typeof saved === 'boolean' ? saved : true;
+  });
+
   useEffect(() => {
     writeRaw(STORAGE_KEYS.wordCounter, text);
   }, [text]);
+
+  useEffect(() => {
+    writeJSON(STORAGE_KEYS.wordCounterAlnumWordsOnly, alnumWordsOnly);
+  }, [alnumWordsOnly]);
+
+  useEffect(() => {
+    writeJSON(STORAGE_KEYS.wordCounterAlnumCharsOnly, alnumCharsOnly);
+  }, [alnumCharsOnly]);
 
   const { lineStats, totalLines, totalWords, totalChars } = useMemo(() => {
     const lines = text.split('\n');
     const stats = lines.map((line) => {
       const trimmed = line.trim();
-      // a whitespace-separated token only counts as a word if it has at
-      // least one alphanumeric character — pure punctuation like "$#"
-      // isn't a word on its own
-      const words = trimmed === '' ? [] : trimmed.split(/\s+/).filter((word) => /[a-zA-Z0-9]/.test(word));
-      return {
-        wordCount: words.length,
-        charCount: (line.match(/[a-zA-Z0-9]/g) || []).length,
-      };
+      const tokens = trimmed === '' ? [] : trimmed.split(/\s+/);
+      // alnumWordsOnly requires at least one letter/digit for a token to
+      // count as a word (so "$#" alone doesn't); off counts every
+      // whitespace-separated token. alnumCharsOnly restricts C to
+      // a-z/A-Z/0-9; off counts every character in the line, including
+      // spaces. The two are intentionally independent — with words-only
+      // off and chars-only on, a punctuation-only line like "$# @!" will
+      // show words > 0 with chars === 0. That's correct, not a bug.
+      const words = alnumWordsOnly ? tokens.filter((word) => /[a-zA-Z0-9]/.test(word)) : tokens;
+      const charCount = alnumCharsOnly ? (line.match(/[a-zA-Z0-9]/g) || []).length : line.length;
+      return { wordCount: words.length, charCount };
     });
 
     return {
       lineStats: stats,
       totalLines: lines.length,
       totalWords: stats.reduce((sum, stat) => sum + stat.wordCount, 0),
-      totalChars: (text.match(/[a-zA-Z0-9]/g) || []).length,
+      // summed from the same per-line numbers shown in the C column
+      // (rather than an independent scan over the raw text) so TOTAL
+      // always matches "add up the C column" — an independent scan
+      // would also pick up the '\n' line separators once chars-only is
+      // off and every character in a line counts
+      totalChars: stats.reduce((sum, stat) => sum + stat.charCount, 0),
     };
-  }, [text]);
+  }, [text, alnumWordsOnly, alnumCharsOnly]);
 
   const setFocused = (focused: boolean) => {
     setIsFocused(focused);
@@ -83,6 +108,40 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
             Clear
           </button>
         )}
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={() => setAlnumWordsOnly((prev) => !prev)}
+          aria-pressed={alnumWordsOnly}
+          className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
+          style={{ color: alnumWordsOnly ? '#eab308' : '#ffffff', fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}
+          title="When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included."
+          aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
+        >
+          <span
+            aria-hidden
+            className="inline-block border-2 flex-shrink-0"
+            style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor', backgroundColor: alnumWordsOnly ? 'currentColor' : 'transparent' }}
+          />
+          Alphanumeric words only
+        </button>
+
+        <button
+          onClick={() => setAlnumCharsOnly((prev) => !prev)}
+          aria-pressed={alnumCharsOnly}
+          className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
+          style={{ color: alnumCharsOnly ? '#eab308' : '#ffffff', fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}
+          title="When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces."
+          aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
+        >
+          <span
+            aria-hidden
+            className="inline-block border-2 flex-shrink-0"
+            style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor', backgroundColor: alnumCharsOnly ? 'currentColor' : 'transparent' }}
+          />
+          Alphanumeric chars only
+        </button>
       </div>
 
       <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isFocused ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
@@ -158,7 +217,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
           <div className={`text-xs flex flex-col justify-center items-center text-center ${isFocused ? 'text-green-500' : 'text-gray-400'}`}>
             <p><strong>L:</strong> Line number</p>
             <p><strong>W:</strong> Words on that line</p>
-            <p><strong>C:</strong> Alphanumeric chars (a-z, A-Z, 0-9)</p>
+            <p><strong>C:</strong> {alnumCharsOnly ? 'Alphanumeric chars (a-z, A-Z, 0-9)' : 'All characters, including spaces'}</p>
           </div>
         </div>
       </div>
