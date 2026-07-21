@@ -37,7 +37,7 @@ const getCopy = (dialog: DialogState) => {
       };
     case 'switch': {
       const label = formatEntryLabel(dialog.data);
-      // start=false replaces a stopped timer: confirming only loads it
+      // start=false replaces a paused or stopped timer: confirming only loads it
       return dialog.start
         ? {
             title: 'SWITCH TIMER',
@@ -46,7 +46,7 @@ const getCopy = (dialog: DialogState) => {
           }
         : {
             title: 'LOAD TIMER',
-            description: `Load ${label}? The stopped timer's remaining time will be discarded. Press START to run it.`,
+            description: `Load ${label}? The current remaining time will be discarded. Press START to run it.`,
             action: 'LOAD',
           };
     }

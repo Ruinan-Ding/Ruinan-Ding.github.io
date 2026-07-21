@@ -559,9 +559,9 @@ export default function Timer() {
 
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
-    // confirm while counting down or paused (even paused in overtime);
-    // an actively beeping timer switches straight over
-    if (isRunning && (isPaused || timeRef.current.seconds >= 0)) {
+    // actively counting down (not paused): confirm, then start the new
+    // preset immediately
+    if (isRunning && !isPaused && timeRef.current.seconds >= 0) {
       if (skipConfirmations) {
         applySwitch(parts, true);
       } else {
@@ -569,10 +569,12 @@ export default function Timer() {
       }
       return;
     }
-    // a stopped timer showing anything other than its configured time —
-    // mid-run or overtime after a reload — still has progress on screen;
-    // confirm before discarding it, but confirming only loads the preset
-    if (!isRunning && timeRef.current.seconds !== configuredTotalSeconds) {
+    // paused (even paused in overtime), or a stopped timer showing
+    // anything other than its configured time — mid-run or overtime
+    // after a reload — still has progress on screen; confirm before
+    // discarding it, but confirming only loads the preset without
+    // starting it
+    if (isPaused || (!isRunning && timeRef.current.seconds !== configuredTotalSeconds)) {
       if (skipConfirmations) {
         applySwitch(parts, false);
       } else {
