@@ -219,7 +219,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
           </div>
           <div className={`text-xs flex flex-col justify-center items-center text-center ${isFocused ? 'text-green-500' : 'text-gray-400'}`}>
             <p><strong>L:</strong> Line number</p>
-            <p><strong>W:</strong> Words on that line</p>
+            <p><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</p>
             <p><strong>C:</strong> {alnumCharsOnly ? 'Alphanumeric chars (a-z, A-Z, 0-9)' : 'All characters, including spaces'}</p>
           </div>
         </div>

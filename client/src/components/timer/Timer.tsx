@@ -964,7 +964,7 @@ export default function Timer() {
               destructive enough that it always asks */}
           <button
             onClick={() => setSkipConfirmations((prev: boolean) => !prev)}
-            aria-pressed={skipConfirmations}
+            aria-pressed={!skipConfirmations}
             className="flex items-center gap-2 border-3 font-bold px-3 transition-all duration-200 hover:opacity-80"
             style={{
               height: HEADER_BUTTON_SIZE.height,
@@ -975,8 +975,8 @@ export default function Timer() {
               fontSize: shrinkClamp(0.65, 1.5, 1.6, 1),
             }}
             title={skipConfirmations
-              ? 'Confirmations are off — actions apply immediately (the RESET button still asks). Click to turn them back on'
-              : 'Skip every confirmation dialog (the RESET button still asks)'}
+              ? 'Confirmation dialogs are off — actions apply immediately (the RESET button still always asks). Click to turn confirmations back on'
+              : 'Confirmation dialogs are on — actions ask before applying (the RESET button always asks either way). Click to skip them'}
             aria-label={skipConfirmations ? 'Turn confirmation dialogs back on' : 'Turn confirmation dialogs off'}
           >
             <span
@@ -986,10 +986,10 @@ export default function Timer() {
                 width: '0.9em',
                 height: '0.9em',
                 borderColor: 'currentColor',
-                backgroundColor: skipConfirmations ? 'currentColor' : 'transparent',
+                backgroundColor: !skipConfirmations ? 'currentColor' : 'transparent',
               }}
             />
-            <span className="hidden sm:inline">DON'T ASK</span>
+            <span className="hidden sm:inline">CONFIRMATIONS</span>
           </button>
 
           {/* Reset the whole site to defaults */}
