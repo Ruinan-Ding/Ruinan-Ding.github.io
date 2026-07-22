@@ -839,9 +839,16 @@ export default function Timer() {
   // className below): repeat on treats the ring as ongoing even while
   // paused, repeat off doesn't.
   const isPausedOvertime = isPaused && seconds < 0;
+  // Full red bar (flashing while isAlarmRinging is actually true, static
+  // otherwise) any time the digits themselves are in a "red" state:
+  // actively ringing, paused mid-overtime, or repeat off with the finite
+  // ring already finished (hasRungOut) while still running — that last
+  // one used to leave the bar at 0% since timeFraction has nothing left
+  // to show, out of step with the digits already sitting solid red.
+  const isBarRedState = isAlarmRinging || hasRungOut || isPausedOvertime;
   // ringing red wins over the hue (the animate-alarmFlashBar class then
   // wins over this, alternating it with black); gray while never started
-  const barFillColor = isAlarmRinging || isPausedOvertime ? '#ef4444' : isRunning ? `hsl(${120 * timeFraction}, 75%, 50%)` : '#6b7280';
+  const barFillColor = isBarRedState ? '#ef4444' : isRunning ? `hsl(${120 * timeFraction}, 75%, 50%)` : '#6b7280';
 
   // a timer that's never run — idle at its configured time — has nothing
   // for STOP or RESET to act on
@@ -1253,18 +1260,17 @@ export default function Timer() {
                 {/* the animation's background-color wins over the inline
                     hue, and both bar animations run out of step with the
                     window's flash so the bar stays visible against it:
-                    paused alternates yellow/black at a quarter of the
-                    window's rate; ringing fills the track and rapidly
-                    alternates red/black for exactly as long as the beeps
-                    sound. Pausing mid-overtime keeps that same full red
-                    fill either way (see isPausedOvertime above) but only
-                    keeps it flashing with repeat on — repeat off treats
-                    the ring as done for now rather than still "ringing"
-                    while silently paused, so it sits static instead. */}
+                    paused (above zero) alternates yellow/black at a
+                    quarter of the window's rate; isBarRedState fills the
+                    track full red, only flashing red/black while
+                    isAlarmRinging is actually true or paused mid-overtime
+                    with repeat on — repeat off (whether that's a finished
+                    finite ring while still running, or paused with the
+                    ring not treated as ongoing) sits static instead. */}
                 <div
                   className={isAlarmRinging || (isPausedOvertime && isAlarmLooping) ? 'animate-alarmFlashBar' : isPaused && !isPausedOvertime ? 'animate-pauseFlashBar' : ''}
                   style={{
-                    width: `${(isAlarmRinging || isPausedOvertime ? 1 : timeFraction) * 100}%`,
+                    width: `${(isBarRedState ? 1 : timeFraction) * 100}%`,
                     height: '100%',
                     backgroundColor: barFillColor,
                   }}
