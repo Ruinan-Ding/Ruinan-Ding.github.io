@@ -245,20 +245,35 @@
   animation: decreaseFlashRedText 1.2s ease-out forwards;
 }
 
-/* Paused (yellow) and rung-out (red) can both be true for the digits at
-   once — rather than one silently winning, wave between the two so both
-   are visible */
-@keyframes waveRedYellowText {
+/* Paused + repeat off, once the window's own 3-cycle flash settles: the
+   digits wave between the state color and a near-black shade (not pure
+   background, so they never fully disappear) rather than sitting solid.
+   Negative time (overtime) always shows the red wave over the yellow
+   one, regardless of whether the ring itself ever finished. */
+@keyframes waveYellowText {
   0%, 100% {
-    color: #ef4444;
+    color: #141414;
   }
   50% {
     color: #eab308;
   }
 }
 
-.animate-waveRedYellowText {
-  animation: waveRedYellowText 2s ease-in-out infinite;
+.animate-waveYellowText {
+  animation: waveYellowText 2s ease-in-out infinite;
+}
+
+@keyframes waveRedText {
+  0%, 100% {
+    color: #141414;
+  }
+  50% {
+    color: #ef4444;
+  }
+}
+
+.animate-waveRedText {
+  animation: waveRedText 2s ease-in-out infinite;
 }
 
 .animate-runFadeA {

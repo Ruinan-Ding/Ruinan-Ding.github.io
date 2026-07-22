@@ -851,21 +851,23 @@ export default function Timer() {
   const glowFadeClass = `animate-glowFade${fadeSuffix}`;
   const textGlowStyle = { '--glow-from': '#000000' } as React.CSSProperties;
 
-  // Which of the digits' color states currently applies. green/wave/white
-  // each animate themselves (green via the ancestor's own glow fade, wave
-  // via its own CSS class, white via just having no override), so only
-  // yellow/red need this component to drive a transition at all.
-  const digitColorCategory: 'green' | 'yellow' | 'red' | 'wave' | 'white' =
-    isPaused && hasPausedSettled && hasRungOut ? 'wave'
-      : isPaused && hasPausedSettled ? 'yellow'
+  // Which of the digits' color states currently applies. Once paused and
+  // settled, the sign of the remaining time picks yellow-wave vs
+  // red-wave — negative (overtime) always wins over the plain yellow
+  // pause cue, regardless of whether the ring itself ever finished.
+  // green/white/either wave all animate themselves (green via the
+  // ancestor's own glow fade, the waves via their own CSS class, white
+  // via just having no override), so only solid 'red' (the ring
+  // finishing while still running, not paused) needs a driven fade.
+  const digitColorCategory: 'green' | 'yellowWave' | 'redWave' | 'red' | 'white' =
+    isPaused && hasPausedSettled ? (seconds < 0 ? 'redWave' : 'yellowWave')
       : hasRungOut ? 'red'
       : isWindowGreen ? 'green'
       : 'white';
-  const isDigitColorWaving = digitColorCategory === 'wave';
-  // Routes every yellow/red transition through an instant white first,
-  // so a fade never cross-blends directly between two colors (or from
-  // green) — except from white or the wave, which already reads as
-  // neutral, so those can fade straight into yellow/red.
+  const digitWaveClass = digitColorCategory === 'yellowWave' ? 'animate-waveYellowText' : digitColorCategory === 'redWave' ? 'animate-waveRedText' : '';
+  // Routes a switch into solid red through an instant white first, so a
+  // fade never cross-blends directly from green — white or either wave
+  // already read as neutral, so those can fade straight into red.
   const [digitColorStyle, setDigitColorStyle] = useState<{ color?: string; transition: string }>({ transition: 'color 0s' });
   const prevDigitColorCategoryRef = useRef(digitColorCategory);
   useEffect(() => {
@@ -873,17 +875,16 @@ export default function Timer() {
     const prevCategory = prevDigitColorCategoryRef.current;
     prevDigitColorCategoryRef.current = digitColorCategory;
 
-    if (digitColorCategory !== 'yellow' && digitColorCategory !== 'red') {
+    if (digitColorCategory !== 'red') {
       setDigitColorStyle({ transition: 'color 0s' });
       return;
     }
 
-    const targetColor = digitColorCategory === 'yellow' ? '#eab308' : '#ef4444';
-    if (prevCategory === 'white' || prevCategory === 'wave') {
-      setDigitColorStyle({ color: targetColor, transition: 'color 2.5s ease' });
+    if (prevCategory === 'white' || prevCategory === 'yellowWave' || prevCategory === 'redWave') {
+      setDigitColorStyle({ color: '#ef4444', transition: 'color 2.5s ease' });
     } else {
       setDigitColorStyle({ color: '#ffffff', transition: 'color 0s' });
-      const id = setTimeout(() => setDigitColorStyle({ color: targetColor, transition: 'color 2.5s ease' }), 0);
+      const id = setTimeout(() => setDigitColorStyle({ color: '#ef4444', transition: 'color 2.5s ease' }), 0);
       return () => clearTimeout(id);
     }
   }, [digitColorCategory]);
@@ -1180,7 +1181,7 @@ export default function Timer() {
                 {configuredLabel}
               </div>
               <div
-                className={`flex items-baseline justify-center gap-1 ${isDigitColorWaving ? 'animate-waveRedYellowText' : ''}`}
+                className={`flex items-baseline justify-center gap-1 ${digitWaveClass}`}
                 style={digitColorStyle}
               >
                 {remaining.hours && (
