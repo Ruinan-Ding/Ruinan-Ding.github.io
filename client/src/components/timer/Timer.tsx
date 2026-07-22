@@ -820,12 +820,6 @@ export default function Timer() {
   // 3 cycles with it off (see the hasPausedSettled effect above). The
   // drain bar's pauseFlashBar is separate and always infinite.
   const pauseFlashClass = isAlarmLooping ? 'animate-pauseFlash' : 'animate-pauseFlashLimited';
-  // Steady-state digit color once settled: paused (yellow) and a rung-out
-  // ring (red) can both apply at once — e.g. pausing after the ring
-  // already finished — so instead of one silently winning, wave between
-  // the two colors to show both are true.
-  const isDigitColorWaving = isPaused && hasPausedSettled && hasRungOut;
-  const digitTextColor = isDigitColorWaving ? undefined : isPaused && hasPausedSettled ? '#eab308' : hasRungOut ? '#ef4444' : undefined;
 
   // Drain bar under the digits: full at the configured time, empty at 0
   // (and through overtime), its left edge receding rightward as time runs
@@ -856,6 +850,43 @@ export default function Timer() {
   const runFadeClass = `animate-runFade${fadeSuffix}`;
   const glowFadeClass = `animate-glowFade${fadeSuffix}`;
   const textGlowStyle = { '--glow-from': '#000000' } as React.CSSProperties;
+
+  // Which of the digits' color states currently applies. green/wave/white
+  // each animate themselves (green via the ancestor's own glow fade, wave
+  // via its own CSS class, white via just having no override), so only
+  // yellow/red need this component to drive a transition at all.
+  const digitColorCategory: 'green' | 'yellow' | 'red' | 'wave' | 'white' =
+    isPaused && hasPausedSettled && hasRungOut ? 'wave'
+      : isPaused && hasPausedSettled ? 'yellow'
+      : hasRungOut ? 'red'
+      : isWindowGreen ? 'green'
+      : 'white';
+  const isDigitColorWaving = digitColorCategory === 'wave';
+  // Routes every yellow/red transition through an instant white first,
+  // so a fade never cross-blends directly between two colors (or from
+  // green) — except from white or the wave, which already reads as
+  // neutral, so those can fade straight into yellow/red.
+  const [digitColorStyle, setDigitColorStyle] = useState<{ color?: string; transition: string }>({ transition: 'color 0s' });
+  const prevDigitColorCategoryRef = useRef(digitColorCategory);
+  useEffect(() => {
+    if (digitColorCategory === prevDigitColorCategoryRef.current) return;
+    const prevCategory = prevDigitColorCategoryRef.current;
+    prevDigitColorCategoryRef.current = digitColorCategory;
+
+    if (digitColorCategory !== 'yellow' && digitColorCategory !== 'red') {
+      setDigitColorStyle({ transition: 'color 0s' });
+      return;
+    }
+
+    const targetColor = digitColorCategory === 'yellow' ? '#eab308' : '#ef4444';
+    if (prevCategory === 'white' || prevCategory === 'wave') {
+      setDigitColorStyle({ color: targetColor, transition: 'color 2.5s ease' });
+    } else {
+      setDigitColorStyle({ color: '#ffffff', transition: 'color 0s' });
+      const id = setTimeout(() => setDigitColorStyle({ color: targetColor, transition: 'color 2.5s ease' }), 0);
+      return () => clearTimeout(id);
+    }
+  }, [digitColorCategory]);
 
   const status = seconds < 0
     ? (isPaused ? 'PAUSED' : 'FINISHED')
@@ -1150,7 +1181,7 @@ export default function Timer() {
               </div>
               <div
                 className={`flex items-baseline justify-center gap-1 ${isDigitColorWaving ? 'animate-waveRedYellowText' : ''}`}
-                style={{ color: digitTextColor, transition: digitTextColor ? 'color 2.5s ease' : 'color 0s' }}
+                style={digitColorStyle}
               >
                 {remaining.hours && (
                   <span style={{ fontSize: '0.5em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction)}>
