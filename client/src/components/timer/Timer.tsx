@@ -832,9 +832,13 @@ export default function Timer() {
   const configuredMs = configuredTotalSeconds * 1000;
   const remainingMs = Math.max(0, seconds * 1000 + milliseconds);
   const timeFraction = configuredMs > 0 ? Math.min(1, remainingMs / configuredMs) : 0;
+  // pausing mid-overtime would otherwise leave the bar at 0% (invisible) —
+  // same trigger as the window/digit overtime cues above, so pausing while
+  // ringing keeps the bar full and flashing red instead of disappearing
+  const isPausedOvertime = isPaused && seconds < 0;
   // ringing red wins over the hue (the animate-alarmFlashBar class then
   // wins over this, alternating it with black); gray while never started
-  const barFillColor = isAlarmRinging ? '#ef4444' : isRunning ? `hsl(${120 * timeFraction}, 75%, 50%)` : '#6b7280';
+  const barFillColor = isAlarmRinging || isPausedOvertime ? '#ef4444' : isRunning ? `hsl(${120 * timeFraction}, 75%, 50%)` : '#6b7280';
 
   // a timer that's never run — idle at its configured time — has nothing
   // for STOP or RESET to act on
@@ -1247,13 +1251,15 @@ export default function Timer() {
                     hue, and both bar animations run out of step with the
                     window's flash so the bar stays visible against it:
                     paused alternates yellow/black at a quarter of the
-                    window's rate; ringing fills the track and rapidly alternates
-                    red/black for exactly as long as the beeps sound (with
-                    repeat off, isAlarmRinging ends with the finite ring) */}
+                    window's rate; ringing (or paused mid-overtime, which
+                    would otherwise sit at 0% width) fills the track and
+                    rapidly alternates red/black, for exactly as long as the
+                    beeps sound while actually ringing (with repeat off,
+                    isAlarmRinging ends with the finite ring) */}
                 <div
-                  className={isPaused ? 'animate-pauseFlashBar' : isAlarmRinging ? 'animate-alarmFlashBar' : ''}
+                  className={isAlarmRinging || isPausedOvertime ? 'animate-alarmFlashBar' : isPaused ? 'animate-pauseFlashBar' : ''}
                   style={{
-                    width: `${(isAlarmRinging ? 1 : timeFraction) * 100}%`,
+                    width: `${(isAlarmRinging || isPausedOvertime ? 1 : timeFraction) * 100}%`,
                     height: '100%',
                     backgroundColor: barFillColor,
                   }}
