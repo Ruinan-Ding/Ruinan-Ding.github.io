@@ -245,6 +245,22 @@
   animation: decreaseFlashRedText 1.2s ease-out forwards;
 }
 
+/* Paused (yellow) and rung-out (red) can both be true for the digits at
+   once — rather than one silently winning, wave between the two so both
+   are visible */
+@keyframes waveRedYellowText {
+  0%, 100% {
+    color: #ef4444;
+  }
+  50% {
+    color: #eab308;
+  }
+}
+
+.animate-waveRedYellowText {
+  animation: waveRedYellowText 2s ease-in-out infinite;
+}
+
 .animate-runFadeA {
   animation: runFadeA 5s ease-out forwards;
 }

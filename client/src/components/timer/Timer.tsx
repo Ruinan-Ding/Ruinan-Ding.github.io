@@ -820,10 +820,12 @@ export default function Timer() {
   // 3 cycles with it off (see the hasPausedSettled effect above). The
   // drain bar's pauseFlashBar is separate and always infinite.
   const pauseFlashClass = isAlarmLooping ? 'animate-pauseFlash' : 'animate-pauseFlashLimited';
-  // Steady-state digit color once settled: paused (yellow) takes
-  // precedence over a rung-out ring (red) if both apply — e.g. pausing
-  // after the ring already finished shows yellow until resumed.
-  const digitTextColor = isPaused && hasPausedSettled ? '#eab308' : hasRungOut ? '#ef4444' : undefined;
+  // Steady-state digit color once settled: paused (yellow) and a rung-out
+  // ring (red) can both apply at once — e.g. pausing after the ring
+  // already finished — so instead of one silently winning, wave between
+  // the two colors to show both are true.
+  const isDigitColorWaving = isPaused && hasPausedSettled && hasRungOut;
+  const digitTextColor = isDigitColorWaving ? undefined : isPaused && hasPausedSettled ? '#eab308' : hasRungOut ? '#ef4444' : undefined;
 
   // Drain bar under the digits: full at the configured time, empty at 0
   // (and through overtime), its left edge receding rightward as time runs
@@ -1146,7 +1148,10 @@ export default function Timer() {
               <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
-              <div className="flex items-baseline justify-center gap-1" style={{ color: digitTextColor, transition: digitTextColor ? 'color 2.5s ease' : 'color 0s' }}>
+              <div
+                className={`flex items-baseline justify-center gap-1 ${isDigitColorWaving ? 'animate-waveRedYellowText' : ''}`}
+                style={{ color: digitTextColor, transition: digitTextColor ? 'color 2.5s ease' : 'color 0s' }}
+              >
                 {remaining.hours && (
                   <span style={{ fontSize: '0.5em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction)}>
                     {remaining.sign}{remaining.hours}
