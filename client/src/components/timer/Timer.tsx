@@ -1076,7 +1076,7 @@ export default function Timer() {
               style={{ fontSize: 'clamp(1.2rem, 10.5vw, 7.5rem)', fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.25, 1.2, 1.3, 1) }}
             >
               {/* configured time, for reference */}
-              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(0.9, 1.8, 2, 1.5), letterSpacing: '0.05em' }}>
+              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
               <div className="flex items-baseline justify-center gap-1">
@@ -1206,7 +1206,7 @@ export default function Timer() {
             <div className="flex flex-col items-center gap-1 mt-2">
               <div
                 className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-                style={{ fontSize: shrinkClamp(0.8, 1.7, 1.8, 1.15), ...textGlowStyle }}
+                style={{ fontSize: shrinkClamp(1, 2.1, 2.2, 1.5), ...textGlowStyle }}
               >
                 {status}
               </div>
