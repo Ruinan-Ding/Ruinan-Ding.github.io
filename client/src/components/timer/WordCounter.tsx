@@ -95,16 +95,18 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
 
   return (
     <div className="flex flex-col items-start gap-1 w-full flex-1 overflow-hidden min-h-0">
-      <label
-        className={`font-bold text-left ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isFocused ? 'text-green-500' : 'text-red-500'}`}
-        style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
-      >
-        WORD COUNTER
-      </label>
+      <div className="flex justify-between items-center gap-3 w-full">
+        <label
+          className={`font-bold text-left ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isFocused ? 'text-green-500' : 'text-red-500'}`}
+          style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
+        >
+          WORD COUNTER
+        </label>
 
-      {isFocused && (
-        <span className="text-green-500 opacity-75 w-full text-right" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>Spacebar disabled for timer</span>
-      )}
+        {isFocused && (
+          <span className="text-green-500 opacity-75 text-right" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>Spacebar disabled for timer</span>
+        )}
+      </div>
 
       <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isFocused ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
         <div className="flex justify-between items-center gap-3 flex-wrap px-3 pt-3">
