@@ -830,13 +830,13 @@ export default function Timer() {
   // else in this column.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${shrinkClamp(0.55, 1.2, 1.3, 1.2)} ${shrinkClamp(1.1, 2.4, 2.7, 2.4)}`,
-    fontSize: shrinkClamp(0.85, 1.7, 2.1, 1.45),
+    padding: `${shrinkClamp(0.65, 1.4, 1.5, 1.4)} ${shrinkClamp(1.3, 2.75, 3.1, 2.75)}`,
+    fontSize: shrinkClamp(1, 1.95, 2.4, 1.65),
     borderColor: color,
     color,
     // black chip so the colored borders stay readable on the colored window
     backgroundColor: '#000000',
-    minWidth: shrinkClamp(6, 14.5, 15.5, 9.75),
+    minWidth: shrinkClamp(7, 16.5, 17.5, 11.25),
   });
 
   return (
@@ -981,14 +981,11 @@ export default function Timer() {
           >
             <span
               aria-hidden
-              className="inline-block border-2 flex-shrink-0"
-              style={{
-                width: '0.9em',
-                height: '0.9em',
-                borderColor: 'currentColor',
-                backgroundColor: !skipConfirmations ? 'currentColor' : 'transparent',
-              }}
-            />
+              className="inline-flex items-center justify-center border-2 flex-shrink-0"
+              style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
+            >
+              <span style={{ width: '0.45em', height: '0.45em', backgroundColor: !skipConfirmations ? 'currentColor' : 'transparent' }} />
+            </span>
             <span className="hidden sm:inline">CONFIRMATIONS</span>
           </button>
 
@@ -1074,10 +1071,10 @@ export default function Timer() {
               // shrinkClamp) — the one size in this column a short window
               // never shrinks; the padding around them is chrome, so it
               // yields like everything else
-              style={{ fontSize: 'clamp(1rem, 9vw, 6rem)', fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.25, 1.2, 1.3, 1) }}
+              style={{ fontSize: 'clamp(1.2rem, 10.5vw, 7.5rem)', fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.25, 1.2, 1.3, 1) }}
             >
               {/* configured time, for reference */}
-              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(0.7, 1.4, 1.5, 1.15), letterSpacing: '0.05em' }}>
+              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(0.9, 1.8, 2, 1.5), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
               <div className="flex items-baseline justify-center gap-1">
@@ -1207,7 +1204,7 @@ export default function Timer() {
             <div className="flex flex-col items-center gap-1 mt-2">
               <div
                 className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-                style={{ fontSize: shrinkClamp(0.6, 1.3, 1.4, 0.875), ...textGlowStyle }}
+                style={{ fontSize: shrinkClamp(0.8, 1.7, 1.8, 1.15), ...textGlowStyle }}
               >
                 {status}
               </div>

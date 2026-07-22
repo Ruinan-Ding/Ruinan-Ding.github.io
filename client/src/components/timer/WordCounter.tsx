@@ -124,9 +124,11 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
         >
           <span
             aria-hidden
-            className="inline-block border-2 flex-shrink-0"
-            style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor', backgroundColor: alnumWordsOnly ? 'currentColor' : 'transparent' }}
-          />
+            className="inline-flex items-center justify-center border-2 flex-shrink-0"
+            style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
+          >
+            <span style={{ width: '0.45em', height: '0.45em', backgroundColor: alnumWordsOnly ? 'currentColor' : 'transparent' }} />
+          </span>
           Alphanumeric words only
         </button>
 
@@ -140,9 +142,11 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
         >
           <span
             aria-hidden
-            className="inline-block border-2 flex-shrink-0"
-            style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor', backgroundColor: alnumCharsOnly ? 'currentColor' : 'transparent' }}
-          />
+            className="inline-flex items-center justify-center border-2 flex-shrink-0"
+            style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
+          >
+            <span style={{ width: '0.45em', height: '0.45em', backgroundColor: alnumCharsOnly ? 'currentColor' : 'transparent' }} />
+          </span>
           Alphanumeric chars only
         </button>
       </div>
