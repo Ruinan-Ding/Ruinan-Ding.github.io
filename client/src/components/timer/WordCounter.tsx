@@ -102,6 +102,10 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
         WORD COUNTER
       </label>
 
+      {isFocused && (
+        <span className="text-green-500 opacity-75 w-full text-right" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>Spacebar disabled for timer</span>
+      )}
+
       <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isFocused ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
         <div className="flex justify-between items-center gap-3 flex-wrap px-3 pt-3">
           <div className="flex items-center gap-3 flex-wrap">
@@ -153,15 +157,12 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
           )}
         </div>
 
-        <div className="flex justify-between items-center px-3">
+        <div className="flex items-center px-3">
           <div className="text-white font-bold grid grid-cols-3 text-center flex-shrink-0" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
             <div className="border-2 border-white px-1 py-1">L</div>
             <div className="border-2 border-white px-1 py-1">W</div>
             <div className="border-2 border-white px-1 py-1">C</div>
           </div>
-          {isFocused && (
-            <span className="text-green-500 opacity-75" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>Spacebar disabled for timer</span>
-          )}
         </div>
         <div className="flex flex-col gap-2 px-3 pb-3 flex-1 overflow-hidden min-h-0">
           <div className="relative flex-1 overflow-hidden min-h-0">
