@@ -321,7 +321,13 @@ export default function Timer() {
 
   useEffect(() => {
     if (!isAlarmActive) return;
-    if (!isAlarmLooping && alarmRungThisOvertimeRef.current) return;
+    if (!isAlarmLooping && alarmRungThisOvertimeRef.current) {
+      // repeat got turned off mid-ring, which mutes it immediately rather
+      // than letting it finish its pattern — treat that the same as the
+      // ring completing on its own, so the digits still fade red
+      setHasRungOut(true);
+      return;
+    }
     alarmRungThisOvertimeRef.current = true;
 
     const pattern: boolean[] = [];
@@ -992,13 +998,15 @@ export default function Timer() {
             title={isAlarmLooping ? 'Alarm repeats until stopped — click to ring a limited number of times' : 'Alarm rings a limited number of times — click to repeat until stopped'}
             aria-label={isAlarmLooping ? 'Disable alarm repeat' : 'Enable alarm repeat'}
           >
-            <Repeat
+            {/* Bell is the main icon — this button is fundamentally about
+                the alarm, not a generic loop toggle — filling the whole
+                button; Repeat rides along as a small badge to show it's
+                specifically the repeat setting */}
+            <Bell
               color={isAlarmLooping ? '#22c55e' : '#ffffff'}
               style={HEADER_ICON_SIZE}
             />
-            {/* small badge so this reads as "alarm repeat", not a generic
-                loop toggle — sits over the bottom-right of the Repeat icon */}
-            <Bell
+            <Repeat
               aria-hidden
               color={isAlarmLooping ? '#22c55e' : '#ffffff'}
               fill="#000000"
@@ -1133,7 +1141,7 @@ export default function Timer() {
               <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
-              <div className="flex items-baseline justify-center gap-1" style={{ color: digitTextColor, transition: 'color 2.5s ease' }}>
+              <div className="flex items-baseline justify-center gap-1" style={{ color: digitTextColor, transition: digitTextColor ? 'color 2.5s ease' : 'color 0s' }}>
                 {remaining.hours && (
                   <span style={{ fontSize: '0.5em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction)}>
                     {remaining.sign}{remaining.hours}
