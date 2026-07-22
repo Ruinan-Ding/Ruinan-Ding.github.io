@@ -20,6 +20,10 @@ const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkC
 // Shared by the square icon buttons (mute, repeat); the hamburger uses the
 // same floor but a smaller ceiling since it's hidden past the lg breakpoint
 const HEADER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3.5), height: shrinkClamp(2, 5, 5, 3.5) };
+// The alarm-repeat button's Bell is bigger than a normal header icon,
+// filling most of the button, since it's the button's whole identity
+// rather than one of several equal icons
+const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
 const HAMBURGER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3), height: shrinkClamp(2, 5, 5, 3) };
 
 // Speaker with sound waves that grow in as the volume rises; an X when muted
@@ -999,12 +1003,12 @@ export default function Timer() {
             aria-label={isAlarmLooping ? 'Disable alarm repeat' : 'Enable alarm repeat'}
           >
             {/* Bell is the main icon — this button is fundamentally about
-                the alarm, not a generic loop toggle — filling the whole
-                button; Repeat rides along as a small badge to show it's
-                specifically the repeat setting */}
+                the alarm, not a generic loop toggle — sized to fill most
+                of the button; Repeat sits centered inside the bell's own
+                body as a badge for the repeat setting specifically */}
             <Bell
               color={isAlarmLooping ? '#22c55e' : '#ffffff'}
-              style={HEADER_ICON_SIZE}
+              style={RINGER_BELL_SIZE}
             />
             <Repeat
               aria-hidden
@@ -1014,8 +1018,9 @@ export default function Timer() {
               style={{
                 width: shrinkClamp(0.7, 1.6, 1.6, 1.1),
                 height: shrinkClamp(0.7, 1.6, 1.6, 1.1),
-                bottom: '-0.2em',
-                right: '-0.2em',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
               }}
             />
           </button>
