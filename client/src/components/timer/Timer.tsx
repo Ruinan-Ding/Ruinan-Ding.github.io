@@ -817,9 +817,12 @@ export default function Timer() {
     isFlashing ? (direction === 'inc' ? 'animate-increaseFlashText' : 'animate-decreaseFlashText') : '';
 
   // Window's own pause flash: infinite as always with repeat on; a fixed
-  // 3 cycles with it off (see the hasPausedSettled effect above). The
+  // 3 cycles with it off (see the hasPausedSettled effect above) — except
+  // pausing mid-overtime with repeat still on, where it stays plain black
+  // instead of flashing yellow, since that yellow read as a generic
+  // "paused" cue that didn't fit pausing what was actively ringing. The
   // drain bar's pauseFlashBar is separate and always infinite.
-  const pauseFlashClass = isAlarmLooping ? 'animate-pauseFlash' : 'animate-pauseFlashLimited';
+  const pauseFlashClass = seconds < 0 && isAlarmLooping ? 'bg-black' : isAlarmLooping ? 'animate-pauseFlash' : 'animate-pauseFlashLimited';
 
   // Drain bar under the digits: full at the configured time, empty at 0
   // (and through overtime), its left edge receding rightward as time runs
