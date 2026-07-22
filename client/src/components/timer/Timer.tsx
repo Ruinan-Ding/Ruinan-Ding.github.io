@@ -299,11 +299,13 @@ export default function Timer() {
     if (isAlarmLooping) setHasRungOut(false);
   }, [isAlarmLooping]);
 
-  // With repeat off, pausing flashes the window yellow/black a fixed 3
-  // times (animate-pauseFlashLimited below) instead of forever, then the
-  // digits fade yellow once that settles — cleared by resuming or turning
-  // repeat back on, so the next pause replays the same 3-flash cue fresh.
-  // The drain bar's own pause flash is untouched by any of this.
+  // With repeat off and still above zero, pausing flashes the window
+  // yellow/black a fixed 3 times (animate-pauseFlashLimited below)
+  // instead of forever, then the digits wave yellow once that settles —
+  // cleared by resuming or turning repeat back on, so the next pause
+  // replays the same 3-flash cue fresh. Not used once negative — that
+  // case shows the red wave immediately instead of waiting on this. The
+  // drain bar's own pause flash is untouched by any of this.
   const [hasPausedSettled, setHasPausedSettled] = useState(false);
   useEffect(() => {
     if (!isPaused || isAlarmLooping) setHasPausedSettled(false);
@@ -816,13 +818,13 @@ export default function Timer() {
   const flashTextClass = (isFlashing: boolean, direction: 'inc' | 'dec') =>
     isFlashing ? (direction === 'inc' ? 'animate-increaseFlashText' : 'animate-decreaseFlashText') : '';
 
-  // Window's own pause flash: infinite as always with repeat on; a fixed
-  // 3 cycles with it off (see the hasPausedSettled effect above) — except
-  // pausing mid-overtime with repeat still on, where it stays plain black
-  // instead of flashing yellow, since that yellow read as a generic
-  // "paused" cue that didn't fit pausing what was actively ringing. The
-  // drain bar's pauseFlashBar is separate and always infinite.
-  const pauseFlashClass = seconds < 0 && isAlarmLooping ? 'bg-black' : isAlarmLooping ? 'animate-pauseFlash' : 'animate-pauseFlashLimited';
+  // Window's own pause flash: pausing mid-overtime always stays plain
+  // black regardless of repeat, since the digits below take over that
+  // cue immediately (redWave) rather than waiting on this to settle.
+  // Above zero it's the original behavior: infinite yellow with repeat
+  // on, a fixed 3 cycles with it off (see the hasPausedSettled effect
+  // above). The drain bar's pauseFlashBar is separate and always infinite.
+  const pauseFlashClass = seconds < 0 ? 'bg-black' : isAlarmLooping ? 'animate-pauseFlash' : 'animate-pauseFlashLimited';
 
   // Drain bar under the digits: full at the configured time, empty at 0
   // (and through overtime), its left edge receding rightward as time runs
@@ -854,16 +856,17 @@ export default function Timer() {
   const glowFadeClass = `animate-glowFade${fadeSuffix}`;
   const textGlowStyle = { '--glow-from': '#000000' } as React.CSSProperties;
 
-  // Which of the digits' color states currently applies. Once paused and
-  // settled, the sign of the remaining time picks yellow-wave vs
-  // red-wave — negative (overtime) always wins over the plain yellow
-  // pause cue, regardless of whether the ring itself ever finished.
+  // Which of the digits' color states currently applies. Pausing while
+  // negative (overtime) shows the red wave immediately — no waiting on
+  // the window's own flash to settle, unlike the yellow wave above zero,
+  // and it wins regardless of whether the ring itself ever finished.
   // green/white/either wave all animate themselves (green via the
   // ancestor's own glow fade, the waves via their own CSS class, white
   // via just having no override), so only solid 'red' (the ring
   // finishing while still running, not paused) needs a driven fade.
   const digitColorCategory: 'green' | 'yellowWave' | 'redWave' | 'red' | 'white' =
-    isPaused && hasPausedSettled ? (seconds < 0 ? 'redWave' : 'yellowWave')
+    isPaused && seconds < 0 ? 'redWave'
+      : isPaused && hasPausedSettled ? 'yellowWave'
       : hasRungOut ? 'red'
       : isWindowGreen ? 'green'
       : 'white';
