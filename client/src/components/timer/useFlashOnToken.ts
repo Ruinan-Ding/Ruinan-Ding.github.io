@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 // Matches the CSS flash animations' own duration (index.css).
-const FLASH_DURATION_MS = 1200;
+export const FLASH_DURATION_MS = 1200;
 
 // Flips off then on a tick later whenever token changes, so a CSS "flash"
 // animation replays even on back-to-back triggers — toggling a class to

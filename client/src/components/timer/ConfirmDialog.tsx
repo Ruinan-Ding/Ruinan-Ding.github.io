@@ -88,13 +88,15 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
       <AlertDialogContent
         className="bg-black border-4 border-white"
         onKeyDown={(e) => {
-          // Space confirms regardless of which button holds focus
-          // (Escape already dismisses via Radix). Space is also the
-          // global start/pause shortcut, so stop the event here too —
-          // otherwise it keeps bubbling to that window listener, which
-          // would immediately re-trigger on the same keystroke once this
-          // closes the dialog.
-          if (e.code === 'Space') {
+          // Space and Enter both confirm regardless of which button holds
+          // focus (Escape already dismisses via Radix). Radix focuses
+          // Cancel by default when the dialog opens, so without this,
+          // Enter would activate that focused Cancel button instead of
+          // confirming. Space is also the global start/pause shortcut, so
+          // stop the event here too — otherwise it keeps bubbling to that
+          // window listener, which would immediately re-trigger on the
+          // same keystroke once this closes the dialog.
+          if (e.code === 'Space' || e.key === 'Enter') {
             e.preventDefault();
             e.stopPropagation();
             onConfirm();

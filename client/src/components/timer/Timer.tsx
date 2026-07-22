@@ -52,20 +52,12 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
   );
 }
 
-// Matches the CSS flash animations' own duration (index.css). Setting one
-// of these ids only for this long, rather than leaving it set until the
-// next insert/load, matters because animation-fill-mode: forwards pins
-// the animated property at its end value indefinitely — left set, it
-// would permanently block any later style change to that same property,
-// hover included, on whichever card last flashed.
-const FLASH_DURATION_MS = 1200;
-
-// Flags id as flashing, then clears it again after the animation
-// finishes — but only if nothing newer has already taken its place.
-const flashThenClear = (id: string, setter: React.Dispatch<React.SetStateAction<string | null>>) => {
-  setter(id);
-  setTimeout(() => setter((current) => (current === id ? null : current)), FLASH_DURATION_MS);
-};
+// A flash target: which entry to flash, plus a token that bumps on every
+// trigger — even a repeat of the same id — so useFlashOnToken always sees
+// a change and replays the animation instead of silently no-op'ing on a
+// same-value state update.
+type FlashTarget = { id: string; token: number } | null;
+const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: (prev?.token ?? 0) + 1 });
 
 export default function Timer() {
   // Parse persisted state once, before first render, so the persist effect
@@ -127,13 +119,13 @@ export default function Timer() {
     return typeof saved === 'boolean' ? saved : false;
   });
 
-  // ids of the most recently created/loaded preset or history entry, so
-  // their cards can play a one-shot flash (yellow for a fresh insert,
-  // green for loading an existing one) — never restored from storage, so
-  // a reload never replays it
-  const [insertedPresetId, setInsertedPresetId] = useState<string | null>(null);
-  const [insertedHistoryId, setInsertedHistoryId] = useState<string | null>(null);
-  const [loadedEntryId, setLoadedEntryId] = useState<string | null>(null);
+  // the most recently created/loaded preset or history entry, so their
+  // cards can play a one-shot flash (yellow for a fresh insert, green for
+  // loading an existing one) — never restored from storage, so a reload
+  // never replays it
+  const [insertedPreset, setInsertedPreset] = useState<FlashTarget>(null);
+  const [insertedHistory, setInsertedHistory] = useState<FlashTarget>(null);
+  const [loadedEntry, setLoadedEntry] = useState<FlashTarget>(null);
   // bumped (with the direction of the change) per-field whenever that
   // field's own adjustment actually applies, so each HOURS/MINUTES/SECONDS
   // digit on the countdown itself can flash green/red independently
@@ -487,7 +479,7 @@ export default function Timer() {
   const recordHistory = (parts: TimeParts) => {
     const entry: TimerEntry = { id: uniqueId(), ...parts, timestamp: Date.now() };
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
-    flashThenClear(entry.id, setInsertedHistoryId);
+    setInsertedHistory((prev) => bumpFlash(prev, entry.id));
   };
 
   const togglePause = () => {
@@ -592,14 +584,11 @@ export default function Timer() {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
     // flashes on the click itself rather than once the switch actually
     // applies — simpler than threading the entry id through the confirm
-    // dialog, and a cancelled switch still leaves a harmless flash.
-    // Clears a still-pending insert flash for the same id immediately
-    // (rather than waiting out its own timeout), so loading a
-    // just-created entry shows green right away instead of staying
-    // yellow until the insert flash's clock runs out.
-    setInsertedPresetId((current) => (current === entry.id ? null : current));
-    setInsertedHistoryId((current) => (current === entry.id ? null : current));
-    flashThenClear(entry.id, setLoadedEntryId);
+    // dialog, and a cancelled switch still leaves a harmless flash. The
+    // panels check loadedId before insertedId, so loading a just-created
+    // entry shows green immediately instead of staying yellow until the
+    // insert flash's own timing runs out.
+    setLoadedEntry((prev) => bumpFlash(prev, entry.id));
     // actively counting down (not paused): confirm, then start the new
     // preset immediately
     if (isRunning && !isPaused && timeRef.current.seconds >= 0) {
@@ -636,7 +625,7 @@ export default function Timer() {
   const handleAddPreset = useCallback((parts: TimeParts) => {
     const id = uniqueId();
     setPresets((prev) => (prev.length >= MAX_PRESETS ? prev : [...prev, { id, ...parts, timestamp: 0 }]));
-    flashThenClear(id, setInsertedPresetId);
+    setInsertedPreset((prev) => bumpFlash(prev, id));
   }, []);
 
   const handleRemovePreset = useCallback((id: string) => {
@@ -645,7 +634,7 @@ export default function Timer() {
 
   const handleClearHistory = useCallback(() => {
     setHistory([]);
-    setInsertedHistoryId(null);
+    setInsertedHistory(null);
   }, []);
 
   const setterFor = useCallback(
@@ -870,8 +859,21 @@ export default function Timer() {
       <div
         className={`${isSidebarOpen ? 'flex' : 'hidden'} lg:flex fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto w-64 lg:w-48 bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden`}
       >
-        <PresetsPanel presets={presets} onAdd={handleAddPreset} onRemove={handleRemovePreset} onSelect={handleSelectEntry} insertedId={insertedPresetId} loadedId={loadedEntryId} />
-        <HistoryPanel history={history} onSelect={handleSelectEntry} onClear={handleClearHistory} insertedId={insertedHistoryId} loadedId={loadedEntryId} />
+        <PresetsPanel
+          presets={presets}
+          onAdd={handleAddPreset}
+          onRemove={handleRemovePreset}
+          onSelect={handleSelectEntry}
+          inserted={insertedPreset}
+          loaded={loadedEntry}
+        />
+        <HistoryPanel
+          history={history}
+          onSelect={handleSelectEntry}
+          onClear={handleClearHistory}
+          inserted={insertedHistory}
+          loaded={loadedEntry}
+        />
       </div>
 
       <div className="flex-1 flex flex-col items-center p-2 sm:p-3 md:p-4 gap-2 overflow-hidden min-h-0 relative">
@@ -968,8 +970,8 @@ export default function Timer() {
             className="flex items-center gap-2 border-3 font-bold px-3 transition-all duration-200 hover:opacity-80"
             style={{
               height: HEADER_BUTTON_SIZE.height,
-              borderColor: skipConfirmations ? '#eab308' : '#ffffff',
-              color: skipConfirmations ? '#eab308' : '#ffffff',
+              borderColor: skipConfirmations ? '#6b7280' : '#ffffff',
+              color: skipConfirmations ? '#6b7280' : '#ffffff',
               backgroundColor: '#000000',
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: shrinkClamp(0.65, 1.5, 1.6, 1),

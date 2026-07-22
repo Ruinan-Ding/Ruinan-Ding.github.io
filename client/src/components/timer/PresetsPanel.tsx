@@ -4,6 +4,7 @@ import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
+import { useDomFlash } from './useDomFlash';
 
 // matches the font size of the preset list buttons below. This sidebar
 // sits in a fixed, overflow-hidden column, so its own controls need to
@@ -12,21 +13,66 @@ import { useDigitEntry } from './useDigitEntry';
 const PRESET_INPUT_FONT_SIZE = shrinkClamp(0.75, 1.5, 1.6, 0.875);
 // shared by the +/- preset buttons
 const PRESET_BUTTON_STYLE = { padding: shrinkClamp(0.25, 0.5, 0.55, 0.375), fontSize: shrinkClamp(0.7, 1.2, 1.3, 0.875), minWidth: shrinkClamp(1.5, 3, 3, 2) };
+const PRESET_BUTTON_TEXT_STYLE = { fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.375, 1, 1.1, 0.5), fontSize: shrinkClamp(0.75, 1.5, 1.6, 0.875) };
+
+type FlashTarget = { id: string; token: number } | null;
+
+// Load wins over insert when both target the same id (e.g. loading a
+// preset within 1.2s of adding it) — the flash class is applied directly
+// to the DOM (see useDomFlash) rather than through React's className, so
+// a reselect of the same entry still replays the animation instead of
+// silently no-op'ing on an unchanged class string.
+function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
+  preset: TimerEntry;
+  onRemove: (id: string) => void;
+  onSelect: (entry: TimerEntry) => void;
+  inserted: FlashTarget;
+  loaded: FlashTarget;
+}) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const flash = loaded?.id === preset.id
+    ? { key: `load:${loaded.token}`, className: 'animate-loadFlash' }
+    : inserted?.id === preset.id
+      ? { key: `insert:${inserted.token}`, className: 'animate-insertFlash' }
+      : { key: null, className: '' };
+  useDomFlash(buttonRef, flash.key, flash.className);
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => onRemove(preset.id)}
+        aria-label={`Remove preset ${formatEntryLabel(preset)}`}
+        className="border-2 border-red-500 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-colors flex-shrink-0"
+        style={PRESET_BUTTON_STYLE}
+      >
+        −
+      </button>
+      <button
+        ref={buttonRef}
+        onClick={() => onSelect(preset)}
+        className="flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0"
+        style={PRESET_BUTTON_TEXT_STYLE}
+      >
+        {formatEntryLabel(preset)}
+      </button>
+    </div>
+  );
+}
 
 interface PresetsPanelProps {
   presets: TimerEntry[];
   onAdd: (parts: TimeParts) => void;
   onRemove: (id: string) => void;
   onSelect: (entry: TimerEntry) => void;
-  insertedId: string | null;
-  loadedId: string | null;
+  inserted: FlashTarget;
+  loaded: FlashTarget;
 }
 
 // Digit entry is keydown-driven rather than derived from onChange, since
 // onChange alone can't tell a partial entry from a complete one. Track the
 // raw typed digits instead, and render them unpadded (same style used
 // everywhere else in the app: "1:30", not "00:01:30").
-function PresetsPanel({ presets, onAdd, onRemove, onSelect, insertedId, loadedId }: PresetsPanelProps) {
+function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
@@ -63,23 +109,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, insertedId, loadedId
       <h2 className="text-white font-bold mb-4 border-b-2 border-white pb-2" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.125) }}>PRESETS</h2>
       <div className="flex flex-col gap-2">
         {presets.map((preset) => (
-          <div key={preset.id} className="flex items-center gap-2">
-            <button
-              onClick={() => onRemove(preset.id)}
-              aria-label={`Remove preset ${formatEntryLabel(preset)}`}
-              className="border-2 border-red-500 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-colors flex-shrink-0"
-              style={PRESET_BUTTON_STYLE}
-            >
-              −
-            </button>
-            <button
-              onClick={() => onSelect(preset)}
-              className={`flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 ${preset.id === insertedId ? 'animate-insertFlash' : preset.id === loadedId ? 'animate-loadFlash' : ''}`}
-              style={{ fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.375, 1, 1.1, 0.5), fontSize: shrinkClamp(0.75, 1.5, 1.6, 0.875) }}
-            >
-              {formatEntryLabel(preset)}
-            </button>
-          </div>
+          <PresetRow key={preset.id} preset={preset} onRemove={onRemove} onSelect={onSelect} inserted={inserted} loaded={loaded} />
         ))}
         <div className="flex items-center gap-2 mt-2">
           <button

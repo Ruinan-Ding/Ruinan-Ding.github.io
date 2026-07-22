@@ -118,7 +118,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
           onClick={() => setAlnumWordsOnly((prev) => !prev)}
           aria-pressed={alnumWordsOnly}
           className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-          style={{ color: alnumWordsOnly ? '#eab308' : '#ffffff', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+          style={{ color: alnumWordsOnly ? '#ffffff' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
           title="When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included."
           aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
         >
@@ -136,7 +136,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
           onClick={() => setAlnumCharsOnly((prev) => !prev)}
           aria-pressed={alnumCharsOnly}
           className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-          style={{ color: alnumCharsOnly ? '#eab308' : '#ffffff', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+          style={{ color: alnumCharsOnly ? '#ffffff' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
           title="When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces."
           aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
         >
