@@ -246,13 +246,14 @@
 }
 
 /* Paused + repeat off, once the window's own 3-cycle flash settles: the
-   digits wave between the state color and a near-black shade (not pure
-   background, so they never fully disappear) rather than sitting solid.
-   Negative time (overtime) always shows the red wave over the yellow
-   one, regardless of whether the ring itself ever finished. */
+   digits wave between the state color and a dark gray (kept well off pure
+   black so it stays visible against the background, not near-invisible)
+   rather than sitting solid. Negative time (overtime) always shows the
+   red wave over the yellow one, regardless of whether the ring itself
+   ever finished. */
 @keyframes waveYellowText {
   0%, 100% {
-    color: #141414;
+    color: #3a3a3a;
   }
   50% {
     color: #eab308;
@@ -265,7 +266,7 @@
 
 @keyframes waveRedText {
   0%, 100% {
-    color: #141414;
+    color: #3a3a3a;
   }
   50% {
     color: #ef4444;
