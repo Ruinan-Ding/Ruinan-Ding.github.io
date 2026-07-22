@@ -95,64 +95,65 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
 
   return (
     <div className="flex flex-col items-start gap-1 w-full flex-1 overflow-hidden min-h-0">
-      <div className="flex justify-between items-center w-full">
-        <label
-          className={`font-bold text-left ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isFocused ? 'text-green-500' : 'text-red-500'}`}
-          style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
-        >
-          WORD COUNTER
-        </label>
-        {text !== '' && (
-          <button
-            onClick={() => setText('')}
-            className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors"
-            style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
-          >
-            Clear
-          </button>
-        )}
-      </div>
-
-      <div className="flex items-center gap-3 flex-wrap">
-        <button
-          onClick={() => setAlnumWordsOnly((prev) => !prev)}
-          aria-pressed={alnumWordsOnly}
-          className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-          style={{ color: alnumWordsOnly ? '#ffffff' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
-          title="When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included."
-          aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
-        >
-          <span
-            aria-hidden
-            className="inline-flex items-center justify-center border-2 flex-shrink-0"
-            style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
-          >
-            <span style={{ width: '0.45em', height: '0.45em', backgroundColor: alnumWordsOnly ? 'currentColor' : 'transparent' }} />
-          </span>
-          Alphanumeric words only
-        </button>
-
-        <button
-          onClick={() => setAlnumCharsOnly((prev) => !prev)}
-          aria-pressed={alnumCharsOnly}
-          className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-          style={{ color: alnumCharsOnly ? '#ffffff' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
-          title="When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces."
-          aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
-        >
-          <span
-            aria-hidden
-            className="inline-flex items-center justify-center border-2 flex-shrink-0"
-            style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
-          >
-            <span style={{ width: '0.45em', height: '0.45em', backgroundColor: alnumCharsOnly ? 'currentColor' : 'transparent' }} />
-          </span>
-          Alphanumeric chars only
-        </button>
-      </div>
+      <label
+        className={`font-bold text-left ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isFocused ? 'text-green-500' : 'text-red-500'}`}
+        style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
+      >
+        WORD COUNTER
+      </label>
 
       <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isFocused ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
-        <div className="flex justify-between items-center px-3 pt-3">
+        <div className="flex justify-between items-center gap-3 flex-wrap px-3 pt-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => setAlnumWordsOnly((prev) => !prev)}
+              aria-pressed={alnumWordsOnly}
+              className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
+              style={{ color: alnumWordsOnly ? '#ffffff' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              title="When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included."
+              aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
+            >
+              <span
+                aria-hidden
+                className="inline-flex items-center justify-center border-2 flex-shrink-0"
+                style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
+              >
+                <span style={{ width: '0.45em', height: '0.45em', backgroundColor: alnumWordsOnly ? 'currentColor' : 'transparent' }} />
+              </span>
+              Alphanumeric words only
+            </button>
+
+            <button
+              onClick={() => setAlnumCharsOnly((prev) => !prev)}
+              aria-pressed={alnumCharsOnly}
+              className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
+              style={{ color: alnumCharsOnly ? '#ffffff' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              title="When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces."
+              aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
+            >
+              <span
+                aria-hidden
+                className="inline-flex items-center justify-center border-2 flex-shrink-0"
+                style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
+              >
+                <span style={{ width: '0.45em', height: '0.45em', backgroundColor: alnumCharsOnly ? 'currentColor' : 'transparent' }} />
+              </span>
+              Alphanumeric chars only
+            </button>
+          </div>
+
+          {text !== '' && (
+            <button
+              onClick={() => setText('')}
+              className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
+              style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div className="flex justify-between items-center px-3">
           <div className="text-white font-bold grid grid-cols-3 text-center flex-shrink-0" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
             <div className="border-2 border-white px-1 py-1">L</div>
             <div className="border-2 border-white px-1 py-1">W</div>
