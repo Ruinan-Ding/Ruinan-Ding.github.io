@@ -1,4 +1,4 @@
-import { ExternalLink, Menu, Repeat, Trash2, X } from 'lucide-react';
+import { Bell, ExternalLink, Menu, Repeat, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
@@ -164,6 +164,7 @@ export default function Timer() {
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const windowRef = useRef<HTMLDivElement | null>(null);
   // only prompt for time adjustments once per running/paused state
   const promptShownInStateRef = useRef(false);
   // Radix fires both onClick and onOpenChange for the same click, so the
@@ -278,12 +279,40 @@ export default function Timer() {
   // toggles, pause/resume) continue the ring where it left off instead of
   // restarting it at the first burst
   const alarmTickRef = useRef(0);
+  // With repeat off, once the finite ring finishes on its own the digits
+  // fade red as a persistent "you missed this" cue — cleared by turning
+  // repeat back on, or by leaving overtime (a fresh countdown shouldn't
+  // start pre-tinted).
+  const [hasRungOut, setHasRungOut] = useState(false);
   useEffect(() => {
     if (!isOvertime) {
       alarmRungThisOvertimeRef.current = false;
       alarmTickRef.current = 0;
+      setHasRungOut(false);
     }
   }, [isOvertime]);
+  useEffect(() => {
+    if (isAlarmLooping) setHasRungOut(false);
+  }, [isAlarmLooping]);
+
+  // With repeat off, pausing flashes the window yellow/black a fixed 3
+  // times (animate-pauseFlashLimited below) instead of forever, then the
+  // digits fade yellow once that settles — cleared by resuming or turning
+  // repeat back on, so the next pause replays the same 3-flash cue fresh.
+  // The drain bar's own pause flash is untouched by any of this.
+  const [hasPausedSettled, setHasPausedSettled] = useState(false);
+  useEffect(() => {
+    if (!isPaused || isAlarmLooping) setHasPausedSettled(false);
+  }, [isPaused, isAlarmLooping]);
+  useEffect(() => {
+    const el = windowRef.current;
+    if (!el) return;
+    const onAnimationEnd = (e: AnimationEvent) => {
+      if (e.animationName === 'pauseFlash' && isPaused && !isAlarmLooping) setHasPausedSettled(true);
+    };
+    el.addEventListener('animationend', onAnimationEnd);
+    return () => el.removeEventListener('animationend', onAnimationEnd);
+  }, [isPaused, isAlarmLooping]);
 
   // Window flash synced to the alarm: isAlarmRinging while the beep
   // interval runs, isBeepFlash pulsing red for each individual beep
@@ -307,6 +336,7 @@ export default function Timer() {
         if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
         beepIntervalRef.current = null;
         setIsAlarmRinging(false);
+        setHasRungOut(true);
         return;
       }
       if (pattern[alarmTickRef.current % pattern.length]) {
@@ -776,6 +806,15 @@ export default function Timer() {
   const flashTextClass = (isFlashing: boolean, direction: 'inc' | 'dec') =>
     isFlashing ? (direction === 'inc' ? 'animate-increaseFlashText' : 'animate-decreaseFlashText') : '';
 
+  // Window's own pause flash: infinite as always with repeat on; a fixed
+  // 3 cycles with it off (see the hasPausedSettled effect above). The
+  // drain bar's pauseFlashBar is separate and always infinite.
+  const pauseFlashClass = isAlarmLooping ? 'animate-pauseFlash' : 'animate-pauseFlashLimited';
+  // Steady-state digit color once settled: paused (yellow) takes
+  // precedence over a rung-out ring (red) if both apply — e.g. pausing
+  // after the ring already finished shows yellow until resumed.
+  const digitTextColor = isPaused && hasPausedSettled ? '#eab308' : hasRungOut ? '#ef4444' : undefined;
+
   // Drain bar under the digits: full at the configured time, empty at 0
   // (and through overtime), its left edge receding rightward as time runs
   // out while the hue sweeps green (120) -> red (0)
@@ -830,10 +869,11 @@ export default function Timer() {
 
   return (
     <div
+      ref={windowRef}
       className={`h-screen flex overflow-hidden ${isAlarmRinging ? '' : 'transition-colors duration-200'} ${
         seconds < 0
           ? isPaused
-            ? 'animate-pauseFlash'
+            ? pauseFlashClass
             // red only while a beep actually sounds — silent overtime
             // (muted, ring-once finished, stopped after a reload) stays
             // black, so the flashing always matches the audio; the color
@@ -843,7 +883,7 @@ export default function Timer() {
               : 'bg-black'
           : isRunning
             ? isPaused
-              ? 'animate-pauseFlash'
+              ? pauseFlashClass
               : runFadeClass
             : 'bg-black'
       }`}
@@ -943,7 +983,7 @@ export default function Timer() {
 
           <button
             onClick={() => setIsAlarmLooping((prev: boolean) => !prev)}
-            className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
+            className="relative flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
             style={{
               ...HEADER_BUTTON_SIZE,
               borderColor: isAlarmLooping ? '#22c55e' : '#ffffff',
@@ -955,6 +995,20 @@ export default function Timer() {
             <Repeat
               color={isAlarmLooping ? '#22c55e' : '#ffffff'}
               style={HEADER_ICON_SIZE}
+            />
+            {/* small badge so this reads as "alarm repeat", not a generic
+                loop toggle — sits over the bottom-right of the Repeat icon */}
+            <Bell
+              aria-hidden
+              color={isAlarmLooping ? '#22c55e' : '#ffffff'}
+              fill="#000000"
+              className="absolute"
+              style={{
+                width: shrinkClamp(0.7, 1.6, 1.6, 1.1),
+                height: shrinkClamp(0.7, 1.6, 1.6, 1.1),
+                bottom: '-0.2em',
+                right: '-0.2em',
+              }}
             />
           </button>
           </div>
@@ -1079,7 +1133,7 @@ export default function Timer() {
               <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
-              <div className="flex items-baseline justify-center gap-1">
+              <div className="flex items-baseline justify-center gap-1" style={{ color: digitTextColor, transition: 'color 2.5s ease' }}>
                 {remaining.hours && (
                   <span style={{ fontSize: '0.5em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction)}>
                     {remaining.sign}{remaining.hours}
@@ -1163,7 +1217,7 @@ export default function Timer() {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-shrink-0">
               {!isRunning && (
                 <button
                   onClick={handleStart}

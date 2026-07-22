@@ -145,6 +145,14 @@
   animation: pauseFlash 2s ease-in-out infinite;
 }
 
+/* Same window flash, but for a paused timer with the alarm repeat off:
+   3 cycles then stops (forwards holds the last, black, keyframe) instead
+   of flashing forever — the animationend event that fires when it settles
+   is what triggers the digits' fade to yellow (see Timer.tsx) */
+.animate-pauseFlashLimited {
+  animation: pauseFlash 2s ease-in-out 3 forwards;
+}
+
 /* Drain-bar variants that run out of step with the window's own flash so
    the bar never blends into it: paused fades yellow -> black, then snaps
    straight back to yellow to fade again (a sawtooth, not the window's own
