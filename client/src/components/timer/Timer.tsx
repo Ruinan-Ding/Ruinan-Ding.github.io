@@ -1211,7 +1211,7 @@ export default function Timer() {
   // label and website link) to leave that already-crowded row room to
   // just show speaker/ringer/digits/controls, not to also explain them
   const ringerButtonWithTip = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-col items-start gap-1">
       {ringerButton}
       {/* the count-up/stopwatch trick used to live only in the mute
           button's tooltip, which was actively misleading — muting
@@ -1356,7 +1356,7 @@ export default function Timer() {
           own comment in WordCounter.tsx — so this can't out-stack it. */}
       {!isSidebarHidden && (
         <div
-          className="hidden lg:flex w-48 bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden"
+          className="hidden lg:flex w-[clamp(9rem,14vw,12rem)] bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden"
         >
           <PresetsPanel
             presets={presets}
@@ -1388,13 +1388,19 @@ export default function Timer() {
             competing with the digits for space. */}
         {!isWordCounterFullscreen && (
         <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[70] flex items-start gap-2">
+          {/* below lg the sidebar itself is force-hidden (see its own
+              hidden lg:flex above) regardless of isSidebarHidden — so
+              this toggle would sit there doing nothing below that
+              width. Matching its breakpoint here means it only shows
+              once there's an actual panel for it to control. */}
           <HeaderToggleButton
             onClick={() => setIsSidebarHidden((prev) => !prev)}
             icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
             label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
+            className="hidden lg:flex"
           />
-          {speakerButton}
           {ringerButtonWithTip}
+          {speakerButton}
         </div>
         )}
 

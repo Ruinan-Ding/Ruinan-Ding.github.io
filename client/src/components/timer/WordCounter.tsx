@@ -225,15 +225,14 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           // use rather than leaving it sitting empty behind the sidebar's
           // former spot.
           ? 'fixed inset-0 z-[60] bg-black p-2 sm:p-3 md:p-4 flex flex-col items-start gap-1 overflow-hidden'
-          // flex-[1.15] rather than flex-1: this box shares the column's
-          // leftover height with the timer row above it (Timer.tsx's own
-          // timerRowRef is flex-1), and a slightly heavier grow factor
-          // here gives the word counter a bit more of that split. Kept
-          // modest — the timer row's own content (digits, buttons,
-          // status/hints) has no more slack to give up before its own
-          // auto-tuck/clipping kicks in, so too big a boost here starves
-          // it and clips the hints text.
-          : `flex flex-col items-start gap-1 w-full overflow-hidden min-h-0 ${isCollapsed ? '' : 'flex-[1.15]'}`
+          // Equal flex-1 split with the timer row above it (Timer.tsx's
+          // own timerRowRef is flex-1 too) — this used to lean flex-[1.15]
+          // for a bit more of the shared leftover height, but that traded
+          // directly against the row's own HOURS/MINUTES/SECONDS panel,
+          // which has no slack left to give up before its one-directional
+          // auto-tuck hides it (see timerRowRef's effect). Even split
+          // gives that panel back the room it was losing.
+          : `flex flex-col items-start gap-1 w-full overflow-hidden min-h-0 ${isCollapsed ? '' : 'flex-1'}`
       }
     >
       {/* Fullscreen: just the collapse arrow plus mute/repeat/digits/
@@ -265,8 +264,8 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         />
         {isFullscreen ? (
           <>
-            {speakerButton}
             {ringerButton}
+            {speakerButton}
             {timerDigits}
             {timerBar}
             {timerControls}
