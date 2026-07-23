@@ -116,43 +116,64 @@ export const useFavicon = (
       return isFinished ? `-${base}` : base;
     };
 
+    // the running triangle is static and the idle logo's draw-in
+    // animation saturates once it finishes — this tracks what was last
+    // actually drawn so those cases can skip the canvas redraw + favicon
+    // re-encode once the pixels stop changing, instead of doing that work
+    // 20x/sec for an image that looks identical tick to tick
+    let lastSignature: string | null = null;
+
     const updateFavicon = () => {
       const { isRunning, isPaused, isFinished } = stateRef.current;
       const timeDisplay = getTimeDisplay();
       const now = Date.now();
+      let shape: 'triangle' | 'bars' | 'square' | 'default';
       let opacity = 1;
 
       // paused wins over finished so a paused overtime alarm shows the
       // pause bars, matching the on-page PAUSED status
       if (isPaused) {
+        shape = 'bars';
         const cycleTime = 1000;
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
         opacity = cycle === 0 ? progress : 1 - progress;
         document.title = `${timeDisplay} - Study Timer`;
-        drawFavicon('bars', opacity);
       } else if (isFinished) {
+        shape = 'square';
         const cycleTime = 300;
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
         opacity = cycle === 0 ? progress : 1 - progress;
         document.title = `${timeDisplay} - Study Timer`;
-        drawFavicon('square', opacity);
       } else if (isRunning) {
+        shape = 'triangle';
         document.title = `${timeDisplay} - Study Timer`;
-        drawFavicon('triangle', 1);
       } else {
+        shape = 'default';
         document.title = `Study Timer`;
-        drawFavicon('default', 1);
       }
+
+      const drawFraction = Math.min(1, (now % ST_CYCLE_MS) / ST_DRAW_MS);
+      const signature = shape === 'default'
+        ? `default:${drawFraction >= 1 ? 'full' : drawFraction.toFixed(3)}`
+        : `${shape}:${opacity.toFixed(2)}`;
+      if (signature === lastSignature) return;
+      lastSignature = signature;
+
+      drawFavicon(shape, opacity);
 
       let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
       if (!favicon) {
         favicon = document.createElement('link');
         favicon.rel = 'icon';
-        favicon.type = 'image/x-icon';
         document.head.appendChild(favicon);
       }
+      // index.html's static favicon (reused here rather than replaced)
+      // declares itself as SVG — correct for that initial image, but this
+      // hook overwrites the href with a canvas-rendered PNG below, so the
+      // type has to be corrected here too or it's just wrong the other way
+      favicon.type = 'image/png';
       favicon.href = canvas.toDataURL();
     };
 

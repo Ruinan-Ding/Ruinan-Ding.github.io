@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { FlashTarget } from './types';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
 
 // Every class useDomFlash might ever apply to an element, so a switch
@@ -36,4 +37,20 @@ export function useDomFlash(ref: React.RefObject<HTMLElement | null>, flashKey: 
     const timeoutId = setTimeout(() => el.classList.remove(className), FLASH_DURATION_MS);
     return () => clearTimeout(timeoutId);
   }, [flashKey, className, ref]);
+}
+
+// Shared by the preset and history list rows: resolves which flash (if
+// any) applies to this row's id and wires it up via useDomFlash, returning
+// the ref to attach to the row's button. Load wins over insert when both
+// target the same id (e.g. loading an entry within the flash window of it
+// being recorded/added).
+export function useEntryFlash(id: string, inserted: FlashTarget, loaded: FlashTarget) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const flash = loaded?.id === id
+    ? { key: `load:${loaded.token}`, className: 'animate-loadFlash' }
+    : inserted?.id === id
+      ? { key: `insert:${inserted.token}`, className: 'animate-insertFlash' }
+      : { key: null, className: '' };
+  useDomFlash(ref, flash.key, flash.className);
+  return ref;
 }

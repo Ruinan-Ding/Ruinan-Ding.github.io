@@ -22,9 +22,13 @@ const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.9, 1.4, 1.5, 1.25), height: shr
 
 // Two-digit time input; digits enter from the right, calculator-style, and
 // nothing is clamped or applied until the edit commits (blur or Enter).
-// Caret behavior mirrors the custom preset input: text stays centered, and
-// the caret always sits at the end of the typed digits (or the
-// placeholder's length while empty), never drifting to the box's left edge.
+// Caret behavior reaches the same end state as the custom preset input —
+// text stays centered, and the caret always sits at the end of the typed
+// digits (or the placeholder's length while empty) — but through a
+// different path: focus here always changes the displayed value (blank ->
+// placeholder), which useDigitEntry's own value-change effect already
+// re-pins on its own, so this field doesn't need the explicit onFocus
+// pinCaret call the preset input uses (whose value doesn't change on focus).
 function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFieldProps) {
   const clamp = (next: number) => Math.max(0, Math.min(max, next));
   // shared by the chevrons and arrow-key stepping — the only difference is

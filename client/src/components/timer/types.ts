@@ -9,6 +9,12 @@ export interface TimerEntry {
 
 export type TimeUnit = 'hours' | 'minutes' | 'seconds';
 
+// A flash target: which entry to flash, plus a token that bumps on every
+// trigger — even a repeat of the same id — so a reselect within the flash
+// window replays the animation instead of silently no-op'ing on a
+// same-value state update.
+export type FlashTarget = { id: string; token: number } | null;
+
 export interface TimeParts {
   hours: number;
   minutes: number;

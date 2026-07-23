@@ -1,8 +1,8 @@
 import { Bell, ChevronsLeft, ChevronsRight, ExternalLink, Repeat, Trash2, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
-import { readJSON, writeJSON } from '@/lib/storage';
+import { readBoolean, readJSON, writeJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
 import HeaderToggleButton from './HeaderToggleButton';
@@ -13,7 +13,7 @@ import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_FINITE_GROUPS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
-import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
+import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimeUnit } from './types';
 import { useFlashOnToken } from './useFlashOnToken';
 
 // The alarm-repeat button's Bell is bigger than a normal header icon,
@@ -51,12 +51,21 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
   );
 }
 
-// A flash target: which entry to flash, plus a token that bumps on every
-// trigger — even a repeat of the same id — so useFlashOnToken always sees
-// a change and replays the animation instead of silently no-op'ing on a
-// same-value state update.
-type FlashTarget = { id: string; token: number } | null;
 const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: (prev?.token ?? 0) + 1 });
+
+// Guards the preset migration below (older saves packed hours into
+// minutes) against corrupted storage: a non-numeric minutes/seconds/hours
+// field would otherwise slip through as NaN instead of falling back to
+// DEFAULT_PRESETS, since arithmetic on a bad number never throws.
+const isValidPresetEntry = (p: unknown): p is TimerEntry => {
+  if (typeof p !== 'object' || p === null) return false;
+  const entry = p as Partial<TimerEntry>;
+  return (
+    typeof entry.minutes === 'number' && Number.isFinite(entry.minutes) &&
+    typeof entry.seconds === 'number' && Number.isFinite(entry.seconds) &&
+    (entry.hours === undefined || (typeof entry.hours === 'number' && Number.isFinite(entry.hours)))
+  );
+};
 
 export default function Timer() {
   // Parse persisted state once, before first render, so the persist effect
@@ -93,30 +102,18 @@ export default function Timer() {
 
   const [isRunning, setIsRunning] = useState(wasActive);
   const [isPaused, setIsPaused] = useState(wasActive);
-  const [isSilentMode, setIsSilentMode] = useState(() => {
-    const saved = readJSON<unknown>(STORAGE_KEYS.silentMode, null);
-    return typeof saved === 'boolean' ? saved : false;
-  });
+  const [isSilentMode, setIsSilentMode] = useState(() => readBoolean(STORAGE_KEYS.silentMode, false));
   const [volume, setVolume] = useState(() => {
     const saved = readJSON<unknown>(STORAGE_KEYS.volume, null);
     return typeof saved === 'number' && Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : DEFAULT_VOLUME;
   });
   // gates the one-time "are you sure?" the first time this browser mutes
-  const [hasMutedBefore, setHasMutedBefore] = useState(() => {
-    const saved = readJSON<unknown>(STORAGE_KEYS.hasMutedBefore, null);
-    return typeof saved === 'boolean' ? saved : false;
-  });
+  const [hasMutedBefore, setHasMutedBefore] = useState(() => readBoolean(STORAGE_KEYS.hasMutedBefore, false));
   // on = alarm groups repeat forever; off = ring ALARM_FINITE_GROUPS groups then go quiet
-  const [isAlarmLooping, setIsAlarmLooping] = useState(() => {
-    const saved = readJSON<unknown>(STORAGE_KEYS.alarmLoop, null);
-    return typeof saved === 'boolean' ? saved : true;
-  });
+  const [isAlarmLooping, setIsAlarmLooping] = useState(() => readBoolean(STORAGE_KEYS.alarmLoop, true));
   // skips every confirmation dialog except the site-wide RESET, which is
   // destructive enough to always ask
-  const [skipConfirmations, setSkipConfirmations] = useState(() => {
-    const saved = readJSON<unknown>(STORAGE_KEYS.skipConfirmations, null);
-    return typeof saved === 'boolean' ? saved : false;
-  });
+  const [skipConfirmations, setSkipConfirmations] = useState(() => readBoolean(STORAGE_KEYS.skipConfirmations, false));
 
   // the most recently created/loaded preset or history entry, so their
   // cards can play a one-shot flash (yellow for a fresh insert, green for
@@ -135,17 +132,13 @@ export default function Timer() {
   const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
     const parsed = readJSON<unknown>(STORAGE_KEYS.presets, null);
-    if (!Array.isArray(parsed)) return DEFAULT_PRESETS;
-    try {
-      // older saves packed hours into minutes
-      return (parsed as TimerEntry[]).map((p) => ({
-        ...p,
-        hours: (p.hours ?? 0) + Math.floor(p.minutes / 60),
-        minutes: p.minutes % 60,
-      }));
-    } catch {
-      return DEFAULT_PRESETS;
-    }
+    if (!Array.isArray(parsed) || !parsed.every(isValidPresetEntry)) return DEFAULT_PRESETS;
+    // older saves packed hours into minutes
+    return parsed.map((p) => ({
+      ...p,
+      hours: (p.hours ?? 0) + Math.floor(p.minutes / 60),
+      minutes: p.minutes % 60,
+    }));
   });
 
   const [dialog, setDialog] = useState<DialogState>({ type: null });
@@ -159,10 +152,7 @@ export default function Timer() {
   // the website link's hide toggle is persisted instead — unlike the two
   // above, it should survive a reload and only come back via the site
   // RESET (which wipes every key in STORAGE_KEYS, this one included)
-  const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => {
-    const saved = readJSON<unknown>(STORAGE_KEYS.websiteLinkHidden, null);
-    return typeof saved === 'boolean' ? saved : false;
-  });
+  const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => readBoolean(STORAGE_KEYS.websiteLinkHidden, false));
   // mirrors Tailwind's own lg breakpoint — the digits' cqh-based sizing
   // (see its own comment further down) only makes sense once lg:self-
   // stretch gives the digits column a real height to query; below lg it
@@ -236,6 +226,9 @@ export default function Timer() {
     [hours, minutes, timerSeconds]
   );
   const configuredTotalSeconds = toTotalSeconds(configured);
+  // a timer that's never run — idle at its configured time — has nothing
+  // for STOP or RESET to act on
+  const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
 
   const closeDialog = () => setDialog({ type: null });
 
@@ -341,7 +334,13 @@ export default function Timer() {
   // repeat back on, or by leaving overtime (a fresh countdown shouldn't
   // start pre-tinted).
   const [hasRungOut, setHasRungOut] = useState(false);
-  useEffect(() => {
+  // useLayoutEffect rather than useEffect: this can fire in the same
+  // commit as seconds jumping back to non-negative (e.g. a reset that
+  // restarts the countdown while hasRungOut is still true from a just-
+  // finished non-looping ring) — running before paint instead of after
+  // avoids a one-frame flash of solid-red digits on an otherwise-fresh
+  // countdown.
+  useLayoutEffect(() => {
     if (!isOvertime) {
       alarmRungThisOvertimeRef.current = false;
       alarmTickRef.current = 0;
@@ -438,9 +437,6 @@ export default function Timer() {
       }
       return true;
     }
-    // a timer that's never run — idle at its configured time — has
-    // nothing for STOP or RESET to act on
-    const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
     if (code === 'KeyS') {
       if (isIdleAtConfigured) return false;
       handleStopClick();
@@ -784,6 +780,7 @@ export default function Timer() {
   // configured time stays as it is. A timer that wasn't running wakes up
   // paused at the chosen point.
   const applySeek = (targetSeconds: number) => {
+    clearAlarmInterval();
     if (!isRunning) {
       setIsRunning(true);
       setIsPaused(true);
@@ -901,10 +898,6 @@ export default function Timer() {
   // ringing red wins over the hue (the animate-alarmFlashBar class then
   // wins over this, alternating it with black); gray while never started
   const barFillColor = isBarRedState ? '#ef4444' : isRunning ? `hsl(${120 * timeFraction}, 75%, 50%)` : '#6b7280';
-
-  // a timer that's never run — idle at its configured time — has nothing
-  // for STOP or RESET to act on
-  const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
 
   // The whole window carries the state color: running flashes bright
   // green and fades to black within 5s (runFade), after which the text
@@ -1476,7 +1469,7 @@ export default function Timer() {
                   .map(({ text, disabled }) =>
                     isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
                   )
-                  .join('   ');
+                  .join('   |   ');
                 return (
                   <div
                     className={`opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}

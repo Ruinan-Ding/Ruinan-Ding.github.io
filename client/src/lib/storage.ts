@@ -19,6 +19,11 @@ export function writeJSON(key: string, value: unknown) {
   }
 }
 
+export function readBoolean(key: string, fallback: boolean): boolean {
+  const saved = readJSON<unknown>(key, null);
+  return typeof saved === 'boolean' ? saved : fallback;
+}
+
 export function readRaw(key: string, fallback: string): string {
   try {
     return localStorage.getItem(key) ?? fallback;

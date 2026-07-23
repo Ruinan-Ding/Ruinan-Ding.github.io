@@ -1,12 +1,9 @@
-import { memo, useRef } from 'react';
+import { memo } from 'react';
+import { LIST_ROW_BUTTON_STYLE } from './constants';
 import { formatEntryLabel } from './format';
 import { shrinkClamp } from './responsive';
-import type { TimerEntry } from './types';
-import { useDomFlash } from './useDomFlash';
-
-const HISTORY_BUTTON_STYLE = { fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.375, 1, 1.1, 0.5), fontSize: shrinkClamp(0.75, 1.5, 1.6, 0.875) };
-
-type FlashTarget = { id: string; token: number } | null;
+import type { FlashTarget, TimerEntry } from './types';
+import { useEntryFlash } from './useDomFlash';
 
 interface HistoryPanelProps {
   history: TimerEntry[];
@@ -16,31 +13,20 @@ interface HistoryPanelProps {
   loaded: FlashTarget;
 }
 
-// Load wins over insert when both target the same id (e.g. loading a
-// history entry within 1.2s of it being recorded) — the flash class is
-// applied directly to the DOM (see useDomFlash) rather than through
-// React's className, so a reselect of the same entry still replays the
-// animation instead of silently no-op'ing on an unchanged class string.
 function HistoryRow({ entry, onSelect, inserted, loaded }: {
   entry: TimerEntry;
   onSelect: (entry: TimerEntry) => void;
   inserted: FlashTarget;
   loaded: FlashTarget;
 }) {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const flash = loaded?.id === entry.id
-    ? { key: `load:${loaded.token}`, className: 'animate-loadFlash' }
-    : inserted?.id === entry.id
-      ? { key: `insert:${inserted.token}`, className: 'animate-insertFlash' }
-      : { key: null, className: '' };
-  useDomFlash(buttonRef, flash.key, flash.className);
+  const buttonRef = useEntryFlash(entry.id, inserted, loaded);
 
   return (
     <button
       ref={buttonRef}
       onClick={() => onSelect(entry)}
       className="border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 text-left"
-      style={HISTORY_BUTTON_STYLE}
+      style={LIST_ROW_BUTTON_STYLE}
     >
       {formatEntryLabel(entry)}
     </button>

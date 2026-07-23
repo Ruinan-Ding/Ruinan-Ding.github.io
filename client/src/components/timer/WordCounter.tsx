@@ -1,6 +1,6 @@
 import { ChevronsDown, ChevronsUp, Maximize2, Minimize2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { readJSON, readRaw, writeJSON, writeRaw } from '@/lib/storage';
+import { readBoolean, readRaw, writeJSON, writeRaw } from '@/lib/storage';
 import { HEADER_ICON_SIZE, STORAGE_KEYS } from './constants';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
@@ -26,15 +26,16 @@ interface WordCounterProps {
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
 // used identically in both the decorative row-rules overlay and the
 // textarea itself, so they stay in sync regardless of viewport
-const COUNTER_FONT_SIZE = shrinkClamp(0.55, 1.3, 1.4, 0.75);
+const COUNTER_FONT_SIZE = shrinkClamp(0.7, 1.6, 1.75, 0.95);
 const COUNTER_PADDING = shrinkClamp(0.5, 1, 1.1, 0.75);
 const COUNTER_GAP = '0.5rem';
 const COUNTER_LINE_HEIGHT = 1.6;
 const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // the checkbox squares are sized in em, so this scales both the label
-// text and the box together
-const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.875, 2, 2.2, 1.25);
+// text and the box together — shrunk a bit to leave the bigger textarea
+// above (COUNTER_FONT_SIZE) more room to grow into
+const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.75, 1.6, 1.8, 1.05);
 
 function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFadeTextClass }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
@@ -49,16 +50,23 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
   }, [isFullscreen, onFullscreenChange]);
   // hiding while fullscreen has to drop out of fullscreen too (there's no
   // such thing as a hidden-but-fullscreen view) — remembered here so
-  // un-hiding restores exactly the view that was showing, fullscreen or not
+  // un-hiding restores exactly the view that was showing, fullscreen or
+  // not. Routed through this one function (rather than set directly by
+  // both the manual toggle below and the auto-collapse effect further
+  // down) so the ref can never go stale relative to whichever path
+  // actually triggered the collapse.
   const wasFullscreenBeforeCollapseRef = useRef(false);
+  const collapse = () => {
+    wasFullscreenBeforeCollapseRef.current = isFullscreen;
+    setIsFullscreen(false);
+    setIsCollapsed(true);
+  };
   const toggleCollapsed = () => {
     if (isCollapsed) {
       setIsFullscreen(wasFullscreenBeforeCollapseRef.current);
       setIsCollapsed(false);
     } else {
-      wasFullscreenBeforeCollapseRef.current = isFullscreen;
-      setIsFullscreen(false);
-      setIsCollapsed(true);
+      collapse();
     }
   };
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -79,7 +87,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
     const el = containerRef.current;
     if (!el) return;
     const check = () => {
-      if (el.scrollHeight > el.clientHeight) setIsCollapsed(true);
+      if (el.scrollHeight > el.clientHeight) collapse();
     };
     check();
     window.addEventListener('resize', check);
@@ -91,14 +99,8 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
     };
   }, [isFullscreen, isCollapsed]);
 
-  const [alnumWordsOnly, setAlnumWordsOnly] = useState(() => {
-    const saved = readJSON<unknown>(STORAGE_KEYS.wordCounterAlnumWordsOnly, null);
-    return typeof saved === 'boolean' ? saved : true;
-  });
-  const [alnumCharsOnly, setAlnumCharsOnly] = useState(() => {
-    const saved = readJSON<unknown>(STORAGE_KEYS.wordCounterAlnumCharsOnly, null);
-    return typeof saved === 'boolean' ? saved : true;
-  });
+  const [alnumWordsOnly, setAlnumWordsOnly] = useState(() => readBoolean(STORAGE_KEYS.wordCounterAlnumWordsOnly, true));
+  const [alnumCharsOnly, setAlnumCharsOnly] = useState(() => readBoolean(STORAGE_KEYS.wordCounterAlnumCharsOnly, true));
 
   useEffect(() => {
     writeRaw(STORAGE_KEYS.wordCounter, text);
@@ -164,7 +166,15 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
           // label land at the same horizontal spot whether this is
           // fullscreen or not
           ? `fixed inset-y-0 right-0 z-[60] bg-black p-2 sm:p-3 md:p-4 flex flex-col items-start gap-1 overflow-hidden left-0 ${sidebarHidden ? '' : 'lg:left-48'}`
-          : `flex flex-col items-start gap-1 w-full overflow-hidden min-h-0 ${isCollapsed ? '' : 'flex-1'}`
+          // flex-[1.15] rather than flex-1: this box shares the column's
+          // leftover height with the timer row above it (Timer.tsx's own
+          // timerRowRef is flex-1), and a slightly heavier grow factor
+          // here gives the word counter a bit more of that split. Kept
+          // modest — the timer row's own content (digits, buttons,
+          // status/hints) has no more slack to give up before its own
+          // auto-tuck/clipping kicks in, so too big a boost here starves
+          // it and clips the hints text.
+          : `flex flex-col items-start gap-1 w-full overflow-hidden min-h-0 ${isCollapsed ? '' : 'flex-[1.15]'}`
       }
     >
       {/* fullscreen only: keep clear of the mute/alarm-repeat buttons
@@ -326,10 +336,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
               <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalChars}</div>
             </div>
           </div>
-          <div className={`text-xs flex flex-col justify-center items-center text-center ${isFocused ? 'text-green-500' : 'text-gray-400'}`}>
-            <p><strong>L:</strong> Line number</p>
-            <p><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</p>
-            <p><strong>C:</strong> {alnumCharsOnly ? 'Alphanumeric chars (a-z, A-Z, 0-9)' : 'All characters, including spaces'}</p>
+          <div className={`text-xs flex flex-wrap justify-center items-baseline gap-x-2 text-center ${isFocused ? 'text-green-500' : 'text-gray-400'}`}>
+            <span><strong>L:</strong> Line number</span>
+            <span className="opacity-50">|</span>
+            <span><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</span>
+            <span className="opacity-50">|</span>
+            <span><strong>C:</strong> {alnumCharsOnly ? 'Alphanumeric chars (a-z, A-Z, 0-9)' : 'All characters, including spaces'}</span>
           </div>
         </div>
       </div>

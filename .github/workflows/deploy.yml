@@ -6,9 +6,11 @@ on:
       - main
 
 permissions:
+  # only contents:write is actually exercised — the deploy step below
+  # pushes straight to the gh-pages branch via peaceiris/actions-gh-pages,
+  # not the OIDC-based actions/deploy-pages flow that pages:write/
+  # id-token:write are for
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   build-and-deploy:
@@ -28,6 +30,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Type-check
+        run: pnpm run check
 
       - name: Build React app
         run: pnpm run build

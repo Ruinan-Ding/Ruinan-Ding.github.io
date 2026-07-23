@@ -1,10 +1,10 @@
 import { memo, useRef, useState } from 'react';
-import { MAX_PRESETS } from './constants';
+import { LIST_ROW_BUTTON_STYLE, MAX_PRESETS } from './constants';
 import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
 import { shrinkClamp } from './responsive';
-import type { TimeParts, TimerEntry } from './types';
+import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
-import { useDomFlash } from './useDomFlash';
+import { useEntryFlash } from './useDomFlash';
 
 // matches the font size of the preset list buttons below. This sidebar
 // sits in a fixed, overflow-hidden column, so its own controls need to
@@ -13,15 +13,7 @@ import { useDomFlash } from './useDomFlash';
 const PRESET_INPUT_FONT_SIZE = shrinkClamp(0.75, 1.5, 1.6, 0.875);
 // shared by the +/- preset buttons
 const PRESET_BUTTON_STYLE = { padding: shrinkClamp(0.25, 0.5, 0.55, 0.375), fontSize: shrinkClamp(0.7, 1.2, 1.3, 0.875), minWidth: shrinkClamp(1.5, 3, 3, 2) };
-const PRESET_BUTTON_TEXT_STYLE = { fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.375, 1, 1.1, 0.5), fontSize: shrinkClamp(0.75, 1.5, 1.6, 0.875) };
 
-type FlashTarget = { id: string; token: number } | null;
-
-// Load wins over insert when both target the same id (e.g. loading a
-// preset within 1.2s of adding it) — the flash class is applied directly
-// to the DOM (see useDomFlash) rather than through React's className, so
-// a reselect of the same entry still replays the animation instead of
-// silently no-op'ing on an unchanged class string.
 function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   preset: TimerEntry;
   onRemove: (id: string) => void;
@@ -29,13 +21,7 @@ function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   inserted: FlashTarget;
   loaded: FlashTarget;
 }) {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const flash = loaded?.id === preset.id
-    ? { key: `load:${loaded.token}`, className: 'animate-loadFlash' }
-    : inserted?.id === preset.id
-      ? { key: `insert:${inserted.token}`, className: 'animate-insertFlash' }
-      : { key: null, className: '' };
-  useDomFlash(buttonRef, flash.key, flash.className);
+  const buttonRef = useEntryFlash(preset.id, inserted, loaded);
 
   return (
     <div className="flex items-center gap-2">
@@ -51,7 +37,7 @@ function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
         ref={buttonRef}
         onClick={() => onSelect(preset)}
         className="flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0"
-        style={PRESET_BUTTON_TEXT_STYLE}
+        style={LIST_ROW_BUTTON_STYLE}
       >
         {formatEntryLabel(preset)}
       </button>

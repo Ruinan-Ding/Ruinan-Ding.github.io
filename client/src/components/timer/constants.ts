@@ -7,6 +7,10 @@ import type { TimeParts, TimerEntry } from './types';
 export const HEADER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3.5), height: shrinkClamp(2, 5, 5, 3.5) };
 export const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkClamp(1.1, 3, 3, 1.375) };
 
+// Shared by the preset and history list-row buttons, so they read as the
+// same kind of control
+export const LIST_ROW_BUTTON_STYLE = { fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.375, 1, 1.1, 0.5), fontSize: shrinkClamp(0.75, 1.5, 1.6, 0.875) };
+
 // localStorage keys — don't rename, older saves use them
 export const STORAGE_KEYS = {
   timerState: 'timerAppState',
