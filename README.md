@@ -1,4 +1,4 @@
-# Study Timer
+# Write Timer
 
 A minimal countdown timer. Set a time, hit start, and it counts down. When it hits zero it keeps going into negative time, beeping until you stop it. There's also a word counter scratchpad below the clock for timed writing sessions.
 
@@ -15,7 +15,7 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 
 Set a time with the input fields or a preset, then press START (or spacebar). PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Everything persists across page reloads.
 
-Tip: for a stopwatch, mute the sound and set the time to 00:00:00.
+Tip: for a stopwatch, turn off the alarm repeat toggle and set the time to 00:00:00 — it rings once, then keeps counting silently.
 
 ## Development
 

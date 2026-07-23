@@ -10,7 +10,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_FINITE_GROUPS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimeUnit } from './types';
@@ -109,8 +109,12 @@ export default function Timer() {
   });
   // gates the one-time "are you sure?" the first time this browser mutes
   const [hasMutedBefore, setHasMutedBefore] = useState(() => readBoolean(STORAGE_KEYS.hasMutedBefore, false));
-  // on = alarm groups repeat forever; off = ring ALARM_FINITE_GROUPS groups then go quiet
-  const [isAlarmLooping, setIsAlarmLooping] = useState(() => readBoolean(STORAGE_KEYS.alarmLoop, true));
+  // on = alarm repeats until stopped; off = ring a single burst then go
+  // quiet. Off by default — that single-burst-then-silent behavior is
+  // also what makes 00:00:00 usable as a count-up stopwatch (see the tip
+  // on this button below), which an endlessly-repeating alarm would
+  // drown out.
+  const [isAlarmLooping, setIsAlarmLooping] = useState(() => readBoolean(STORAGE_KEYS.alarmLoop, false));
   // skips every confirmation dialog except the site-wide RESET, which is
   // destructive enough to always ask
   const [skipConfirmations, setSkipConfirmations] = useState(() => readBoolean(STORAGE_KEYS.skipConfirmations, false));
@@ -144,14 +148,14 @@ export default function Timer() {
   const [dialog, setDialog] = useState<DialogState>({ type: null });
   const [isWordCounterFocused, setIsWordCounterFocused] = useState(false);
   const [isWordCounterFullscreen, setIsWordCounterFullscreen] = useState(false);
-  // manual hide toggles for the sidebar/time-fields — plain (unpersisted)
-  // state is enough since the site-wide RESET already reloads the page,
-  // which naturally brings both back
-  const [isSidebarHidden, setIsSidebarHidden] = useState(false);
-  const [isTimeFieldsHidden, setIsTimeFieldsHidden] = useState(false);
-  // the website link's hide toggle is persisted instead — unlike the two
-  // above, it should survive a reload and only come back via the site
-  // RESET (which wipes every key in STORAGE_KEYS, this one included)
+  // manual hide toggles for the sidebar/time-fields, plus the website
+  // link's — all persisted, so a "tucked in" panel stays tucked in
+  // across a reload. They only come back via the site RESET (which wipes
+  // every key in STORAGE_KEYS, these included). Unlike these, the word
+  // counter's own fullscreen view is deliberately NOT persisted (see its
+  // own comment) — a reload always comes back windowed.
+  const [isSidebarHidden, setIsSidebarHidden] = useState(() => readBoolean(STORAGE_KEYS.sidebarHidden, false));
+  const [isTimeFieldsHidden, setIsTimeFieldsHidden] = useState(() => readBoolean(STORAGE_KEYS.timeFieldsHidden, false));
   const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => readBoolean(STORAGE_KEYS.websiteLinkHidden, false));
   // mirrors Tailwind's own lg breakpoint — the digits' cqh-based sizing
   // (see its own comment further down) only makes sense once lg:self-
@@ -244,7 +248,9 @@ export default function Timer() {
     writeJSON(STORAGE_KEYS.alarmLoop, isAlarmLooping);
     writeJSON(STORAGE_KEYS.skipConfirmations, skipConfirmations);
     writeJSON(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden]);
+    writeJSON(STORAGE_KEYS.sidebarHidden, isSidebarHidden);
+    writeJSON(STORAGE_KEYS.timeFieldsHidden, isTimeFieldsHidden);
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden, isSidebarHidden, isTimeFieldsHidden]);
 
   // The regular persist effect above only fires on whole-second changes
   // (re-running it every 10ms tick to catch milliseconds would hammer
@@ -396,7 +402,10 @@ export default function Timer() {
     }
 
     const playTick = () => {
-      if (!isAlarmLooping && alarmTickRef.current >= pattern.length * ALARM_FINITE_GROUPS) {
+      // with repeat off, one burst (ALARM_BURST_COUNT beeps) is the whole
+      // ring — not the full multi-burst pattern below, which is only for
+      // the looping case's repeating groups
+      if (!isAlarmLooping && alarmTickRef.current >= ALARM_BURST_COUNT) {
         if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
         beepIntervalRef.current = null;
         setIsAlarmRinging(false);
@@ -675,7 +684,7 @@ export default function Timer() {
       if (skipConfirmations) {
         applySwitch(parts, true);
       } else {
-        setDialog({ type: 'switch', data: parts, start: true });
+        setDialog({ type: 'switch', data: parts, mode: 'switchRunning' });
       }
       return;
     }
@@ -688,13 +697,23 @@ export default function Timer() {
       if (skipConfirmations) {
         applySwitch(parts, false);
       } else {
-        setDialog({ type: 'switch', data: parts, start: false });
+        setDialog({ type: 'switch', data: parts, mode: 'loadOnly' });
       }
       return;
     }
-    // a beeping timer hands off to the new preset and keeps running;
-    // a stopped one just loads it
-    applySwitch(parts, isRunning && timeRef.current.seconds < 0);
+    // a beeping timer hands off to the new preset and keeps running, no
+    // confirmation needed since it's already actively alarming
+    if (isRunning && timeRef.current.seconds < 0) {
+      applySwitch(parts, true);
+      return;
+    }
+    // never run (idle at its configured time) — confirm, then start
+    // fresh, same as pressing START would
+    if (skipConfirmations) {
+      applySwitch(parts, true);
+    } else {
+      setDialog({ type: 'switch', data: parts, mode: 'startFromIdle' });
+    }
   }, [isRunning, isPaused, configuredTotalSeconds, loadEntry, isSilentMode, beep, skipConfirmations]);
 
   const handleConfirmSwitch = (parts: TimeParts, start: boolean) => {
@@ -776,15 +795,24 @@ export default function Timer() {
     setDialog({ type: 'hideWebsiteLink' });
   };
 
-  // Seeking via the drain bar moves only the remaining time; the
-  // configured time stays as it is. A timer that wasn't running wakes up
-  // paused at the chosen point.
+  // Seeking via the drain bar moves only the remaining time while the
+  // timer is running or paused — the configured time stays as it is, and
+  // a paused timer stays paused there. A timer that's never run (or has
+  // been stopped back to its configured time) has nothing to resume
+  // into, though: seeking it instead sets a brand-new configured time at
+  // that point, exactly like typing it into the HOURS/MINUTES/SECONDS
+  // fields would, and it stays idle there — a later START records that
+  // new time to history normally, same as any other start.
   const applySeek = (targetSeconds: number) => {
-    clearAlarmInterval();
     if (!isRunning) {
-      setIsRunning(true);
-      setIsPaused(true);
+      const parts = fromTotalSeconds(targetSeconds);
+      setHours(parts.hours);
+      setMinutes(parts.minutes);
+      setTimerSeconds(parts.seconds);
+      setTime({ seconds: targetSeconds, milliseconds: 0 });
+      return;
     }
+    clearAlarmInterval();
     setTime({ seconds: targetSeconds, milliseconds: 0 });
     restartRunFade();
   };
@@ -794,11 +822,8 @@ export default function Timer() {
       applySeek(targetSeconds);
       return;
     }
-    // every seek confirms — a never-run timer included, since its first
-    // click would otherwise apply silently while later ones (the seek
-    // leaves it paused) would ask. willPause mirrors applySeek's own
-    // condition for leaving the timer paused: never-run, or already paused.
-    setDialog({ type: 'seek', data: { targetSeconds, willPause: !isRunning || isPaused } });
+    const mode = !isRunning ? 'idle' : isPaused ? 'paused' : 'running';
+    setDialog({ type: 'seek', data: { targetSeconds, mode } });
   };
 
   // maps a mouse position on the track to its time: the bar drains left
@@ -827,7 +852,7 @@ export default function Timer() {
         handleConfirmReset();
         break;
       case 'switch':
-        handleConfirmSwitch(dialog.data, dialog.start);
+        handleConfirmSwitch(dialog.data, dialog.mode !== 'loadOnly');
         break;
       case 'seek':
         applySeek(dialog.data.targetSeconds);
@@ -899,6 +924,78 @@ export default function Timer() {
   // wins over this, alternating it with black); gray while never started
   const barFillColor = isBarRedState ? '#ef4444' : isRunning ? `hsl(${120 * timeFraction}, 75%, 50%)` : '#6b7280';
 
+  // Shared between the main digit column's own bar and the compact copy
+  // riding in the word counter's fullscreen row — same hover-preview/
+  // click-to-seek behavior either way, just a different width and (since
+  // the compact copy sits near the very top of the screen, where the
+  // tooltip's usual "float above the bar" position would land off-screen)
+  // which side the hover tooltip lands on.
+  const renderDrainBar = (width: string, tooltipBelow: boolean = false) => (
+    <div
+      className={`relative flex justify-end border-2 flex-shrink-0 ${tooltipBelow ? '' : 'mx-auto'} ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
+      style={{
+        height: '0.16em',
+        minHeight: '0.5rem',
+        marginTop: tooltipBelow ? 0 : '0.08em',
+        width,
+        borderColor: isRunning ? '#ffffff' : '#6b7280',
+      }}
+      onMouseMove={(e) => {
+        if (configuredTotalSeconds > 0) setBarHover(barPointSeconds(e));
+      }}
+      onMouseLeave={() => setBarHover(null)}
+      onClick={(e) => {
+        if (configuredTotalSeconds > 0) requestSeek(barPointSeconds(e).seconds);
+      }}
+    >
+      {barHover !== null && (
+        <div
+          className="absolute bg-black border-2 border-white text-white font-bold pointer-events-none whitespace-nowrap z-10"
+          style={{
+            left: `${barHover.x}px`,
+            ...(tooltipBelow
+              ? { top: '100%', transform: 'translate(-50%, 0.25rem)' }
+              : { bottom: '100%', transform: 'translate(-50%, -0.25rem)' }),
+            fontSize: 'clamp(0.65rem, 1.2vw, 0.8rem)',
+            letterSpacing: '0.05em',
+            padding: '0.125rem 0.375rem',
+          }}
+        >
+          {formatEntryLabel(fromTotalSeconds(barHover.seconds))}
+        </div>
+      )}
+      {/* the animation's background-color wins over the inline hue, and
+          both bar animations run out of step with the window's flash so
+          the bar stays visible against it: paused (above zero) alternates
+          yellow/black at a quarter of the window's rate; isBarRedState
+          fills the track full red, only flashing red/black while
+          isAlarmRinging is actually true or paused mid-overtime with
+          repeat on — repeat off (whether that's a finished finite ring
+          while still running, or paused with the ring not treated as
+          ongoing) sits static instead. */}
+      <div
+        className={isAlarmRinging || (isPausedOvertime && isAlarmLooping) ? 'animate-alarmFlashBar' : isPaused && !isPausedOvertime ? 'animate-pauseFlashBar' : ''}
+        style={{
+          width: `${(isBarRedState ? 1 : timeFraction) * 100}%`,
+          height: '100%',
+          backgroundColor: barFillColor,
+        }}
+      />
+      {barHover !== null && (
+        <div
+          className="absolute bg-white pointer-events-none z-10"
+          style={{
+            left: `${barHover.x}px`,
+            top: 0,
+            bottom: 0,
+            width: '2px',
+            transform: 'translateX(-50%)',
+          }}
+        />
+      )}
+    </div>
+  );
+
   // The whole window carries the state color: running flashes bright
   // green and fades to black within 5s (runFade), after which the text
   // glows to that same green (glowFade); paused flashes yellow; overtime
@@ -914,6 +1011,38 @@ export default function Timer() {
   const runFadeClass = `animate-runFade${fadeSuffix}`;
   const glowFadeClass = `animate-glowFade${fadeSuffix}`;
   const textGlowStyle = { '--glow-from': '#000000' } as React.CSSProperties;
+
+  // a reloaded overtime timer isn't ringing — the keys act on the timer
+  const hintSubject = isRunning && seconds < 0 ? 'alarm' : 'timer';
+  const hints = [
+    { text: `Press SPACE to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${hintSubject}`, disabled: false },
+    { text: `Press R to RESET the ${hintSubject}`, disabled: isIdleAtConfigured },
+    { text: `Press S to STOP the ${hintSubject}`, disabled: isIdleAtConfigured },
+  ];
+  // every hint shares the same color/glow, so one row of plain text
+  // (wrapping only if it truly doesn't fit) replaces what was one
+  // flex-item div per line — that ate 3x the vertical space on short
+  // windows, forcing the outer area to scroll just to reach STOP's hint.
+  // Shared verbatim (not just duplicated) between the normal digits
+  // column and the word counter's fullscreen header, which covers that
+  // column entirely and would otherwise lose these hints altogether.
+  const hintsText = hints
+    .map(({ text, disabled }) =>
+      isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
+    )
+    .join('   |   ');
+  const hintsDisplay = (
+    <div
+      className={`opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
+      style={{
+        fontSize: shrinkClamp(0.5, 1.1, 1.2, 0.75),
+        color: isWordCounterFocused ? '#ef4444' : '#ffffff',
+        ...textGlowStyle,
+      }}
+    >
+      {hintsText}
+    </div>
+  );
 
   // Which of the digits' color states currently applies. Pausing while
   // negative (overtime) shows the red wave immediately — no waiting on
@@ -975,6 +1104,229 @@ export default function Timer() {
     backgroundColor: '#000000',
     minWidth: shrinkClamp(7, 16.5, 17.5, 11.25),
   });
+  // Word counter fullscreen covers the digits column (and its START/
+  // RESUME/RESET/STOP row) entirely, so a compact copy of those same
+  // buttons rides in that view's own header instead — same colors and
+  // logic, scaled to a single header row instead of the full-size chip
+  const compactControlButtonStyle = (color: string) => ({
+    fontFamily: "'IBM Plex Mono', monospace",
+    height: HEADER_BUTTON_SIZE.height,
+    padding: `0 ${shrinkClamp(0.5, 1, 1.1, 0.75)}`,
+    fontSize: shrinkClamp(0.6, 1.3, 1.4, 0.9),
+    borderColor: color,
+    color,
+    backgroundColor: '#000000',
+  });
+  // Mute/volume and alarm-repeat controls, shared between their normal
+  // floating spot (top-left corner, hidden during word counter
+  // fullscreen) and the word counter's own fullscreen header row, which
+  // needs copies of both inline instead — see that row's own comment.
+  const speakerButton = (
+    <div className="relative group">
+      <button
+        onClick={(e) => {
+          // touch devices have no hover — focus keeps the volume
+          // popup open (group-focus-within) so a tap can reach it
+          e.currentTarget.focus();
+          handleMuteToggle();
+        }}
+        className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
+        style={{
+          ...HEADER_BUTTON_SIZE,
+          borderColor: isSilentMode ? '#ffffff' : '#22c55e',
+          backgroundColor: '#000000',
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}
+        title={isSilentMode ? 'Click to unmute' : 'Click to mute'}
+        aria-label={isSilentMode ? 'Unmute' : 'Mute'}
+      >
+        <SpeakerIcon volume={volume} muted={isSilentMode} color={isSilentMode ? '#ffffff' : '#22c55e'} />
+      </button>
+
+      {/* Volume slider: revealed on hover/focus; releasing it previews
+          the chosen level with a single alarm burst. The gap next to
+          the button is padding (not margin) so the pointer can cross
+          it without leaving the hover group. */}
+      <div className="absolute left-full top-0 h-full pl-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 z-50 flex items-center">
+        <div className="border-3 border-white bg-black p-2 flex items-center h-full">
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volume}
+            onChange={(e) => handleVolumeChange(Number(e.target.value))}
+            onPointerUp={(e) => playVolumePreview(Number((e.target as HTMLInputElement).value))}
+            onKeyUp={(e) => {
+              if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
+                playVolumePreview(Number((e.target as HTMLInputElement).value));
+              }
+            }}
+            className="block"
+            style={{ width: '6rem', accentColor: isSilentMode ? '#ffffff' : '#22c55e' }}
+            aria-label="Volume"
+            title={`Volume: ${Math.round(volume * 100)}%`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+  const ringerButton = (
+    <button
+      onClick={() => setIsAlarmLooping((prev: boolean) => !prev)}
+      className="relative flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80 flex-shrink-0"
+      style={{
+        ...HEADER_BUTTON_SIZE,
+        borderColor: isAlarmLooping ? '#22c55e' : '#ffffff',
+        backgroundColor: '#000000',
+      }}
+      title={isAlarmLooping ? 'Alarm repeats until stopped — click to ring a single burst instead' : 'Alarm rings a single burst then stays quiet — click to repeat until stopped'}
+      aria-label={isAlarmLooping ? 'Disable alarm repeat' : 'Enable alarm repeat'}
+    >
+      {/* Bell is the main icon — this button is fundamentally about
+          the alarm, not a generic loop toggle — sized to fill most
+          of the button; Repeat sits centered inside the bell's own
+          body as a badge for the repeat setting specifically */}
+      <Bell
+        color={isAlarmLooping ? '#22c55e' : '#ffffff'}
+        style={RINGER_BELL_SIZE}
+      />
+      <Repeat
+        aria-hidden
+        color={isAlarmLooping ? '#22c55e' : '#ffffff'}
+        fill="#000000"
+        className="absolute"
+        style={{
+          width: shrinkClamp(0.7, 1.6, 1.6, 1.1),
+          height: shrinkClamp(0.7, 1.6, 1.6, 1.1),
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+        }}
+      />
+    </button>
+  );
+  // The tip only rides alongside the button in its normal spot — the
+  // word counter's fullscreen row drops it (along with the WORD COUNTER
+  // label and website link) to leave that already-crowded row room to
+  // just show speaker/ringer/digits/controls, not to also explain them
+  const ringerButtonWithTip = (
+    <div className="flex items-center gap-2">
+      {ringerButton}
+      {/* the count-up/stopwatch trick used to live only in the mute
+          button's tooltip, which was actively misleading — muting
+          silences the alarm entirely, it's turning repeat OFF that
+          lets 00:00:00 ring once and then keep counting silently.
+          Made a permanent visible label (not just a hover tooltip) so
+          it's discoverable without needing to find and hover this
+          specific button first. Drops off below sm (matching the
+          CONFIRMATIONS label elsewhere) rather than shrinking further —
+          on an already-cramped window this is the least essential thing
+          here, and this row never wraps, so freeing the space matters
+          more than keeping the tip legible. */}
+      <p
+        className="hidden sm:block opacity-75 font-bold text-white text-left"
+        style={{ fontSize: shrinkClamp(0.45, 0.95, 1, 0.6), maxWidth: shrinkClamp(6, 9, 9, 7.5), lineHeight: 1.25 }}
+      >
+        Tip: OFF + start at 00:00:00 = count-up stopwatch
+      </p>
+    </div>
+  );
+  // Website link, shared between its normal spot (centered above the
+  // digits, hidden during word counter fullscreen) and that fullscreen
+  // view's own header row, which gets a copy inline instead — see that
+  // row's own comment.
+  const websiteLinkButton = (
+    <div className="relative z-[70] flex items-center gap-1.5 flex-shrink-0">
+      <button
+        onClick={handleHideWebsiteLinkClick}
+        className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
+        style={{ width: shrinkClamp(1.4, 2, 2.2, 1.8), height: shrinkClamp(1.4, 2, 2.2, 1.8), backgroundColor: '#000000' }}
+        title="Hide this link — stays hidden until you reset the website to defaults"
+        aria-label="Hide website link"
+      >
+        <X style={{ width: shrinkClamp(0.8, 1.3, 1.4, 1.1), height: shrinkClamp(0.8, 1.3, 1.4, 1.1) }} />
+      </button>
+      <a
+        href="https://ruinanding.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
+        style={{ fontSize: shrinkClamp(0.7, 1.6, 2.2, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
+      >
+        {/* shrinks at the same min(vw, vh) rate as this link's own
+            text (not the header icons' rate), so it never grows
+            disproportionate to the label it sits beside */}
+        <ExternalLink style={{ width: shrinkClamp(0.9, 1.6, 2.2, 1.25), height: shrinkClamp(0.9, 1.6, 2.2, 1.25) }} />
+        Check Out My Website!
+      </a>
+    </div>
+  );
+  // Compact "remaining / total" readout riding in the word counter's
+  // fullscreen header alongside the compact controls above — that view
+  // covers the real digits, so this is the only clock visible there.
+  // Built from the same `remaining` (formatTime output) as the real
+  // digits, so hours and milliseconds show here exactly like they do
+  // there — not the shorter "1:30"-style label configuredLabel uses,
+  // which is fine for a static reference total but would hide real
+  // precision on a ticking remaining time.
+  const wordCounterTimerDigits = (
+    <span
+      className="font-bold flex-shrink-0"
+      style={{
+        fontFamily: "'IBM Plex Mono', monospace",
+        fontSize: shrinkClamp(0.7, 1.5, 1.6, 1),
+        color: seconds < 0 ? '#ef4444' : '#ffffff',
+      }}
+    >
+      {remaining.sign}{remaining.hours && `${remaining.hours}:`}{remaining.minutes}:{remaining.seconds}·{remaining.ms}
+      {' '}<span className="opacity-60">/ {configuredLabel}</span>
+    </span>
+  );
+  // Shared between the normal in-column button row and the compact
+  // fullscreen-header copy above — same START/RESUME-PAUSE/RESET/STOP
+  // logic either way, just a different size/border weight
+  const renderControlButtons = (buttonStyle: (color: string) => React.CSSProperties, borderClass: string) => (
+    <>
+      {!isRunning && (
+        <button
+          onClick={handleStart}
+          className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+          style={buttonStyle('#22c55e')}
+        >
+          START
+        </button>
+      )}
+
+      {isRunning && (
+        <button
+          onClick={togglePause}
+          className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200`}
+          style={buttonStyle(isPaused ? '#22c55e' : '#eab308')}
+        >
+          {isPaused ? 'RESUME' : 'PAUSE'}
+        </button>
+      )}
+
+      <button
+        onClick={handleResetClick}
+        disabled={isIdleAtConfigured}
+        className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+        style={buttonStyle('#eab308')}
+      >
+        RESET
+      </button>
+
+      <button
+        onClick={handleStopClick}
+        disabled={isIdleAtConfigured}
+        className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+        style={buttonStyle('#ef4444')}
+      >
+        STOP
+      </button>
+    </>
+  );
 
   return (
     <div
@@ -999,7 +1351,9 @@ export default function Timer() {
     >
       {/* Sidebar: lg+ only — no mobile drawer, so it never pops up over
           the timer on a shrunk window. Hidden entirely at any width via
-          the << header toggle. */}
+          the << header toggle. Word counter fullscreen (z-[60], no
+          z-index here) deliberately covers this when active — see its
+          own comment in WordCounter.tsx — so this can't out-stack it. */}
       {!isSidebarHidden && (
         <div
           className="hidden lg:flex w-48 bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden"
@@ -1023,115 +1377,26 @@ export default function Timer() {
       )}
 
       <div className="flex-1 flex flex-col items-center p-2 sm:p-3 md:p-4 gap-2 overflow-hidden min-h-0 relative">
-        {/* The presets/history hide toggle is irrelevant while the word
-            counter is fullscreen — there's nothing to show over a view
-            that covers the sidebar too — so it hides. Mute and alarm
-            repeat stay: the alarm can still ring during fullscreen and
-            need to stay reachable. This cluster sits at z-[70], above the
-            word counter's z-[60] overlay, same as the mirrored cluster on
-            the right and the website link. Every header control below
-            sizes on min(vw, vh), like the digits column, so a short
-            window shrinks these too instead of competing with the digits
-            for space. */}
+        {/* The whole cluster (sidebar toggle + mute + alarm repeat) hides
+            during word counter fullscreen — that view covers the sidebar
+            entirely, and puts its own copies of the mute/repeat controls
+            inline in its header row instead (see speakerButton/
+            ringerButtonWithTip above and WordCounter's own comment) so
+            they aren't just duplicated, they actually relocate. Every
+            header control below sizes on min(vw, vh), like the digits
+            column, so a short window shrinks these too instead of
+            competing with the digits for space. */}
+        {!isWordCounterFullscreen && (
         <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[70] flex items-start gap-2">
-          {/* stacked vertically normally; laid out as a row during
-              fullscreen instead, since only mute + alarm repeat remain
-              then (the sidebar toggle hides) and a single row is shallow
-              enough to clear the word counter's own header above the
-              paddingLeft reserved for it (WordCounter.tsx) */}
-          <div className={isWordCounterFullscreen ? 'flex items-start gap-2' : 'flex flex-col gap-2'}>
-          {!isWordCounterFullscreen && (
-            <HeaderToggleButton
-              onClick={() => setIsSidebarHidden((prev) => !prev)}
-              icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
-              label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
-            />
-          )}
-          <div className="relative group">
-            <button
-              onClick={(e) => {
-                // touch devices have no hover — focus keeps the volume
-                // popup open (group-focus-within) so a tap can reach it
-                e.currentTarget.focus();
-                handleMuteToggle();
-              }}
-              className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
-              style={{
-                ...HEADER_BUTTON_SIZE,
-                borderColor: isSilentMode ? '#ffffff' : '#22c55e',
-                backgroundColor: '#000000',
-                fontFamily: "'IBM Plex Mono', monospace",
-              }}
-              title={`${isSilentMode ? 'Click to unmute' : 'Click to mute'} — Tip: for a count-up timer (stopwatch), mute this and set the time to 00:00:00`}
-              aria-label={isSilentMode ? 'Unmute' : 'Mute'}
-            >
-              <SpeakerIcon volume={volume} muted={isSilentMode} color={isSilentMode ? '#ffffff' : '#22c55e'} />
-            </button>
-
-            {/* Volume slider: revealed on hover/focus; releasing it previews
-                the chosen level with a single alarm burst. The gap next to
-                the button is padding (not margin) so the pointer can cross
-                it without leaving the hover group. */}
-            <div className="absolute left-full top-0 h-full pl-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 z-50 flex items-center">
-              <div className="border-3 border-white bg-black p-2 flex items-center h-full">
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={volume}
-                  onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                  onPointerUp={(e) => playVolumePreview(Number((e.target as HTMLInputElement).value))}
-                  onKeyUp={(e) => {
-                    if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
-                      playVolumePreview(Number((e.target as HTMLInputElement).value));
-                    }
-                  }}
-                  className="block"
-                  style={{ width: '6rem', accentColor: isSilentMode ? '#ffffff' : '#22c55e' }}
-                  aria-label="Volume"
-                  title={`Volume: ${Math.round(volume * 100)}%`}
-                />
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setIsAlarmLooping((prev: boolean) => !prev)}
-            className="relative flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
-            style={{
-              ...HEADER_BUTTON_SIZE,
-              borderColor: isAlarmLooping ? '#22c55e' : '#ffffff',
-              backgroundColor: '#000000',
-            }}
-            title={isAlarmLooping ? 'Alarm repeats until stopped — click to ring a limited number of times' : 'Alarm rings a limited number of times — click to repeat until stopped'}
-            aria-label={isAlarmLooping ? 'Disable alarm repeat' : 'Enable alarm repeat'}
-          >
-            {/* Bell is the main icon — this button is fundamentally about
-                the alarm, not a generic loop toggle — sized to fill most
-                of the button; Repeat sits centered inside the bell's own
-                body as a badge for the repeat setting specifically */}
-            <Bell
-              color={isAlarmLooping ? '#22c55e' : '#ffffff'}
-              style={RINGER_BELL_SIZE}
-            />
-            <Repeat
-              aria-hidden
-              color={isAlarmLooping ? '#22c55e' : '#ffffff'}
-              fill="#000000"
-              className="absolute"
-              style={{
-                width: shrinkClamp(0.7, 1.6, 1.6, 1.1),
-                height: shrinkClamp(0.7, 1.6, 1.6, 1.1),
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-              }}
-            />
-          </button>
-          </div>
-
+          <HeaderToggleButton
+            onClick={() => setIsSidebarHidden((prev) => !prev)}
+            icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
+            label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
+          />
+          {speakerButton}
+          {ringerButtonWithTip}
         </div>
+        )}
 
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
           {/* skip-confirmations toggle; the site RESET next to it is
@@ -1219,33 +1484,12 @@ export default function Timer() {
                 and the START/RESET/STOP row below. Pink instead of a timer
                 state color so it never blends into the window's own green
                 run-start flash; the glow is suppressed during pause/alarm
-                so it doesn't compete with those higher-priority signals */}
-            {!isWebsiteLinkHidden && (
-              <div className="relative z-[70] flex items-center gap-1.5">
-                <button
-                  onClick={handleHideWebsiteLinkClick}
-                  className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
-                  style={{ width: shrinkClamp(1.4, 2, 2.2, 1.8), height: shrinkClamp(1.4, 2, 2.2, 1.8), backgroundColor: '#000000' }}
-                  title="Hide this link — stays hidden until you reset the website to defaults"
-                  aria-label="Hide website link"
-                >
-                  <X style={{ width: shrinkClamp(0.8, 1.3, 1.4, 1.1), height: shrinkClamp(0.8, 1.3, 1.4, 1.1) }} />
-                </button>
-                <a
-                  href="https://ruinanding.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
-                  style={{ fontSize: shrinkClamp(0.7, 1.6, 2.2, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
-                >
-                  {/* shrinks at the same min(vw, vh) rate as this link's own
-                      text (not the header icons' rate), so it never grows
-                      disproportionate to the label it sits beside */}
-                  <ExternalLink style={{ width: shrinkClamp(0.9, 1.6, 2.2, 1.25), height: shrinkClamp(0.9, 1.6, 2.2, 1.25) }} />
-                  Check Out My Website!
-                </a>
-              </div>
-            )}
+                so it doesn't compete with those higher-priority signals.
+                Hidden during word counter fullscreen — that view's own
+                header row already carries plenty (mute, repeat, digits,
+                controls), so this drops entirely there rather than
+                competing for the same space. */}
+            {!isWebsiteLinkHidden && !isWordCounterFullscreen && websiteLinkButton}
 
             {/* Everything below the link centers itself in whatever
                 vertical space is left under it (flex-1 + justify-center),
@@ -1329,114 +1573,11 @@ export default function Timer() {
                 </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
               </div>
-              {/* the track: em height keeps it proportional to the digit
-                  size, while the vw width scales with the window instead
-                  of the digits. Grayed out until the timer has started.
-                  Hovering previews the time at that point on the track;
-                  clicking seeks the remaining time there */}
-              <div
-                className={`relative flex justify-end border-2 mx-auto ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
-                style={{
-                  height: '0.16em',
-                  minHeight: '0.5rem',
-                  marginTop: '0.08em',
-                  width: 'clamp(16rem, 40vw, 44rem)',
-                  borderColor: isRunning ? '#ffffff' : '#6b7280',
-                }}
-                onMouseMove={(e) => {
-                  if (configuredTotalSeconds > 0) setBarHover(barPointSeconds(e));
-                }}
-                onMouseLeave={() => setBarHover(null)}
-                onClick={(e) => {
-                  if (configuredTotalSeconds > 0) requestSeek(barPointSeconds(e).seconds);
-                }}
-              >
-                {barHover !== null && (
-                  <div
-                    className="absolute bg-black border-2 border-white text-white font-bold pointer-events-none whitespace-nowrap z-10"
-                    style={{
-                      left: `${barHover.x}px`,
-                      bottom: '100%',
-                      transform: 'translate(-50%, -0.25rem)',
-                      fontSize: 'clamp(0.65rem, 1.2vw, 0.8rem)',
-                      letterSpacing: '0.05em',
-                      padding: '0.125rem 0.375rem',
-                    }}
-                  >
-                    {formatEntryLabel(fromTotalSeconds(barHover.seconds))}
-                  </div>
-                )}
-                {/* the animation's background-color wins over the inline
-                    hue, and both bar animations run out of step with the
-                    window's flash so the bar stays visible against it:
-                    paused (above zero) alternates yellow/black at a
-                    quarter of the window's rate; isBarRedState fills the
-                    track full red, only flashing red/black while
-                    isAlarmRinging is actually true or paused mid-overtime
-                    with repeat on — repeat off (whether that's a finished
-                    finite ring while still running, or paused with the
-                    ring not treated as ongoing) sits static instead. */}
-                <div
-                  className={isAlarmRinging || (isPausedOvertime && isAlarmLooping) ? 'animate-alarmFlashBar' : isPaused && !isPausedOvertime ? 'animate-pauseFlashBar' : ''}
-                  style={{
-                    width: `${(isBarRedState ? 1 : timeFraction) * 100}%`,
-                    height: '100%',
-                    backgroundColor: barFillColor,
-                  }}
-                />
-                {barHover !== null && (
-                  <div
-                    className="absolute bg-white pointer-events-none z-10"
-                    style={{
-                      left: `${barHover.x}px`,
-                      top: 0,
-                      bottom: 0,
-                      width: '2px',
-                      transform: 'translateX(-50%)',
-                    }}
-                  />
-                )}
-              </div>
+              {renderDrainBar('clamp(16rem, 40vw, 44rem)')}
             </div>
 
             <div className="flex gap-2 flex-shrink-0">
-              {!isRunning && (
-                <button
-                  onClick={handleStart}
-                  className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={controlButtonStyle('#22c55e')}
-                >
-                  START
-                </button>
-              )}
-
-              {isRunning && (
-                <button
-                  onClick={togglePause}
-                  className="border-4 font-bold hover:opacity-80 transition-all duration-200"
-                  style={controlButtonStyle(isPaused ? '#22c55e' : '#eab308')}
-                >
-                  {isPaused ? 'RESUME' : 'PAUSE'}
-                </button>
-              )}
-
-              <button
-                onClick={handleResetClick}
-                disabled={isIdleAtConfigured}
-                className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={controlButtonStyle('#eab308')}
-              >
-                RESET
-              </button>
-
-              <button
-                onClick={handleStopClick}
-                disabled={isIdleAtConfigured}
-                className="border-4 font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={controlButtonStyle('#ef4444')}
-              >
-                STOP
-              </button>
+              {renderControlButtons(controlButtonStyle, 'border-4')}
             </div>
 
             {/* plain block layout, not flex — a flex container here would
@@ -1452,37 +1593,7 @@ export default function Timer() {
                 {status}
               </div>
 
-              {(() => {
-                // a reloaded overtime timer isn't ringing — the keys act on the timer
-                const subject = isRunning && seconds < 0 ? 'alarm' : 'timer';
-                const hints = [
-                  { key: 'SPACE', text: `Press SPACE to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${subject}`, disabled: false },
-                  { key: 'R', text: `Press R to RESET the ${subject}`, disabled: isIdleAtConfigured },
-                  { key: 'S', text: `Press S to STOP the ${subject}`, disabled: isIdleAtConfigured },
-                ];
-                // every hint shares the same color/glow, so one row of plain
-                // text (wrapping only if it truly doesn't fit) replaces what
-                // was one flex-item div per line — that ate 3x the vertical
-                // space on short windows, forcing the outer area to scroll
-                // just to reach STOP's hint
-                const hintsText = hints
-                  .map(({ text, disabled }) =>
-                    isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
-                  )
-                  .join('   |   ');
-                return (
-                  <div
-                    className={`opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
-                    style={{
-                      fontSize: shrinkClamp(0.5, 1.1, 1.2, 0.75),
-                      color: isWordCounterFocused ? '#ef4444' : '#ffffff',
-                      ...textGlowStyle,
-                    }}
-                  >
-                    {hintsText}
-                  </div>
-                );
-              })()}
+              {hintsDisplay}
             </div>
             </div>
           </div>
@@ -1530,7 +1641,20 @@ export default function Timer() {
           )}
         </div>
 
-        <WordCounter onFocusChange={setIsWordCounterFocused} onFullscreenChange={setIsWordCounterFullscreen} sidebarHidden={isSidebarHidden} greenFadeTextClass={isWindowGreen ? glowFadeClass : ''} />
+        <WordCounter
+          onFocusChange={setIsWordCounterFocused}
+          onFullscreenChange={setIsWordCounterFullscreen}
+          greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
+          speakerButton={speakerButton}
+          ringerButton={ringerButton}
+          timerDigits={wordCounterTimerDigits}
+          timerBar={renderDrainBar('clamp(3rem, 8vw, 8rem)', true)}
+          timerControls={
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {renderControlButtons(compactControlButtonStyle, 'border-2')}
+            </div>
+          }
+        />
       </div>
 
       <ConfirmDialog

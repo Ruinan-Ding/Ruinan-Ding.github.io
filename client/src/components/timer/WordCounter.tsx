@@ -1,5 +1,5 @@
 import { ChevronsDown, ChevronsUp, Maximize2, Minimize2 } from 'lucide-react';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { readBoolean, readRaw, writeJSON, writeRaw } from '@/lib/storage';
 import { HEADER_ICON_SIZE, STORAGE_KEYS } from './constants';
 import HeaderToggleButton from './HeaderToggleButton';
@@ -11,16 +11,29 @@ interface WordCounterProps {
   // this takes over the screen — they'd otherwise sit uselessly on top of
   // a view that has nothing to do with them
   onFullscreenChange: (fullscreen: boolean) => void;
-  // whether the presets/history sidebar is currently hidden — the
-  // fullscreen overlay needs this to know whether to leave room for it
-  // (lg:w-48) on the left, so the chevron/label don't jump sideways
-  // relative to where they sit in the normal (non-fullscreen) layout
-  sidebarHidden: boolean;
   // the window flashes green and fades toward black while the timer
   // runs; the header sits directly on it, so its label fades black ->
   // white in step, then glows back to green. Holds the glowFade A/B
   // class while the window is green, '' otherwise
   greenFadeTextClass: string;
+  // Mute/volume and alarm-repeat, pre-rendered by Timer — normally these
+  // float in the top-left corner, but fullscreen covers the whole page
+  // they'd float over, so Timer stops rendering them there and hands
+  // over copies for this row instead (icon-only — the tip that rides
+  // alongside the ringer normally is dropped here, see the row below)
+  speakerButton: ReactNode;
+  ringerButton: ReactNode;
+  // "remaining / total", pre-rendered by Timer — fullscreen covers the
+  // real digits entirely, so this is the only clock visible while typing
+  timerDigits: ReactNode;
+  // compact copy of the drain/progress bar, pre-rendered by Timer —
+  // sits between the digits and the controls, same as the main page
+  timerBar: ReactNode;
+  // START/RESUME-PAUSE/RESET/STOP, pre-rendered by Timer at a size that
+  // fits this component's own header row — fullscreen covers the timer's
+  // normal button row entirely, so without this there'd be no way to
+  // control the timer at all while typing in fullscreen
+  timerControls: ReactNode;
 }
 
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
@@ -37,17 +50,22 @@ const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // above (COUNTER_FONT_SIZE) more room to grow into
 const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.75, 1.6, 1.8, 1.05);
 
-function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFadeTextClass }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   const [isFocused, setIsFocused] = useState(false);
-  // full screen and collapse are transient view toggles — not persisted,
-  // so a reload always comes back expanded/windowed
+  // fullscreen is a transient view toggle — not persisted, so a reload
+  // always comes back out of fullscreen. Collapse, unlike fullscreen, IS
+  // persisted (like the timer's own sidebar/time-fields hide toggles) so
+  // a tucked-in word counter stays tucked in across a reload.
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => readBoolean(STORAGE_KEYS.wordCounterCollapsed, false));
 
   useEffect(() => {
     onFullscreenChange(isFullscreen);
   }, [isFullscreen, onFullscreenChange]);
+  useEffect(() => {
+    writeJSON(STORAGE_KEYS.wordCounterCollapsed, isCollapsed);
+  }, [isCollapsed]);
   // hiding while fullscreen has to drop out of fullscreen too (there's no
   // such thing as a hidden-but-fullscreen view) — remembered here so
   // un-hiding restores exactly the view that was showing, fullscreen or
@@ -72,6 +90,38 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const rowsRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // fullscreen has nothing else to type into, so entering it focuses the
+  // textarea immediately rather than waiting for a click — otherwise a
+  // keystroke right after maximizing would either land nowhere or hit
+  // the global SPACE/R/S shortcuts instead of the text itself
+  useEffect(() => {
+    if (isFullscreen) textareaRef.current?.focus();
+  }, [isFullscreen]);
+  // fullscreen has nothing else to type into, so any keystroke — no
+  // matter what was last clicked (a checkbox, the collapse arrow, a
+  // dialog that has since closed) — should land in the textarea.
+  // Refocusing on document keydown (rather than the textarea's own
+  // onBlur) is what makes this work even after a click that doesn't
+  // blur the textarea until later, or a dialog that opens and closes
+  // without ever blurring it again. Skipped while a confirm dialog is
+  // open (e.g. RESET) — that's a real, intentional destination for
+  // focus, not a stray click to bounce back from.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Radix keeps the dialog element mounted (data-state="closed")
+      // through its exit animation, so matching on the role alone would
+      // keep skipping refocus for that entire fade-out — gating on
+      // data-state="open" makes this only wait out a dialog that's
+      // actually still showing.
+      if (document.querySelector('[role="alertdialog"][data-state="open"]')) return;
+      textareaRef.current?.focus();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   // auto-collapses once the timer above is eating enough of the shared
   // column that this box's own chrome (toggles, L/W/C header, totals —
@@ -149,7 +199,15 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
     onFocusChange(focused);
   };
 
-  const ruleColor = isFocused ? RULE_COLOR_FOCUSED : RULE_COLOR_IDLE;
+  // Fullscreen means there's nothing else to interact with but this box
+  // — it auto-focuses the textarea on entry (see the effect below) so
+  // typing really does land there, but even if focus later shifts to
+  // one of this row's own buttons (e.g. clicking RESUME), the view is
+  // still "the word counter" the whole time you're in it. Everything
+  // that visually reads as "focused" (green vs. red) — and the warning
+  // that Space/R/S are disabled — goes by this instead of raw isFocused.
+  const isActive = isFocused || isFullscreen;
+  const ruleColor = isActive ? RULE_COLOR_FOCUSED : RULE_COLOR_IDLE;
   // Divider between consecutive lines only — nothing under the last line,
   // so an empty document shows no rules
   const rowDivider = (idx: number) =>
@@ -161,11 +219,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
       className={
         isFullscreen
           // matches the p-2 sm:p-3 md:p-4 padding on Timer's own content
-          // column exactly, and leaves room on the left for the sidebar
-          // (lg:w-48) when it's showing, so the chevron + WORD COUNTER
-          // label land at the same horizontal spot whether this is
-          // fullscreen or not
-          ? `fixed inset-y-0 right-0 z-[60] bg-black p-2 sm:p-3 md:p-4 flex flex-col items-start gap-1 overflow-hidden left-0 ${sidebarHidden ? '' : 'lg:left-48'}`
+          // column exactly. Always full width (left-0, no reservation for
+          // the presets/history sidebar) — fullscreen means fullscreen,
+          // and that reclaimed width is real room this view can actually
+          // use rather than leaving it sitting empty behind the sidebar's
+          // former spot.
+          ? 'fixed inset-0 z-[60] bg-black p-2 sm:p-3 md:p-4 flex flex-col items-start gap-1 overflow-hidden'
           // flex-[1.15] rather than flex-1: this box shares the column's
           // leftover height with the timer row above it (Timer.tsx's own
           // timerRowRef is flex-1), and a slightly heavier grow factor
@@ -177,35 +236,55 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
           : `flex flex-col items-start gap-1 w-full overflow-hidden min-h-0 ${isCollapsed ? '' : 'flex-[1.15]'}`
       }
     >
-      {/* fullscreen only: keep clear of the mute/alarm-repeat buttons
-          (left, z-[70]) and the CONFIRMATIONS/RESET buttons (right,
-          z-[70]) that float above this row in those same corners —
-          otherwise this label or the focus hint get painted over */}
+      {/* Fullscreen: just the collapse arrow plus mute/repeat/digits/
+          controls, in that reading order — no WORD COUNTER label,
+          website link, or repeat-tip text here, freeing the row for the
+          controls that actually matter while typing (Timer.tsx stops
+          rendering its own copies of the mute/repeat buttons while this
+          is up — see speakerButton/ringerButton — so they visibly
+          relocate into this row instead of being duplicated). The
+          "Spacebar/R/S disabled" warning drops too: that was about
+          needing actual focus, and fullscreen auto-focuses the textarea
+          and treats the whole view as active regardless (see isActive
+          below), so the warning has nothing left to warn about. Only
+          the CONFIRMATIONS/RESET cluster (top-right, z-[70]) still
+          floats separately — the paddingRight below leaves it room.
+          flex-nowrap on purpose: every item here already shrinks on its
+          own (shrinkClamp-sized icons/text, same as the rest of the
+          app's header controls) as the window narrows, so wrapping to a
+          second line was never necessary — it just meant a control
+          hadn't shrunk enough yet. */}
       <div
-        className="flex justify-between items-center gap-3 w-full"
-        style={isFullscreen ? { paddingLeft: 'clamp(5rem, 13vw, 8.5rem)', paddingRight: 'clamp(9rem, 18vw, 16rem)' } : undefined}
+        className="flex items-center gap-3 flex-nowrap w-full"
+        style={isFullscreen ? { paddingRight: 'clamp(10rem, 21vw, 21rem)' } : undefined}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <HeaderToggleButton
-            onClick={toggleCollapsed}
-            icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
-            label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
-          />
-          <label
-            className={`font-bold text-left ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isFocused ? 'text-green-500' : 'text-red-500'}`}
-            style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
-          >
-            WORD COUNTER
-          </label>
-        </div>
-
-        {isFocused && (
-          <span className="text-red-500 opacity-75 text-right" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>Spacebar, R, and S disabled for timer</span>
+        <HeaderToggleButton
+          onClick={toggleCollapsed}
+          icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
+          label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
+        />
+        {isFullscreen ? (
+          <>
+            {speakerButton}
+            {ringerButton}
+            {timerDigits}
+            {timerBar}
+            {timerControls}
+          </>
+        ) : (
+          <>
+            <label
+              className={`font-bold text-left whitespace-nowrap flex-shrink-0 ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isActive ? 'text-green-500' : 'text-red-500'}`}
+              style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
+            >
+              WORD COUNTER
+            </label>
+          </>
         )}
       </div>
 
       {!isCollapsed && (
-      <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isFocused ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
+      <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isActive ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
         <div className="flex justify-between items-center gap-3 flex-wrap px-3 pt-3">
           <div className="flex items-center gap-3 flex-wrap">
             <button
@@ -243,6 +322,13 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
               </span>
               Alphanumeric chars only
             </button>
+
+            <span
+              className="opacity-60 font-bold"
+              style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.6, 1.1, 1.2, 0.75) }}
+            >
+              Turn both off to count everything, like a classic word processor
+            </span>
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -292,7 +378,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
                   <div key={idx} className="flex items-stretch" style={{ height: `${COUNTER_LINE_HEIGHT}em`, borderBottom: rowDivider(idx) }}>
                     <div className="grid grid-cols-3 text-center text-white font-bold flex-shrink-0" style={{ width: COUNTER_COLUMN_WIDTH }}>
                       <div className="overflow-hidden">{idx + 1}</div>
-                      <div className={`overflow-hidden border-l-2 border-r-2 ${isFocused ? 'border-green-500' : 'border-white'}`}>{stat.wordCount}</div>
+                      <div className={`overflow-hidden border-l-2 border-r-2 ${isActive ? 'border-green-500' : 'border-white'}`}>{stat.wordCount}</div>
                       <div className="overflow-hidden">{stat.charCount}</div>
                     </div>
                     <div className="flex-1" />
@@ -301,7 +387,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
               </div>
             </div>
             {/* thick divider between the C column and the text */}
-            <div aria-hidden className={`absolute inset-y-0 w-1 ${isFocused ? 'bg-green-500' : 'bg-white'}`} style={{ left: COUNTER_COLUMN_WIDTH }} />
+            <div aria-hidden className={`absolute inset-y-0 w-1 ${isActive ? 'bg-green-500' : 'bg-white'}`} style={{ left: COUNTER_COLUMN_WIDTH }} />
             <textarea
               ref={textareaRef}
               value={text}
@@ -336,7 +422,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFa
               <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalChars}</div>
             </div>
           </div>
-          <div className={`text-xs flex flex-wrap justify-center items-baseline gap-x-2 text-center ${isFocused ? 'text-green-500' : 'text-gray-400'}`}>
+          <div className={`text-xs flex flex-wrap justify-center items-baseline gap-x-2 text-center ${isActive ? 'text-green-500' : 'text-gray-400'}`}>
             <span><strong>L:</strong> Line number</span>
             <span className="opacity-50">|</span>
             <span><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</span>

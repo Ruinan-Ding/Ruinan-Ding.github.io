@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 // Draws the timer state into the favicon: green triangle while running,
 // pulsing yellow bars when paused, pulsing red square when finished, and
-// an "ST" logo that writes itself stroke by stroke while idle
+// a "WT" logo that writes itself stroke by stroke while idle
 
 interface FaviconState {
   isRunning: boolean;
@@ -15,22 +15,22 @@ interface FaviconState {
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
-// The idle "ST" logo as blocky polylines (64x64 canvas coordinates) so it
-// can be drawn stroke by stroke: the S first, then the T's bar and stem
-const ST_STROKES: [number, number][][] = [
-  [[26, 14], [8, 14], [8, 32], [26, 32], [26, 50], [8, 50]],
+// The idle "WT" logo as blocky polylines (64x64 canvas coordinates) so it
+// can be drawn stroke by stroke: the W first, then the T's bar and stem
+const WT_STROKES: [number, number][][] = [
+  [[2, 14], [9, 50], [15, 26], [21, 50], [28, 14]],
   [[36, 14], [58, 14]],
   [[47, 14], [47, 50]],
 ];
-const ST_TOTAL_LENGTH = ST_STROKES.reduce((total, stroke) => {
+const WT_TOTAL_LENGTH = WT_STROKES.reduce((total, stroke) => {
   for (let i = 1; i < stroke.length; i++) {
     total += Math.hypot(stroke[i][0] - stroke[i - 1][0], stroke[i][1] - stroke[i - 1][1]);
   }
   return total;
 }, 0);
 // one animation cycle: the writing portion, then a hold at the full logo
-const ST_DRAW_MS = 2200;
-const ST_CYCLE_MS = 3200;
+const WT_DRAW_MS = 2200;
+const WT_CYCLE_MS = 3200;
 
 export const useFavicon = (
   isRunning: boolean,
@@ -84,8 +84,8 @@ export const useFavicon = (
         ctx.strokeStyle = '#1a1a1a';
         ctx.lineWidth = 6;
         ctx.lineJoin = 'miter';
-        let budget = Math.min(1, (Date.now() % ST_CYCLE_MS) / ST_DRAW_MS) * ST_TOTAL_LENGTH;
-        for (const stroke of ST_STROKES) {
+        let budget = Math.min(1, (Date.now() % WT_CYCLE_MS) / WT_DRAW_MS) * WT_TOTAL_LENGTH;
+        for (const stroke of WT_STROKES) {
           if (budget <= 0) break;
           ctx.beginPath();
           ctx.moveTo(stroke[0][0], stroke[0][1]);
@@ -138,23 +138,23 @@ export const useFavicon = (
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
         opacity = cycle === 0 ? progress : 1 - progress;
-        document.title = `${timeDisplay} - Study Timer`;
+        document.title = `${timeDisplay} - Write Timer`;
       } else if (isFinished) {
         shape = 'square';
         const cycleTime = 300;
         const cycle = Math.floor((now / cycleTime) % 2);
         const progress = (now % cycleTime) / cycleTime;
         opacity = cycle === 0 ? progress : 1 - progress;
-        document.title = `${timeDisplay} - Study Timer`;
+        document.title = `${timeDisplay} - Write Timer`;
       } else if (isRunning) {
         shape = 'triangle';
-        document.title = `${timeDisplay} - Study Timer`;
+        document.title = `${timeDisplay} - Write Timer`;
       } else {
         shape = 'default';
-        document.title = `Study Timer`;
+        document.title = `Write Timer`;
       }
 
-      const drawFraction = Math.min(1, (now % ST_CYCLE_MS) / ST_DRAW_MS);
+      const drawFraction = Math.min(1, (now % WT_CYCLE_MS) / WT_DRAW_MS);
       const signature = shape === 'default'
         ? `default:${drawFraction >= 1 ? 'full' : drawFraction.toFixed(3)}`
         : `${shape}:${opacity.toFixed(2)}`;

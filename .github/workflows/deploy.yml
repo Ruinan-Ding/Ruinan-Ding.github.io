@@ -1,4 +1,4 @@
-name: Deploy Study Timer to GitHub Pages
+name: Deploy Write Timer to GitHub Pages
 
 on:
   push:

@@ -25,6 +25,9 @@ export const STORAGE_KEYS = {
   alarmLoop: 'timerAlarmLoop',
   skipConfirmations: 'timerSkipConfirmations',
   websiteLinkHidden: 'timerWebsiteLinkHidden',
+  sidebarHidden: 'timerSidebarHidden',
+  timeFieldsHidden: 'timerTimeFieldsHidden',
+  wordCounterCollapsed: 'wordCounterCollapsed',
 } as const;
 
 // countdown floor: -99:59:59
@@ -32,16 +35,16 @@ export const MIN_TOTAL_SECONDS = -359999;
 
 export const TICK_MS = 10;
 
-// alarm pattern: ALARM_TOTAL_BURSTS bursts of ALARM_BURST_COUNT beeps each
-// (short ALARM_BURST_GAP_TICKS gap between bursts), then a longer
-// ALARM_GROUP_GAP_TICKS pause, then the whole group repeats — or stops
-// after ALARM_FINITE_GROUPS groups when looping is toggled off
+// looping alarm pattern: ALARM_TOTAL_BURSTS bursts of ALARM_BURST_COUNT
+// beeps each (short ALARM_BURST_GAP_TICKS gap between bursts), then a
+// longer ALARM_GROUP_GAP_TICKS pause, then the whole group repeats. With
+// looping off, the alarm ignores all of this and just rings one single
+// ALARM_BURST_COUNT-beep burst before going quiet.
 export const ALARM_TICK_MS = 250;
 export const ALARM_BURST_COUNT = 3;
 export const ALARM_BURST_GAP_TICKS = 3;
 export const ALARM_TOTAL_BURSTS = 3;
 export const ALARM_GROUP_GAP_TICKS = 10;
-export const ALARM_FINITE_GROUPS = 1;
 
 export const MAX_HOURS = 99;
 export const MAX_MINUTES = 59;

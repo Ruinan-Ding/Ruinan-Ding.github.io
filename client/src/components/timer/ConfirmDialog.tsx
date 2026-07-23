@@ -37,25 +37,45 @@ const getCopy = (dialog: DialogState) => {
       };
     case 'switch': {
       const label = formatEntryLabel(dialog.data);
-      // start=false replaces a paused or stopped timer: confirming only loads it
-      return dialog.start
-        ? {
+      switch (dialog.mode) {
+        // never run yet — nothing to lose, so this skips the "progress
+        // will be lost" warning switchRunning below needs
+        case 'startFromIdle':
+          return {
+            title: 'START TIMER',
+            description: `Start ${label} now?`,
+            action: 'START',
+          };
+        case 'switchRunning':
+          return {
             title: 'SWITCH TIMER',
             description: `Switch to ${label}? It will start immediately, and current progress will be lost.`,
             action: 'SWITCH',
-          }
-        : {
+          };
+        // replaces a paused or stopped-mid-progress timer; confirming
+        // only loads it
+        case 'loadOnly':
+          return {
             title: 'LOAD TIMER',
             description: `Load ${label}? The current remaining time will be discarded. Press START to run it.`,
             action: 'LOAD',
           };
+      }
     }
     case 'seek': {
       const label = formatEntryLabel(fromTotalSeconds(dialog.data.targetSeconds));
-      // willPause: the timer wasn't running, so the seek leaves it paused
+      // idle: nothing running to resume into, so this sets a brand-new
+      // configured time instead of moving remaining time within a run
+      if (dialog.data.mode === 'idle') {
+        return {
+          title: 'SET TIME',
+          description: `Set the configured time to ${label}? It'll start from there the next time you press START.`,
+          action: 'SET',
+        };
+      }
       return {
         title: 'MOVE TIMER',
-        description: dialog.data.willPause
+        description: dialog.data.mode === 'paused'
           ? `Move the timer to ${label}? It will wait there paused; the configured time stays the same.`
           : `Move the remaining time to ${label}? The configured time stays the same.`,
         action: 'MOVE',
