@@ -1,4 +1,11 @@
+import { shrinkClamp } from './responsive';
 import type { TimeParts, TimerEntry } from './types';
+
+// Shared by every boxed square icon button (mute, alarm repeat, the
+// sidebar/time-fields/word-counter hide toggles) so they all read as one
+// family of controls — same box, same icon size, wherever they appear
+export const HEADER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3.5), height: shrinkClamp(2, 5, 5, 3.5) };
+export const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkClamp(1.1, 3, 3, 1.375) };
 
 // localStorage keys — don't rename, older saves use them
 export const STORAGE_KEYS = {
@@ -13,6 +20,7 @@ export const STORAGE_KEYS = {
   hasMutedBefore: 'timerHasMutedBefore',
   alarmLoop: 'timerAlarmLoop',
   skipConfirmations: 'timerSkipConfirmations',
+  websiteLinkHidden: 'timerWebsiteLinkHidden',
 } as const;
 
 // countdown floor: -99:59:59

@@ -1,30 +1,25 @@
-import { Bell, ExternalLink, Menu, Repeat, Trash2, X } from 'lucide-react';
+import { Bell, ChevronsLeft, ChevronsRight, ExternalLink, Repeat, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
 import { readJSON, writeJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
+import HeaderToggleButton from './HeaderToggleButton';
 import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_FINITE_GROUPS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_FINITE_GROUPS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import type { DialogState, TimeParts, TimerEntry, TimeUnit } from './types';
 import { useFlashOnToken } from './useFlashOnToken';
 
-// Shared by every header icon (menu/mute/repeat/reset/the site link)
-const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkClamp(1.1, 3, 3, 1.375) };
-// Shared by the square icon buttons (mute, repeat); the hamburger uses the
-// same floor but a smaller ceiling since it's hidden past the lg breakpoint
-const HEADER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3.5), height: shrinkClamp(2, 5, 5, 3.5) };
 // The alarm-repeat button's Bell is bigger than a normal header icon,
 // filling most of the button, since it's the button's whole identity
 // rather than one of several equal icons
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
-const HAMBURGER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3), height: shrinkClamp(2, 5, 5, 3) };
 
 // Speaker with sound waves that grow in as the volume rises; an X when muted
 function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean; color: string }) {
@@ -155,7 +150,64 @@ export default function Timer() {
 
   const [dialog, setDialog] = useState<DialogState>({ type: null });
   const [isWordCounterFocused, setIsWordCounterFocused] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isWordCounterFullscreen, setIsWordCounterFullscreen] = useState(false);
+  // manual hide toggles for the sidebar/time-fields — plain (unpersisted)
+  // state is enough since the site-wide RESET already reloads the page,
+  // which naturally brings both back
+  const [isSidebarHidden, setIsSidebarHidden] = useState(false);
+  const [isTimeFieldsHidden, setIsTimeFieldsHidden] = useState(false);
+  // the website link's hide toggle is persisted instead — unlike the two
+  // above, it should survive a reload and only come back via the site
+  // RESET (which wipes every key in STORAGE_KEYS, this one included)
+  const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => {
+    const saved = readJSON<unknown>(STORAGE_KEYS.websiteLinkHidden, null);
+    return typeof saved === 'boolean' ? saved : false;
+  });
+  // mirrors Tailwind's own lg breakpoint — the digits' cqh-based sizing
+  // (see its own comment further down) only makes sense once lg:self-
+  // stretch gives the digits column a real height to query; below lg it
+  // falls back to the plain vw-only formula instead
+  const [isDesktopLayout, setIsDesktopLayout] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1024px)');
+    const handleChange = () => setIsDesktopLayout(query.matches);
+    query.addEventListener('change', handleChange);
+    return () => query.removeEventListener('change', handleChange);
+  }, []);
+
+  // row containing the website link, digits, and (at lg+) the
+  // HOURS/MINUTES/SECONDS panel side by side — measured directly (rather
+  // than guessing a breakpoint) so the auto-tuck below reacts to whatever
+  // actually doesn't fit, not to an assumed window size
+  const timerRowRef = useRef<HTMLDivElement | null>(null);
+
+  // auto-tucks the time-fields panel out of the way once the timer row is
+  // genuinely too cramped for it, instead of letting it overlap the
+  // digits. One-directional: it only ever forces it hidden, never forces
+  // it back open, so a manual re-show (the header toggle) always gets a
+  // fresh check rather than being fought — if there's still no room, this
+  // puts it right back. (The word counter has the equivalent check on
+  // itself, since collapsing it changes how much room THIS row gets —
+  // checking it from here would just watch its own fix take effect.)
+  useEffect(() => {
+    const el = timerRowRef.current;
+    if (!el) return;
+    const check = () => {
+      if (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) setIsTimeFieldsHidden(true);
+    };
+    check();
+    window.addEventListener('resize', check);
+    const resizeObserver = new ResizeObserver(check);
+    resizeObserver.observe(el);
+    // the very first check can land before the custom monospace font
+    // swaps in, measuring the (narrower) fallback font and missing an
+    // overflow that only shows up once the real font's wider digits load
+    document.fonts?.ready.then(check);
+    return () => {
+      window.removeEventListener('resize', check);
+      resizeObserver.disconnect();
+    };
+  }, [isTimeFieldsHidden]);
 
   // bumps when a fresh countdown starts so the green fade replays even if
   // the window never left the running state (see runFadeClass below)
@@ -198,7 +250,8 @@ export default function Timer() {
     writeJSON(STORAGE_KEYS.hasMutedBefore, hasMutedBefore);
     writeJSON(STORAGE_KEYS.alarmLoop, isAlarmLooping);
     writeJSON(STORAGE_KEYS.skipConfirmations, skipConfirmations);
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations]);
+    writeJSON(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden]);
 
   // The regular persist effect above only fires on whole-second changes
   // (re-running it every 10ms tick to catch milliseconds would hammer
@@ -417,16 +470,6 @@ export default function Timer() {
     };
   }, []);
 
-  // Escape closes the mobile sidebar drawer
-  useEffect(() => {
-    if (!isSidebarOpen) return;
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsSidebarOpen(false);
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [isSidebarOpen]);
-
   const playTone = (tone: keyof typeof TONES) => {
     if (!isSilentMode) {
       beep(...TONES[tone]);
@@ -605,7 +648,6 @@ export default function Timer() {
     setMinutes(parts.minutes);
     setTimerSeconds(parts.seconds);
     setTime({ seconds: toTotalSeconds(parts), milliseconds: 0 });
-    setIsSidebarOpen(false);
   }, []);
 
   // the one switch sequence, shared by the direct path and the dialog
@@ -732,6 +774,12 @@ export default function Timer() {
     closeDialog();
   };
 
+  // always confirms, ignoring skipConfirmations — same as the site RESET
+  // button, since hiding the link isn't reversible from the UI itself
+  const handleHideWebsiteLinkClick = () => {
+    setDialog({ type: 'hideWebsiteLink' });
+  };
+
   // Seeking via the drain bar moves only the remaining time; the
   // configured time stays as it is. A timer that wasn't running wakes up
   // paused at the chosen point.
@@ -790,6 +838,10 @@ export default function Timer() {
         break;
       case 'adjust':
         handleConfirmAdjust(dialog.data.unit, dialog.data.value, dialog.data.previous);
+        break;
+      case 'hideWebsiteLink':
+        setIsWebsiteLinkHidden(true);
+        closeDialog();
         break;
     }
   };
@@ -952,50 +1004,56 @@ export default function Timer() {
             : 'bg-black'
       }`}
     >
-      {isSidebarOpen && (
+      {/* Sidebar: lg+ only — no mobile drawer, so it never pops up over
+          the timer on a shrunk window. Hidden entirely at any width via
+          the << header toggle. */}
+      {!isSidebarHidden && (
         <div
-          className="fixed inset-0 z-30 bg-black/70 lg:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
+          className="hidden lg:flex w-48 bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden"
+        >
+          <PresetsPanel
+            presets={presets}
+            onAdd={handleAddPreset}
+            onRemove={handleRemovePreset}
+            onSelect={handleSelectEntry}
+            inserted={insertedPreset}
+            loaded={loadedEntry}
+          />
+          <HistoryPanel
+            history={history}
+            onSelect={handleSelectEntry}
+            onClear={handleClearHistory}
+            inserted={insertedHistory}
+            loaded={loadedEntry}
+          />
+        </div>
       )}
 
-      {/* Sidebar: permanent column at lg+, overlay drawer below */}
-      <div
-        className={`${isSidebarOpen ? 'flex' : 'hidden'} lg:flex fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto w-64 lg:w-48 bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden`}
-      >
-        <PresetsPanel
-          presets={presets}
-          onAdd={handleAddPreset}
-          onRemove={handleRemovePreset}
-          onSelect={handleSelectEntry}
-          inserted={insertedPreset}
-          loaded={loadedEntry}
-        />
-        <HistoryPanel
-          history={history}
-          onSelect={handleSelectEntry}
-          onClear={handleClearHistory}
-          inserted={insertedHistory}
-          loaded={loadedEntry}
-        />
-      </div>
-
       <div className="flex-1 flex flex-col items-center p-2 sm:p-3 md:p-4 gap-2 overflow-hidden min-h-0 relative">
-        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-50 flex items-start gap-2">
-          {/* Every header control below sizes on min(vw, vh), like the
-              digits column, so a short window shrinks these too instead
-              of competing with the digits for space */}
-          <button
-            onClick={() => setIsSidebarOpen((prev) => !prev)}
-            className="lg:hidden flex items-center justify-center border-3 border-white text-white transition-all duration-200 hover:opacity-80"
-            style={{ ...HAMBURGER_BUTTON_SIZE, backgroundColor: '#000000' }}
-            title={isSidebarOpen ? 'Close presets & history' : 'Open presets & history'}
-            aria-label={isSidebarOpen ? 'Close presets & history' : 'Open presets & history'}
-          >
-            {isSidebarOpen ? <X style={HEADER_ICON_SIZE} /> : <Menu style={HEADER_ICON_SIZE} />}
-          </button>
-
-          <div className="flex flex-col gap-2">
+        {/* The presets/history hide toggle is irrelevant while the word
+            counter is fullscreen — there's nothing to show over a view
+            that covers the sidebar too — so it hides. Mute and alarm
+            repeat stay: the alarm can still ring during fullscreen and
+            need to stay reachable. This cluster sits at z-[70], above the
+            word counter's z-[60] overlay, same as the mirrored cluster on
+            the right and the website link. Every header control below
+            sizes on min(vw, vh), like the digits column, so a short
+            window shrinks these too instead of competing with the digits
+            for space. */}
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[70] flex items-start gap-2">
+          {/* stacked vertically normally; laid out as a row during
+              fullscreen instead, since only mute + alarm repeat remain
+              then (the sidebar toggle hides) and a single row is shallow
+              enough to clear the word counter's own header above the
+              paddingLeft reserved for it (WordCounter.tsx) */}
+          <div className={isWordCounterFullscreen ? 'flex items-start gap-2' : 'flex flex-col gap-2'}>
+          {!isWordCounterFullscreen && (
+            <HeaderToggleButton
+              onClick={() => setIsSidebarHidden((prev) => !prev)}
+              icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
+              label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
+            />
+          )}
           <div className="relative group">
             <button
               onClick={(e) => {
@@ -1082,7 +1140,7 @@ export default function Timer() {
 
         </div>
 
-        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-50 flex items-center gap-2">
+        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
           <button
@@ -1150,7 +1208,8 @@ export default function Timer() {
             still center THAT content in the leftover space, instead of
             everything bunching up under the link. */}
         <div
-          className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-y-auto"
+          ref={timerRowRef}
+          className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-hidden"
           style={{ alignItems: 'safe center' }}
         >
           <div className="flex-1 hidden lg:block"></div>
@@ -1168,33 +1227,90 @@ export default function Timer() {
                 state color so it never blends into the window's own green
                 run-start flash; the glow is suppressed during pause/alarm
                 so it doesn't compete with those higher-priority signals */}
-            <a
-              href="https://ruinanding.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
-              style={{ fontSize: shrinkClamp(0.7, 1.6, 2.2, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
-            >
-              {/* shrinks at the same min(vw, vh) rate as this link's own
-                  text (not the header icons' rate), so it never grows
-                  disproportionate to the label it sits beside */}
-              <ExternalLink style={{ width: shrinkClamp(0.9, 1.6, 2.2, 1.25), height: shrinkClamp(0.9, 1.6, 2.2, 1.25) }} />
-              Check Out My Website!
-            </a>
+            {!isWebsiteLinkHidden && (
+              <div className="relative z-[70] flex items-center gap-1.5">
+                <button
+                  onClick={handleHideWebsiteLinkClick}
+                  className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
+                  style={{ width: shrinkClamp(1.4, 2, 2.2, 1.8), height: shrinkClamp(1.4, 2, 2.2, 1.8), backgroundColor: '#000000' }}
+                  title="Hide this link — stays hidden until you reset the website to defaults"
+                  aria-label="Hide website link"
+                >
+                  <X style={{ width: shrinkClamp(0.8, 1.3, 1.4, 1.1), height: shrinkClamp(0.8, 1.3, 1.4, 1.1) }} />
+                </button>
+                <a
+                  href="https://ruinanding.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
+                  style={{ fontSize: shrinkClamp(0.7, 1.6, 2.2, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
+                >
+                  {/* shrinks at the same min(vw, vh) rate as this link's own
+                      text (not the header icons' rate), so it never grows
+                      disproportionate to the label it sits beside */}
+                  <ExternalLink style={{ width: shrinkClamp(0.9, 1.6, 2.2, 1.25), height: shrinkClamp(0.9, 1.6, 2.2, 1.25) }} />
+                  Check Out My Website!
+                </a>
+              </div>
+            )}
 
             {/* Everything below the link centers itself in whatever
                 vertical space is left under it (flex-1 + justify-center),
                 rather than being pulled up flush against the link now
                 that the column above sits at the top instead of being
-                vertically centered as a whole */}
-            <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-1 w-full">
+                vertically centered as a whole.
+                container-type: size (lg only — see isDesktopLayout) turns
+                this box's own resolved height (already the true leftover
+                space, after the word counter below takes its share and
+                after the link above takes its own row when shown) into a
+                queryable unit (cqh) for the digits' font-size below — vh
+                alone can't see any of that sharing, which is what let the
+                digits overflow past this box and collide with the link,
+                or force the row to scroll, on short windows. Removing the
+                link gives this box more of that resolved height
+                automatically, so the digits grow back into the freed
+                space without any extra wiring.
+                Below lg, DIGITS_COL loses its own lg:self-stretch height
+                (mobile/stacked layout gives it fit-content height
+                instead), so this box would have nothing but its own
+                (now-contained, i.e. reported as ~0) content to size
+                itself against — collapsing this whole column to a sliver
+                and spilling its real content down into the
+                HOURS/MINUTES/SECONDS panel stacked below it. So the
+                container/cqh setup — and the explicit width it also
+                requires below, for the same reason the width bug above
+                needed one — only apply at lg; below it this reverts to
+                plain fit-content sizing, same as before any of this. */}
+            <div
+              className="flex-1 flex flex-col items-center justify-center min-h-0 gap-1"
+              style={isDesktopLayout ? { containerType: 'size', width: 'clamp(16rem, 40vw, 44rem)' } : undefined}
+            >
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-              // the digits' own font-size clamps on vw only (not
-              // shrinkClamp) — the one size in this column a short window
-              // never shrinks; the padding around them is chrome, so it
-              // yields like everything else
-              style={{ fontSize: 'clamp(1.2rem, 10.5vw, 7.5rem)', fontFamily: "'IBM Plex Mono', monospace", padding: shrinkClamp(0.25, 1.2, 1.3, 1) }}
+              // solved from measured layout, not guessed: this block's own
+              // height comes out to ~2.8rem + 1.73x its font-size (padding
+              // + configured-time line + progress bar don't scale with the
+              // digits; the digit line itself does), and its siblings
+              // (buttons row + status/hints, both font-size-independent)
+              // add another ~7.9rem — so total container content height is
+              // ~10.75rem + 1.73x font-size. Solving that for font-size in
+              // terms of the container's own height (100cqh) gives an
+              // exact fit instead of a guessed percentage; the constants
+              // below are rounded up/divided a bit further for margin. On
+              // any reasonably tall window this still clamps at the same
+              // 10.5vw/7.5rem ceiling as before (unchanged normal-case
+              // size) — it only pulls back once the query container (see
+              // its own comment above) is genuinely short, shrinking the
+              // digits to fit instead of overflowing past it. Below lg
+              // there's no queryable container at all (see isDesktopLayout
+              // above), so this falls back to the original vw-only clamp.
+              style={{
+                fontSize: isDesktopLayout
+                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - 11.5rem) / 1.75)), 7.5rem)'
+                  : 'clamp(1.2rem, 10.5vw, 7.5rem)',
+                fontFamily: "'IBM Plex Mono', monospace",
+                padding: shrinkClamp(0.25, 1.2, 1.3, 1),
+              }}
             >
               {/* configured time, for reference */}
               <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
@@ -1330,10 +1446,15 @@ export default function Timer() {
               </button>
             </div>
 
-            <div className="flex flex-col items-center gap-1 mt-2">
+            {/* plain block layout, not flex — a flex container here would
+                pick up index.css's `.flex { min-height: 0 }` rule and, as
+                a flex item of the column above, could get shrunk to a true
+                zero-height (and vanish) instead of just wrapping/scrolling
+                once nothing more can be shrunk via font-size alone */}
+            <div className="text-center">
               <div
                 className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-                style={{ fontSize: shrinkClamp(1, 2.1, 2.2, 1.5), ...textGlowStyle }}
+                style={{ fontSize: shrinkClamp(0.85, 2.1, 2.2, 1.4), ...textGlowStyle }}
               >
                 {status}
               </div>
@@ -1346,19 +1467,28 @@ export default function Timer() {
                   { key: 'R', text: `Press R to RESET the ${subject}`, disabled: isIdleAtConfigured },
                   { key: 'S', text: `Press S to STOP the ${subject}`, disabled: isIdleAtConfigured },
                 ];
-                return hints.map(({ key, text, disabled }) => (
+                // every hint shares the same color/glow, so one row of plain
+                // text (wrapping only if it truly doesn't fit) replaces what
+                // was one flex-item div per line — that ate 3x the vertical
+                // space on short windows, forcing the outer area to scroll
+                // just to reach STOP's hint
+                const hintsText = hints
+                  .map(({ text, disabled }) =>
+                    isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
+                  )
+                  .join('   ');
+                return (
                   <div
-                    key={key}
-                    className={`opacity-75 tracking-wider ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
+                    className={`opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
                     style={{
-                      fontSize: shrinkClamp(0.65, 1.5, 1.6, 1),
+                      fontSize: shrinkClamp(0.5, 1.1, 1.2, 0.75),
                       color: isWordCounterFocused ? '#ef4444' : '#ffffff',
                       ...textGlowStyle,
                     }}
                   >
-                    {isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text}
+                    {hintsText}
                   </div>
-                ));
+                );
               })()}
             </div>
             </div>
@@ -1366,14 +1496,48 @@ export default function Timer() {
 
           <div className="flex-1 hidden lg:block"></div>
 
-          <div className="border-4 border-white bg-black p-2 sm:p-3 md:p-4 flex flex-col gap-2 flex-shrink-0 min-w-0 w-full max-w-sm lg:w-[clamp(12rem,22vw,16rem)] lg:max-w-none">
-            <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
-            <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
-            <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />
-          </div>
+          {isTimeFieldsHidden ? (
+            // Below lg this sits out of the flex flow entirely (absolute,
+            // pinned to the corner) rather than as a normal row item: the
+            // row is column-direction there, so a flow item competes with
+            // the digits for vertical room — and the digits never yield
+            // (see the font-size comment on the digits block below), so on
+            // a short-but-sub-lg window this tiny button could itself get
+            // pushed past the row's own clipped bounds and vanish along
+            // with the panel it's meant to bring back. At lg the row is
+            // horizontal instead, so the digits never starve it there —
+            // lg:static returns it to being a normal flex item,
+            // self-started and nudged down to clear the header buttons in
+            // that same corner.
+            <HeaderToggleButton
+              onClick={() => setIsTimeFieldsHidden(false)}
+              className="absolute top-20 right-2 sm:right-3 md:right-4 lg:static lg:top-auto lg:right-auto lg:self-start lg:mt-20"
+              icon={<ChevronsLeft style={HEADER_ICON_SIZE} />}
+              label="Show hours/minutes/seconds"
+            />
+          ) : (
+            // items-start: the hide button sits flush against the box's
+            // top-left corner — its right edge touching the box's left
+            // edge — rather than centered on the box's full height.
+            // lg:self-start + lg:mt-20 on the wrapper keeps that corner
+            // pinned below the header buttons, matching the collapsed
+            // button above so toggling never shifts its position.
+            <div className="flex items-start flex-shrink-0 lg:self-start lg:mt-20">
+              <HeaderToggleButton
+                onClick={() => setIsTimeFieldsHidden(true)}
+                icon={<ChevronsRight style={HEADER_ICON_SIZE} />}
+                label="Hide hours/minutes/seconds"
+              />
+              <div className="border-4 border-white bg-black p-2 sm:p-3 md:p-4 flex flex-col gap-2 flex-shrink-0 min-w-0 w-full max-w-sm lg:w-[clamp(12rem,22vw,16rem)] lg:max-w-none">
+                <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
+                <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
+                <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />
+              </div>
+            </div>
+          )}
         </div>
 
-        <WordCounter onFocusChange={setIsWordCounterFocused} greenFadeTextClass={isWindowGreen ? glowFadeClass : ''} />
+        <WordCounter onFocusChange={setIsWordCounterFocused} onFullscreenChange={setIsWordCounterFullscreen} sidebarHidden={isSidebarHidden} greenFadeTextClass={isWindowGreen ? glowFadeClass : ''} />
       </div>
 
       <ConfirmDialog

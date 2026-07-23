@@ -23,4 +23,5 @@ export type DialogState =
   | { type: 'mute' }
   | { type: 'switch'; data: TimeParts; start: boolean }
   | { type: 'seek'; data: { targetSeconds: number; willPause: boolean } }
-  | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number } };
+  | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number } }
+  | { type: 'hideWebsiteLink' };

@@ -1,10 +1,21 @@
+import { ChevronsDown, ChevronsUp, Maximize2, Minimize2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { readJSON, readRaw, writeJSON, writeRaw } from '@/lib/storage';
-import { STORAGE_KEYS } from './constants';
+import { HEADER_ICON_SIZE, STORAGE_KEYS } from './constants';
+import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
 
 interface WordCounterProps {
   onFocusChange: (focused: boolean) => void;
+  // lets the timer header hide its own arrow/speaker/repeat buttons while
+  // this takes over the screen — they'd otherwise sit uselessly on top of
+  // a view that has nothing to do with them
+  onFullscreenChange: (fullscreen: boolean) => void;
+  // whether the presets/history sidebar is currently hidden — the
+  // fullscreen overlay needs this to know whether to leave room for it
+  // (lg:w-48) on the left, so the chevron/label don't jump sideways
+  // relative to where they sit in the normal (non-fullscreen) layout
+  sidebarHidden: boolean;
   // the window flashes green and fades toward black while the timer
   // runs; the header sits directly on it, so its label fades black ->
   // white in step, then glows back to green. Holds the glowFade A/B
@@ -25,11 +36,60 @@ const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // text and the box together
 const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.875, 2, 2.2, 1.25);
 
-function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, sidebarHidden, greenFadeTextClass }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   const [isFocused, setIsFocused] = useState(false);
+  // full screen and collapse are transient view toggles — not persisted,
+  // so a reload always comes back expanded/windowed
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    onFullscreenChange(isFullscreen);
+  }, [isFullscreen, onFullscreenChange]);
+  // hiding while fullscreen has to drop out of fullscreen too (there's no
+  // such thing as a hidden-but-fullscreen view) — remembered here so
+  // un-hiding restores exactly the view that was showing, fullscreen or not
+  const wasFullscreenBeforeCollapseRef = useRef(false);
+  const toggleCollapsed = () => {
+    if (isCollapsed) {
+      setIsFullscreen(wasFullscreenBeforeCollapseRef.current);
+      setIsCollapsed(false);
+    } else {
+      wasFullscreenBeforeCollapseRef.current = isFullscreen;
+      setIsFullscreen(false);
+      setIsCollapsed(true);
+    }
+  };
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const rowsRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // auto-collapses once the timer above is eating enough of the shared
+  // column that this box's own chrome (toggles, L/W/C header, totals —
+  // the textarea itself is elastic and doesn't factor in) no longer fits
+  // in what's left, instead of silently clipping that chrome. Skipped
+  // while fullscreen (a fixed overlay, not competing for column space)
+  // or already collapsed. One-directional, like the timer's own
+  // equivalent check on the HOURS/MINUTES/SECONDS panel: a manual
+  // re-open always gets a fresh measurement rather than being fought —
+  // if there's still no room, this puts it right back.
+  useEffect(() => {
+    if (isFullscreen || isCollapsed) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const check = () => {
+      if (el.scrollHeight > el.clientHeight) setIsCollapsed(true);
+    };
+    check();
+    window.addEventListener('resize', check);
+    const resizeObserver = new ResizeObserver(check);
+    resizeObserver.observe(el);
+    return () => {
+      window.removeEventListener('resize', check);
+      resizeObserver.disconnect();
+    };
+  }, [isFullscreen, isCollapsed]);
 
   const [alnumWordsOnly, setAlnumWordsOnly] = useState(() => {
     const saved = readJSON<unknown>(STORAGE_KEYS.wordCounterAlnumWordsOnly, null);
@@ -94,20 +154,47 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
     idx < lineStats.length - 1 ? `1px solid ${ruleColor}` : undefined;
 
   return (
-    <div className="flex flex-col items-start gap-1 w-full flex-1 overflow-hidden min-h-0">
-      <div className="flex justify-between items-center gap-3 w-full">
-        <label
-          className={`font-bold text-left ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isFocused ? 'text-green-500' : 'text-red-500'}`}
-          style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
-        >
-          WORD COUNTER
-        </label>
+    <div
+      ref={containerRef}
+      className={
+        isFullscreen
+          // matches the p-2 sm:p-3 md:p-4 padding on Timer's own content
+          // column exactly, and leaves room on the left for the sidebar
+          // (lg:w-48) when it's showing, so the chevron + WORD COUNTER
+          // label land at the same horizontal spot whether this is
+          // fullscreen or not
+          ? `fixed inset-y-0 right-0 z-[60] bg-black p-2 sm:p-3 md:p-4 flex flex-col items-start gap-1 overflow-hidden left-0 ${sidebarHidden ? '' : 'lg:left-48'}`
+          : `flex flex-col items-start gap-1 w-full overflow-hidden min-h-0 ${isCollapsed ? '' : 'flex-1'}`
+      }
+    >
+      {/* fullscreen only: keep clear of the mute/alarm-repeat buttons
+          (left, z-[70]) and the CONFIRMATIONS/RESET buttons (right,
+          z-[70]) that float above this row in those same corners —
+          otherwise this label or the focus hint get painted over */}
+      <div
+        className="flex justify-between items-center gap-3 w-full"
+        style={isFullscreen ? { paddingLeft: 'clamp(5rem, 13vw, 8.5rem)', paddingRight: 'clamp(9rem, 18vw, 16rem)' } : undefined}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <HeaderToggleButton
+            onClick={toggleCollapsed}
+            icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
+            label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
+          />
+          <label
+            className={`font-bold text-left ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isFocused ? 'text-green-500' : 'text-red-500'}`}
+            style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
+          >
+            WORD COUNTER
+          </label>
+        </div>
 
         {isFocused && (
-          <span className="text-green-500 opacity-75 text-right" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>Spacebar disabled for timer</span>
+          <span className="text-red-500 opacity-75 text-right" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>Spacebar, R, and S disabled for timer</span>
         )}
       </div>
 
+      {!isCollapsed && (
       <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isFocused ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
         <div className="flex justify-between items-center gap-3 flex-wrap px-3 pt-3">
           <div className="flex items-center gap-3 flex-wrap">
@@ -148,15 +235,29 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
             </button>
           </div>
 
-          {text !== '' && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {text !== '' && (
+              <button
+                onClick={() => setText('')}
+                className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
+                style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
+              >
+                Clear
+              </button>
+            )}
             <button
-              onClick={() => setText('')}
-              className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
-              style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
+              onClick={() => setIsFullscreen((prev) => !prev)}
+              className="text-white border border-white p-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
+              title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+              aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
             >
-              Clear
+              {isFullscreen ? (
+                <Minimize2 style={{ width: shrinkClamp(0.65, 1.2, 1.3, 0.75), height: shrinkClamp(0.65, 1.2, 1.3, 0.75) }} />
+              ) : (
+                <Maximize2 style={{ width: shrinkClamp(0.65, 1.2, 1.3, 0.75), height: shrinkClamp(0.65, 1.2, 1.3, 0.75) }} />
+              )}
             </button>
-          )}
+          </div>
         </div>
 
         <div className="flex items-center px-3">
@@ -232,6 +333,7 @@ function WordCounter({ onFocusChange, greenFadeTextClass }: WordCounterProps) {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

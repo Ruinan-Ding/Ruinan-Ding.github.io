@@ -36,6 +36,7 @@ vite.config.ts.timestamp-*
 !.vscode/launch.json
 !.vscode/extensions.json
 .history/
+.claude/
 
 # System files
 .DS_Store

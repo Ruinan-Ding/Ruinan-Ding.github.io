@@ -69,6 +69,12 @@ const getCopy = (dialog: DialogState) => {
         action: 'CONFIRM',
       };
     }
+    case 'hideWebsiteLink':
+      return {
+        title: 'HIDE LINK',
+        description: 'Hide the "Check Out My Website!" link? :-( You can bring it back by resetting the website to defaults.',
+        action: 'HIDE',
+      };
     default:
       return null;
   }
