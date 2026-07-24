@@ -59,6 +59,18 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // a tucked-in word counter stays tucked in across a reload.
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => readBoolean(STORAGE_KEYS.wordCounterCollapsed, false));
+  // true only while isCollapsed was forced by the auto-collapse check
+  // below, never by the manual toggle — the collapse arrow hides itself
+  // while this is true (see the render below), since clicking it would
+  // just bounce straight back to collapsed on the next check(). A
+  // manual collapse leaves this false, so the arrow keeps working.
+  const [isAutoCollapsed, setIsAutoCollapsed] = useState(false);
+  // window size (both dimensions) at the moment the auto-collapse below
+  // last forced this closed — null whenever it isn't currently
+  // auto-collapsed. Grown back to at least this size is this app's
+  // proxy for "there's room again", since the expanded content isn't in
+  // the DOM once collapsed and so can't be re-measured directly.
+  const collapsedAtSizeRef = useRef<{ w: number; h: number } | null>(null);
 
   useEffect(() => {
     onFullscreenChange(isFullscreen);
@@ -80,6 +92,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     setIsCollapsed(true);
   };
   const toggleCollapsed = () => {
+    // a manual click always means whatever happens next is deliberate —
+    // clearing this keeps the auto-collapse check below from treating
+    // this click's result as something it caused (and later possibly
+    // reversing it out from under the user)
+    collapsedAtSizeRef.current = null;
+    setIsAutoCollapsed(false);
     if (isCollapsed) {
       setIsFullscreen(wasFullscreenBeforeCollapseRef.current);
       setIsCollapsed(false);
@@ -126,18 +144,41 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // auto-collapses once the timer above is eating enough of the shared
   // column that this box's own chrome (toggles, L/W/C header, totals —
   // the textarea itself is elastic and doesn't factor in) no longer fits
-  // in what's left, instead of silently clipping that chrome. Skipped
-  // while fullscreen (a fixed overlay, not competing for column space)
-  // or already collapsed. One-directional, like the timer's own
-  // equivalent check on the HOURS/MINUTES/SECONDS panel: a manual
-  // re-open always gets a fresh measurement rather than being fought —
-  // if there's still no room, this puts it right back.
+  // in what's left, instead of silently clipping that chrome — and
+  // auto-reverses that once the window regrows past the size it
+  // collapsed at (collapsedAtSizeRef; same reasoning as the timer's own
+  // equivalent check on the HOURS/MINUTES/SECONDS panel — the expanded
+  // content isn't in the DOM to re-measure directly once collapsed, so
+  // window size is this app's proxy for "there's room again"). Skipped
+  // only while fullscreen (a fixed overlay, not competing for column
+  // space). That reversal only ever undoes ITS OWN collapse: a manual
+  // collapse (collapsedAtSizeRef stays null, see toggleCollapsed) is
+  // never fought — a manual re-open always gets a fresh measurement
+  // rather than being reopened for you, and if there's still no room,
+  // this puts it right back.
   useEffect(() => {
-    if (isFullscreen || isCollapsed) return;
+    if (isFullscreen) return;
     const el = containerRef.current;
     if (!el) return;
     const check = () => {
-      if (el.scrollHeight > el.clientHeight) collapse();
+      if (isCollapsed) {
+        if (
+          collapsedAtSizeRef.current &&
+          window.innerWidth >= collapsedAtSizeRef.current.w &&
+          window.innerHeight >= collapsedAtSizeRef.current.h
+        ) {
+          collapsedAtSizeRef.current = null;
+          setIsAutoCollapsed(false);
+          setIsFullscreen(wasFullscreenBeforeCollapseRef.current);
+          setIsCollapsed(false);
+        }
+        return;
+      }
+      if (el.scrollHeight > el.clientHeight) {
+        collapsedAtSizeRef.current = { w: window.innerWidth, h: window.innerHeight };
+        setIsAutoCollapsed(true);
+        collapse();
+      }
     };
     check();
     window.addEventListener('resize', check);
@@ -257,11 +298,17 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         className="flex items-center gap-3 flex-nowrap w-full"
         style={isFullscreen ? { paddingRight: 'clamp(10rem, 21vw, 21rem)' } : undefined}
       >
-        <HeaderToggleButton
-          onClick={toggleCollapsed}
-          icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
-          label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
-        />
+        {/* hidden while auto-collapsed (not a manual collapse) — clicking
+            it would just bounce straight back to collapsed on the next
+            check(), since there's still no room. Reappears on its own
+            once the box does (see collapsedAtSizeRef above). */}
+        {!isAutoCollapsed && (
+          <HeaderToggleButton
+            onClick={toggleCollapsed}
+            icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
+            label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
+          />
+        )}
         {isFullscreen ? (
           <>
             {ringerButton}

@@ -156,6 +156,12 @@ export default function Timer() {
   // own comment) — a reload always comes back windowed.
   const [isSidebarHidden, setIsSidebarHidden] = useState(() => readBoolean(STORAGE_KEYS.sidebarHidden, false));
   const [isTimeFieldsHidden, setIsTimeFieldsHidden] = useState(() => readBoolean(STORAGE_KEYS.timeFieldsHidden, false));
+  // true only while isTimeFieldsHidden was forced by the auto-tuck check
+  // below, never by the manual toggle — its own "Show" arrow hides
+  // itself while this is true (see the render below), since clicking it
+  // would just bounce straight back to hidden on the next check(). A
+  // manual hide leaves this false, so that arrow keeps working normally.
+  const [isTimeFieldsAutoTucked, setIsTimeFieldsAutoTucked] = useState(false);
   const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => readBoolean(STORAGE_KEYS.websiteLinkHidden, false));
   // mirrors Tailwind's own lg breakpoint — the digits' cqh-based sizing
   // (see its own comment further down) only makes sense once lg:self-
@@ -175,19 +181,40 @@ export default function Timer() {
   // actually doesn't fit, not to an assumed window size
   const timerRowRef = useRef<HTMLDivElement | null>(null);
 
+  // window size (both dimensions) at the moment the auto-tuck below last
+  // forced the panel hidden — null whenever it isn't currently
+  // auto-tucked. Grown back to at least this size is this app's proxy
+  // for "there's room again", since the panel isn't in the DOM once
+  // hidden and so can't be re-measured directly to know for sure.
+  const tuckedAtSizeRef = useRef<{ w: number; h: number } | null>(null);
+
   // auto-tucks the time-fields panel out of the way once the timer row is
   // genuinely too cramped for it, instead of letting it overlap the
-  // digits. One-directional: it only ever forces it hidden, never forces
-  // it back open, so a manual re-show (the header toggle) always gets a
-  // fresh check rather than being fought — if there's still no room, this
-  // puts it right back. (The word counter has the equivalent check on
-  // itself, since collapsing it changes how much room THIS row gets —
-  // checking it from here would just watch its own fix take effect.)
+  // digits — and auto-reverses that once the window regrows past the
+  // size it tucked at. That reversal only ever undoes ITS OWN hide: a
+  // manual hide (tuckedAtSizeRef stays null) is never fought, so a
+  // manual re-show (the header toggle) always gets a fresh check rather
+  // than being reopened for you — if there's still no room, this puts it
+  // right back. (The word counter has the equivalent check on itself,
+  // since collapsing it changes how much room THIS row gets — checking
+  // it from here would just watch its own fix take effect.)
   useEffect(() => {
     const el = timerRowRef.current;
     if (!el) return;
     const check = () => {
-      if (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) setIsTimeFieldsHidden(true);
+      if (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) {
+        tuckedAtSizeRef.current = { w: window.innerWidth, h: window.innerHeight };
+        setIsTimeFieldsHidden(true);
+        setIsTimeFieldsAutoTucked(true);
+      } else if (
+        tuckedAtSizeRef.current &&
+        window.innerWidth >= tuckedAtSizeRef.current.w &&
+        window.innerHeight >= tuckedAtSizeRef.current.h
+      ) {
+        tuckedAtSizeRef.current = null;
+        setIsTimeFieldsHidden(false);
+        setIsTimeFieldsAutoTucked(false);
+      }
     };
     check();
     window.addEventListener('resize', check);
@@ -1206,13 +1233,19 @@ export default function Timer() {
       />
     </button>
   );
-  // The tip only rides alongside the button in its normal spot — the
+  // The tip only rides alongside the buttons in their normal spot — the
   // word counter's fullscreen row drops it (along with the WORD COUNTER
   // label and website link) to leave that already-crowded row room to
-  // just show speaker/ringer/digits/controls, not to also explain them
-  const ringerButtonWithTip = (
+  // just show speaker/ringer/digits/controls, not to also explain them.
+  // Speaker sits directly against the ringer (no gap) since the two are
+  // read as one cluster; the tip below spans just the ringer/speaker
+  // pair, not the sidebar arrow beside them.
+  const ringerAndSpeakerCluster = (
     <div className="flex flex-col items-start gap-1">
-      {ringerButton}
+      <div className="flex items-center">
+        {ringerButton}
+        {speakerButton}
+      </div>
       {/* the count-up/stopwatch trick used to live only in the mute
           button's tooltip, which was actively misleading — muting
           silences the alarm entirely, it's turning repeat OFF that
@@ -1380,8 +1413,8 @@ export default function Timer() {
         {/* The whole cluster (sidebar toggle + mute + alarm repeat) hides
             during word counter fullscreen — that view covers the sidebar
             entirely, and puts its own copies of the mute/repeat controls
-            inline in its header row instead (see speakerButton/
-            ringerButtonWithTip above and WordCounter's own comment) so
+            inline in its header row instead (see ringerAndSpeakerCluster
+            above and WordCounter's own comment) so
             they aren't just duplicated, they actually relocate. Every
             header control below sizes on min(vw, vh), like the digits
             column, so a short window shrinks these too instead of
@@ -1399,8 +1432,7 @@ export default function Timer() {
             label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
             className="hidden lg:flex"
           />
-          {ringerButtonWithTip}
-          {speakerButton}
+          {ringerAndSpeakerCluster}
         </div>
         )}
 
@@ -1607,24 +1639,37 @@ export default function Timer() {
           <div className="flex-1 hidden lg:block"></div>
 
           {isTimeFieldsHidden ? (
-            // Below lg this sits out of the flex flow entirely (absolute,
-            // pinned to the corner) rather than as a normal row item: the
-            // row is column-direction there, so a flow item competes with
-            // the digits for vertical room — and the digits never yield
-            // (see the font-size comment on the digits block below), so on
-            // a short-but-sub-lg window this tiny button could itself get
-            // pushed past the row's own clipped bounds and vanish along
-            // with the panel it's meant to bring back. At lg the row is
-            // horizontal instead, so the digits never starve it there —
-            // lg:static returns it to being a normal flex item,
-            // self-started and nudged down to clear the header buttons in
-            // that same corner.
-            <HeaderToggleButton
-              onClick={() => setIsTimeFieldsHidden(false)}
-              className="absolute top-20 right-2 sm:right-3 md:right-4 lg:static lg:top-auto lg:right-auto lg:self-start lg:mt-20"
-              icon={<ChevronsLeft style={HEADER_ICON_SIZE} />}
-              label="Show hours/minutes/seconds"
-            />
+            // Hidden with nothing to click: the panel was auto-tucked
+            // (not a manual hide) and there's still no room for it, so
+            // this arrow would just bounce it straight back to hidden on
+            // the very next check() — showing it here would be a dead
+            // button. It reappears on its own once the panel does (see
+            // tuckedAtSizeRef above).
+            !isTimeFieldsAutoTucked && (
+              // Below lg this sits out of the flex flow entirely
+              // (absolute, pinned to the corner) rather than as a normal
+              // row item: the row is column-direction there, so a flow
+              // item competes with the digits for vertical room — and
+              // the digits never yield (see the font-size comment on the
+              // digits block below), so on a short-but-sub-lg window
+              // this tiny button could itself get pushed past the row's
+              // own clipped bounds and vanish along with the panel it's
+              // meant to bring back. At lg the row is horizontal
+              // instead, so the digits never starve it there — lg:static
+              // returns it to being a normal flex item, self-started and
+              // nudged down to clear the header buttons in that same
+              // corner.
+              <HeaderToggleButton
+                onClick={() => {
+                  tuckedAtSizeRef.current = null;
+                  setIsTimeFieldsAutoTucked(false);
+                  setIsTimeFieldsHidden(false);
+                }}
+                className="absolute top-20 right-2 sm:right-3 md:right-4 lg:static lg:top-auto lg:right-auto lg:self-start lg:mt-20"
+                icon={<ChevronsLeft style={HEADER_ICON_SIZE} />}
+                label="Show hours/minutes/seconds"
+              />
+            )
           ) : (
             // items-start: the hide button sits flush against the box's
             // top-left corner — its right edge touching the box's left
@@ -1634,7 +1679,11 @@ export default function Timer() {
             // button above so toggling never shifts its position.
             <div className="flex items-start flex-shrink-0 lg:self-start lg:mt-20">
               <HeaderToggleButton
-                onClick={() => setIsTimeFieldsHidden(true)}
+                onClick={() => {
+                  tuckedAtSizeRef.current = null;
+                  setIsTimeFieldsAutoTucked(false);
+                  setIsTimeFieldsHidden(true);
+                }}
                 icon={<ChevronsRight style={HEADER_ICON_SIZE} />}
                 label="Hide hours/minutes/seconds"
               />
