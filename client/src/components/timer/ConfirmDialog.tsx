@@ -95,6 +95,18 @@ const getCopy = (dialog: DialogState) => {
         description: 'Hide the "Check Out My Website!" link? :-( You can bring it back by resetting the website to defaults.',
         action: 'HIDE',
       };
+    case 'clearHistory':
+      return {
+        title: 'CLEAR HISTORY',
+        description: "Clear all run history? This can't be undone.",
+        action: 'CLEAR',
+      };
+    case 'clearWordCounter':
+      return {
+        title: 'CLEAR TEXT',
+        description: "Clear everything typed in the word counter? This can't be undone.",
+        action: 'CLEAR',
+      };
     default:
       return null;
   }

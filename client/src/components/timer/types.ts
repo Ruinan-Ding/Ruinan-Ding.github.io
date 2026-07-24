@@ -30,4 +30,6 @@ export type DialogState =
   | { type: 'switch'; data: TimeParts; mode: 'startFromIdle' | 'switchRunning' | 'loadOnly' }
   | { type: 'seek'; data: { targetSeconds: number; mode: 'idle' | 'paused' | 'running' } }
   | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number } }
-  | { type: 'hideWebsiteLink' };
+  | { type: 'hideWebsiteLink' }
+  | { type: 'clearHistory' }
+  | { type: 'clearWordCounter' };

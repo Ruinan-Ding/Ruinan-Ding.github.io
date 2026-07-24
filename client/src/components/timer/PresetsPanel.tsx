@@ -6,13 +6,17 @@ import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
 import { useEntryFlash } from './useDomFlash';
 
-// matches the font size of the preset list buttons below. This sidebar
-// sits in a fixed, overflow-hidden column, so its own controls need to
-// shrink first on a short window just like the main column's do — nothing
-// here scrolls if it overflows.
+// matches the font size of the preset list buttons below (LIST_ROW_
+// BUTTON_STYLE — reverted back to these same original coefficients for
+// the same reason: a wider-elastic-range version reached its own max so
+// much later that the actual typed digits read as tiny next to the
+// sidebar's now-wider box at ordinary window sizes). This sidebar sits
+// in a fixed, overflow-hidden column, so its own controls need to
+// shrink first on a short window just like the main column's do —
+// nothing here scrolls if it overflows.
 const PRESET_INPUT_FONT_SIZE = shrinkClamp(0.75, 1.5, 1.6, 0.875);
 // shared by the +/- preset buttons
-const PRESET_BUTTON_STYLE = { padding: shrinkClamp(0.25, 0.5, 0.55, 0.375), fontSize: shrinkClamp(0.7, 1.2, 1.3, 0.875), minWidth: shrinkClamp(1.5, 3, 3, 2) };
+const PRESET_BUTTON_STYLE = { padding: shrinkClamp(0.25, 0.33, 0.37, 0.375), fontSize: shrinkClamp(0.7, 0.8, 0.87, 0.875), minWidth: shrinkClamp(1.5, 2, 2, 2) };
 
 function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   preset: TimerEntry;
@@ -24,7 +28,7 @@ function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   const buttonRef = useEntryFlash(preset.id, inserted, loaded);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
       <button
         onClick={() => onRemove(preset.id)}
         aria-label={`Remove preset ${formatEntryLabel(preset)}`}
@@ -92,12 +96,21 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
 
   return (
     <div>
-      <h2 className="text-white font-bold mb-4 border-b-2 border-white pb-2" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.125) }}>PRESETS</h2>
-      <div className="flex flex-col gap-2">
+      {/* margin/padding/gap below all sized on shrinkClamp rather than
+          fixed mb-4/pb-2/gap-2/mt-2 — those never moved at all regardless
+          of window size, same rigidity as the font sizes above before
+          their own fix. */}
+      <h2
+        className="text-white font-bold border-b-2 border-white"
+        style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.125), marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
+      >
+        PRESETS
+      </h2>
+      <div className="flex flex-col" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
         {presets.map((preset) => (
           <PresetRow key={preset.id} preset={preset} onRemove={onRemove} onSelect={onSelect} inserted={inserted} loaded={loaded} />
         ))}
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), marginTop: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
           <button
             onClick={handleAdd}
             disabled={atCapacity}
@@ -129,7 +142,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
               className="border-4 border-white font-bold transition-colors duration-0 w-full disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 fontFamily: "'IBM Plex Mono', monospace",
-                padding: shrinkClamp(0.375, 1, 1.1, 0.5),
+                padding: shrinkClamp(0.375, 0.65, 0.72, 0.5),
                 fontSize: PRESET_INPUT_FONT_SIZE,
                 // invisible while showing the hint's character count, so the
                 // decorative hint div shows through underneath instead —

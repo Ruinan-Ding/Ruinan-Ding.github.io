@@ -82,14 +82,21 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
   };
 
   return (
-    <div className="flex items-center gap-1 sm:gap-2 md:gap-4 min-w-0 flex-wrap justify-between">
+    // label on its own line, digit box + arrows below it rather than
+    // beside it — was a single row (label | box | arrows), stacked now
+    // per request. No more need for the label's old fixed width (that
+    // existed only to keep HOURS/MINUTES/SECONDS's differing label
+    // lengths from shifting the boxes beside them out of alignment
+    // across the three rows — irrelevant once each row stacks on its
+    // own instead of sharing a column).
+    <div className="flex flex-col items-start min-w-0" style={{ gap: shrinkClamp(0.2, 0.4, 0.45, 0.3) }}>
       <label
         className="text-white font-bold whitespace-nowrap"
-        style={{ fontSize: shrinkClamp(0.8, 1.6, 1.8, 1.1), fontFamily: "'IBM Plex Mono', monospace", width: 'clamp(2.2rem, 5.5vw, 3.5rem)' }}
+        style={{ fontSize: shrinkClamp(0.8, 1.6, 1.8, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
       >
         {label}:
       </label>
-      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+      <div className="flex items-center flex-shrink-0" style={{ gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}>
         <div className="relative flex-shrink-0" style={{ width: 'clamp(2.5rem, 6vw, 4rem)' }}>
           {digits === '' && (
             <div

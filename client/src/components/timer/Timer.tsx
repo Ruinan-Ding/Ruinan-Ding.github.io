@@ -181,35 +181,64 @@ export default function Timer() {
   // actually doesn't fit, not to an assumed window size
   const timerRowRef = useRef<HTMLDivElement | null>(null);
 
-  // window size (both dimensions) at the moment the auto-tuck below last
-  // forced the panel hidden — null whenever it isn't currently
-  // auto-tucked. Grown back to at least this size is this app's proxy
-  // for "there's room again", since the panel isn't in the DOM once
-  // hidden and so can't be re-measured directly to know for sure.
+  // this row's own clientWidth/clientHeight at the moment the auto-tuck
+  // below last forced the panel hidden — null whenever it isn't
+  // currently auto-tucked. The row stays flex-1 whether or not the
+  // panel is in it, so its own box size is an honest read of how much
+  // room it actually has regardless of what changed it (the window
+  // resizing, the sidebar toggling, the word counter's own auto-collapse
+  // freeing up its share) — grown back to at least this size is this
+  // app's proxy for "there's room again", since the panel isn't in the
+  // DOM once hidden and so can't be re-measured directly to know for
+  // sure.
   const tuckedAtSizeRef = useRef<{ w: number; h: number } | null>(null);
 
   // auto-tucks the time-fields panel out of the way once the timer row is
   // genuinely too cramped for it, instead of letting it overlap the
-  // digits — and auto-reverses that once the window regrows past the
-  // size it tucked at. That reversal only ever undoes ITS OWN hide: a
-  // manual hide (tuckedAtSizeRef stays null) is never fought, so a
-  // manual re-show (the header toggle) always gets a fresh check rather
-  // than being reopened for you — if there's still no room, this puts it
+  // digits — and auto-reverses that once the row regrows past the size
+  // it tucked at. That reversal only ever undoes ITS OWN hide: a manual
+  // hide (tuckedAtSizeRef stays null) is never fought, so a manual
+  // re-show (the header toggle) always gets a fresh check rather than
+  // being reopened for you — if there's still no room, this puts it
   // right back. (The word counter has the equivalent check on itself,
   // since collapsing it changes how much room THIS row gets — checking
   // it from here would just watch its own fix take effect.)
+  //
+  // Below lg the row switches to flex-col (see its own className), which
+  // would otherwise stack this panel underneath the digits instead of
+  // beside them — explicitly not wanted here, so sub-lg is treated as
+  // its own always-hide condition rather than something the overflow
+  // check happens to catch. tuckedAtSizeRef stays null in that case
+  // (there's no meaningful "size to recover to" below lg); the effect's
+  // own isDesktopLayout dependency re-fires the moment the breakpoint is
+  // crossed back, at which point the "was only sub-lg-hidden" branch
+  // gives it one fresh look — same as a manual re-show — and the real
+  // overflow check on the very next run decides whether it actually fits.
   useEffect(() => {
     const el = timerRowRef.current;
     if (!el) return;
     const check = () => {
+      if (!isDesktopLayout) {
+        tuckedAtSizeRef.current = null;
+        if (!isTimeFieldsHidden || !isTimeFieldsAutoTucked) {
+          setIsTimeFieldsHidden(true);
+          setIsTimeFieldsAutoTucked(true);
+        }
+        return;
+      }
+      if (isTimeFieldsHidden && isTimeFieldsAutoTucked && !tuckedAtSizeRef.current) {
+        setIsTimeFieldsHidden(false);
+        setIsTimeFieldsAutoTucked(false);
+        return;
+      }
       if (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) {
-        tuckedAtSizeRef.current = { w: window.innerWidth, h: window.innerHeight };
+        tuckedAtSizeRef.current = { w: el.clientWidth, h: el.clientHeight };
         setIsTimeFieldsHidden(true);
         setIsTimeFieldsAutoTucked(true);
       } else if (
         tuckedAtSizeRef.current &&
-        window.innerWidth >= tuckedAtSizeRef.current.w &&
-        window.innerHeight >= tuckedAtSizeRef.current.h
+        el.clientWidth >= tuckedAtSizeRef.current.w &&
+        el.clientHeight >= tuckedAtSizeRef.current.h
       ) {
         tuckedAtSizeRef.current = null;
         setIsTimeFieldsHidden(false);
@@ -228,7 +257,7 @@ export default function Timer() {
       window.removeEventListener('resize', check);
       resizeObserver.disconnect();
     };
-  }, [isTimeFieldsHidden]);
+  }, [isTimeFieldsHidden, isTimeFieldsAutoTucked, isDesktopLayout]);
 
   // bumps when a fresh countdown starts so the green fade replays even if
   // the window never left the running state (see runFadeClass below)
@@ -892,6 +921,10 @@ export default function Timer() {
         setIsWebsiteLinkHidden(true);
         closeDialog();
         break;
+      case 'clearHistory':
+        handleClearHistory();
+        closeDialog();
+        break;
     }
   };
 
@@ -1237,12 +1270,14 @@ export default function Timer() {
   // word counter's fullscreen row drops it (along with the WORD COUNTER
   // label and website link) to leave that already-crowded row room to
   // just show speaker/ringer/digits/controls, not to also explain them.
-  // Speaker sits directly against the ringer (no gap) since the two are
-  // read as one cluster; the tip below spans just the ringer/speaker
-  // pair, not the sidebar arrow beside them.
+  // gap-2 between ringer and speaker matches the same gap-2 the outer
+  // cluster uses between the sidebar arrow and this pair, so the
+  // spacing reads as one consistent rhythm rather than two different
+  // gaps; the tip below spans just the ringer/speaker pair, not the
+  // sidebar arrow beside them.
   const ringerAndSpeakerCluster = (
     <div className="flex flex-col items-start gap-1">
-      <div className="flex items-center">
+      <div className="flex items-center gap-2">
         {ringerButton}
         {speakerButton}
       </div>
@@ -1388,8 +1423,17 @@ export default function Timer() {
           z-index here) deliberately covers this when active — see its
           own comment in WordCounter.tsx — so this can't out-stack it. */}
       {!isSidebarHidden && (
+        // 12rem is the original fixed width this sidebar always had
+        // (back when it was a plain w-48) — kept as the ceiling on
+        // purpose, so a bigger screen never makes it wider than it's
+        // always been, only a smaller one shrinks it down toward the
+        // 9rem floor. That floor can't go narrower either: PresetsPanel's
+        // HH:MM:SS input needs that much room even at its own smallest
+        // font size before it starts clipping against the +/- buttons
+        // beside it (a real bug from an earlier 8rem attempt).
         <div
-          className="hidden lg:flex w-[clamp(9rem,14vw,12rem)] bg-black border-r-4 border-white p-4 flex-col gap-4 overflow-hidden"
+          className="hidden lg:flex w-[clamp(9rem,14vw,12rem)] bg-black border-r-4 border-white flex-col overflow-hidden"
+          style={{ padding: shrinkClamp(0.5, 1, 1.1, 1), gap: shrinkClamp(0.5, 1, 1.1, 1) }}
         >
           <PresetsPanel
             presets={presets}
@@ -1402,7 +1446,7 @@ export default function Timer() {
           <HistoryPanel
             history={history}
             onSelect={handleSelectEntry}
-            onClear={handleClearHistory}
+            onClear={() => setDialog({ type: 'clearHistory' })}
             inserted={insertedHistory}
             loaded={loadedEntry}
           />
@@ -1596,7 +1640,13 @@ export default function Timer() {
                 style={digitColorStyle}
               >
                 {remaining.hours && (
-                  <span style={{ fontSize: '0.5em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction)}>
+                  // marginRight in em (relative to this span's own 0.5em
+                  // font, so ~0.15em of the main digit size) rather than
+                  // the outer gap-1 — that's a flat 0.25rem regardless of
+                  // how huge the digits get, which reads as basically no
+                  // gap at all at the larger sizes this block scales up
+                  // to; an em-based margin keeps pace with it instead.
+                  <span style={{ fontSize: '0.5em', marginRight: '0.3em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction)}>
                     {remaining.sign}{remaining.hours}
                   </span>
                 )}
@@ -1687,7 +1737,32 @@ export default function Timer() {
                 icon={<ChevronsRight style={HEADER_ICON_SIZE} />}
                 label="Hide hours/minutes/seconds"
               />
-              <div className="border-4 border-white bg-black p-2 sm:p-3 md:p-4 flex flex-col gap-2 flex-shrink-0 min-w-0 w-full max-w-sm lg:w-[clamp(12rem,22vw,16rem)] lg:max-w-none">
+              {/* padding/gap sized on shrinkClamp rather than Tailwind's
+                  sm:/md: steps — those jump discretely at fixed
+                  breakpoints, so most of this box's own footprint stayed
+                  rigid right up until the auto-tuck check gave up on it
+                  entirely. This keeps shrinking continuously the same
+                  way TimeField's own contents already do.
+                  gap between the three fields bumped up from its old
+                  0.3-0.5rem — each TimeField now stacks its own label
+                  above its digit box/arrows instead of sitting beside
+                  them (see TimeField's own comment), so the three rows
+                  are taller than before and want more room between them
+                  to read as separate fields rather than a cramped
+                  column.
+                  Width is w-fit rather than its own clamp — that clamp
+                  was sized for the old side-by-side label+box+arrows
+                  layout, and left a visibly empty gap on the right once
+                  each field stacked instead (the label moved to its own
+                  line, so the widest row is now just the digit box +
+                  arrows, narrower than the clamp assumed). This box only
+                  ever renders at lg+ now (see the auto-tuck effect
+                  above), so there's no sub-lg width fallback to keep
+                  either. */}
+              <div
+                className="border-4 border-white bg-black flex flex-col flex-shrink-0 min-w-0 w-fit"
+                style={{ padding: shrinkClamp(0.4, 1, 1.1, 0.75), gap: shrinkClamp(0.6, 1.3, 1.4, 1) }}
+              >
                 <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
                 <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
                 <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />

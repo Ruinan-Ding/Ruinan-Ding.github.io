@@ -1,9 +1,11 @@
 import { ChevronsDown, ChevronsUp, Maximize2, Minimize2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { readBoolean, readRaw, writeJSON, writeRaw } from '@/lib/storage';
+import ConfirmDialog from './ConfirmDialog';
 import { HEADER_ICON_SIZE, STORAGE_KEYS } from './constants';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
+import type { DialogState } from './types';
 
 interface WordCounterProps {
   onFocusChange: (focused: boolean) => void;
@@ -48,10 +50,16 @@ const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // the checkbox squares are sized in em, so this scales both the label
 // text and the box together — shrunk a bit to leave the bigger textarea
 // above (COUNTER_FONT_SIZE) more room to grow into
-const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.75, 1.6, 1.8, 1.05);
+const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.65, 1.35, 1.5, 0.85);
 
 function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
+  // Clearing wipes everything typed with no undo, so it gets its own
+  // confirm dialog — reusing the same ConfirmDialog/DialogState the
+  // timer uses for its own destructive actions, but with fully local
+  // state (rather than routed through the timer's dialog prop) since
+  // `text` itself lives entirely in this component.
+  const [clearDialog, setClearDialog] = useState<DialogState>({ type: null });
   const [isFocused, setIsFocused] = useState(false);
   // fullscreen is a transient view toggle — not persisted, so a reload
   // always comes back out of fullscreen. Collapse, unlike fullscreen, IS
@@ -255,6 +263,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     idx < lineStats.length - 1 ? `1px solid ${ruleColor}` : undefined;
 
   return (
+    <>
     <div
       ref={containerRef}
       className={
@@ -288,37 +297,64 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           and treats the whole view as active regardless (see isActive
           below), so the warning has nothing left to warn about. Only
           the CONFIRMATIONS/RESET cluster (top-right, z-[70]) still
-          floats separately — the paddingRight below leaves it room.
+          floats separately.
           flex-nowrap on purpose: every item here already shrinks on its
           own (shrinkClamp-sized icons/text, same as the rest of the
           app's header controls) as the window narrows, so wrapping to a
           second line was never necessary — it just meant a control
           hadn't shrunk enough yet. */}
-      <div
-        className="flex items-center gap-3 flex-nowrap w-full"
-        style={isFullscreen ? { paddingRight: 'clamp(10rem, 21vw, 21rem)' } : undefined}
-      >
-        {/* hidden while auto-collapsed (not a manual collapse) — clicking
-            it would just bounce straight back to collapsed on the next
-            check(), since there's still no room. Reappears on its own
-            once the box does (see collapsedAtSizeRef above). */}
-        {!isAutoCollapsed && (
-          <HeaderToggleButton
-            onClick={toggleCollapsed}
-            icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
-            label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
-          />
-        )}
+      <div className="flex items-center gap-3 flex-nowrap w-full">
         {isFullscreen ? (
           <>
-            {ringerButton}
-            {speakerButton}
-            {timerDigits}
-            {timerBar}
-            {timerControls}
+            {/* arrow/ringer/speaker on the left, digits/bar/controls
+                centered on the row's TRUE midpoint — not just "centered
+                in whatever's left after reserving room for
+                CONFIRMATIONS/RESET", which was the previous approach
+                (a one-sided paddingRight on the row) and visibly dragged
+                the center group left of where the screen actually reads
+                as centered. Giving BOTH this cluster and the empty
+                spacer on the right the same minWidth (still sized to
+                clear the CONFIRMATIONS/RESET corner) keeps them forced
+                symmetric, alongside matching flex-1, so the center group
+                lands on the row's real midpoint either way. */}
+            <div className="flex items-center gap-3 flex-1 min-w-0" style={{ minWidth: 'clamp(10rem, 21vw, 21rem)' }}>
+              {!isAutoCollapsed && (
+                <HeaderToggleButton
+                  onClick={toggleCollapsed}
+                  icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
+                  label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
+                />
+              )}
+              {ringerButton}
+              {speakerButton}
+            </div>
+            {/* the bar itself — not the digits+bar+controls cluster as a
+                whole — is what should land on the row's true midpoint.
+                digits and controls are rarely the same width (the
+                digits/label text is usually wider than the button row),
+                so treating the three as one flex group centers that
+                group's bounding box while leaving the bar itself off to
+                whichever side is narrower. A grid with equal 1fr columns
+                flanking the bar's own auto column forces both sides to
+                match the wider one's width (the narrower side just gets
+                empty space on its outer edge), so the bar sits exactly
+                between them no matter how digits/controls compare. */}
+            <div className="grid items-center gap-3 flex-shrink-0" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
+              <div className="flex items-center justify-end min-w-0">{timerDigits}</div>
+              {timerBar}
+              <div className="flex items-center justify-start min-w-0">{timerControls}</div>
+            </div>
+            <div className="flex-1" aria-hidden style={{ minWidth: 'clamp(10rem, 21vw, 21rem)' }} />
           </>
         ) : (
           <>
+            {!isAutoCollapsed && (
+              <HeaderToggleButton
+                onClick={toggleCollapsed}
+                icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
+                label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
+              />
+            )}
             <label
               className={`font-bold text-left whitespace-nowrap flex-shrink-0 ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isActive ? 'text-green-500' : 'text-red-500'}`}
               style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
@@ -371,7 +407,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
 
             <span
               className="opacity-60 font-bold"
-              style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.6, 1.1, 1.2, 0.75) }}
+              style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 0.9, 1, 0.65) }}
             >
               Turn both off to count everything, like a classic word processor
             </span>
@@ -380,7 +416,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           <div className="flex items-center gap-2 flex-shrink-0">
             {text !== '' && (
               <button
-                onClick={() => setText('')}
+                onClick={() => setClearDialog({ type: 'clearWordCounter' })}
                 className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
                 style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
               >
@@ -479,6 +515,15 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
       </div>
       )}
     </div>
+    <ConfirmDialog
+      dialog={clearDialog}
+      onDismiss={() => setClearDialog({ type: null })}
+      onConfirm={() => {
+        setText('');
+        setClearDialog({ type: null });
+      }}
+    />
+    </>
   );
 }
 
