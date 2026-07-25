@@ -192,6 +192,20 @@ export default function Timer() {
   // DOM once hidden and so can't be re-measured directly to know for
   // sure.
   const tuckedAtSizeRef = useRef<{ w: number; h: number } | null>(null);
+  // shadow refs mirroring isTimeFieldsHidden/isTimeFieldsAutoTucked,
+  // reassigned every render — check() below reads through these instead
+  // of the state directly, since window resize / ResizeObserver / the
+  // deferred document.fonts.ready callback can all fire the SAME check
+  // closure from an effect run whose state has since gone stale (e.g.
+  // the sync call inside check() itself flips isTimeFieldsHidden, but
+  // fonts.ready's callback — registered in that same call — can still
+  // fire against the pre-flip closure before React re-renders with a
+  // fresh one). Reading refs instead means every invocation of check(),
+  // however it was triggered, always sees the true current state.
+  const isTimeFieldsHiddenRef = useRef(isTimeFieldsHidden);
+  isTimeFieldsHiddenRef.current = isTimeFieldsHidden;
+  const isTimeFieldsAutoTuckedRef = useRef(isTimeFieldsAutoTucked);
+  isTimeFieldsAutoTuckedRef.current = isTimeFieldsAutoTucked;
 
   // auto-tucks the time-fields panel out of the way once the timer row is
   // genuinely too cramped for it, instead of letting it overlap the
@@ -220,13 +234,13 @@ export default function Timer() {
     const check = () => {
       if (!isDesktopLayout) {
         tuckedAtSizeRef.current = null;
-        if (!isTimeFieldsHidden || !isTimeFieldsAutoTucked) {
+        if (!isTimeFieldsHiddenRef.current || !isTimeFieldsAutoTuckedRef.current) {
           setIsTimeFieldsHidden(true);
           setIsTimeFieldsAutoTucked(true);
         }
         return;
       }
-      if (isTimeFieldsHidden && isTimeFieldsAutoTucked && !tuckedAtSizeRef.current) {
+      if (isTimeFieldsHiddenRef.current && isTimeFieldsAutoTuckedRef.current && !tuckedAtSizeRef.current) {
         setIsTimeFieldsHidden(false);
         setIsTimeFieldsAutoTucked(false);
         return;
@@ -458,10 +472,10 @@ export default function Timer() {
     }
 
     const playTick = () => {
-      // with repeat off, one burst (ALARM_BURST_COUNT beeps) is the whole
-      // ring — not the full multi-burst pattern below, which is only for
-      // the looping case's repeating groups
-      if (!isAlarmLooping && alarmTickRef.current >= ALARM_BURST_COUNT) {
+      // with repeat off, the whole ring is one pass through the full
+      // pattern — all ALARM_TOTAL_BURSTS bursts, same as one group of a
+      // looping ring — not just its first burst
+      if (!isAlarmLooping && alarmTickRef.current >= pattern.length) {
         if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
         beepIntervalRef.current = null;
         setIsAlarmRinging(false);
@@ -1208,7 +1222,7 @@ export default function Timer() {
           the button is padding (not margin) so the pointer can cross
           it without leaving the hover group. */}
       <div className="absolute left-full top-0 h-full pl-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 z-50 flex items-center">
-        <div className="border-3 border-white bg-black p-2 flex items-center h-full">
+        <div className="border-3 border-white bg-black p-2 flex items-center gap-2 h-full">
           <input
             type="range"
             min={0}
@@ -1227,6 +1241,16 @@ export default function Timer() {
             aria-label="Volume"
             title={`Volume: ${Math.round(volume * 100)}%`}
           />
+          {/* the title attribute above already said this on hover, but a
+              tooltip on top of a control you're already hovering to use
+              is easy to miss — showing it plainly next to the slider
+              means the number's visible the moment the popup opens. */}
+          <span
+            className="text-white font-bold flex-shrink-0"
+            style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.6, 1, 1.1, 0.75), minWidth: '2.75em', textAlign: 'right' }}
+          >
+            {Math.round(volume * 100)}%
+          </span>
         </div>
       </div>
     </div>
@@ -1284,19 +1308,24 @@ export default function Timer() {
       {/* the count-up/stopwatch trick used to live only in the mute
           button's tooltip, which was actively misleading — muting
           silences the alarm entirely, it's turning repeat OFF that
-          lets 00:00:00 ring once and then keep counting silently.
+          lets 00:00:00 ring once and then keep counting silently. Now
+          spells out both real ways to actually quiet the alarm (mute
+          the volume, or turn repeat off) alongside that trick, rather
+          than just hinting at the OFF half of it.
           Made a permanent visible label (not just a hover tooltip) so
           it's discoverable without needing to find and hover this
           specific button first. Drops off below sm (matching the
           CONFIRMATIONS label elsewhere) rather than shrinking further —
           on an already-cramped window this is the least essential thing
           here, and this row never wraps, so freeing the space matters
-          more than keeping the tip legible. */}
+          more than keeping the tip legible. maxWidth widened to span
+          under the ringer+speaker row above it (not just the ringer
+          alone) now that there's more to say. */}
       <p
         className="hidden sm:block opacity-75 font-bold text-white text-left"
-        style={{ fontSize: shrinkClamp(0.45, 0.95, 1, 0.6), maxWidth: shrinkClamp(6, 9, 9, 7.5), lineHeight: 1.25 }}
+        style={{ fontSize: shrinkClamp(0.45, 0.95, 1, 0.6), maxWidth: shrinkClamp(8, 12, 12, 11), lineHeight: 1.25 }}
       >
-        Tip: OFF + start at 00:00:00 = count-up stopwatch
+        Tip: mute the volume or turn off repeat to silence the alarm — OFF + start at 00:00:00 = count-up stopwatch
       </p>
     </div>
   );
@@ -1423,17 +1452,26 @@ export default function Timer() {
           z-index here) deliberately covers this when active — see its
           own comment in WordCounter.tsx — so this can't out-stack it. */}
       {!isSidebarHidden && (
-        // 12rem is the original fixed width this sidebar always had
-        // (back when it was a plain w-48) — kept as the ceiling on
-        // purpose, so a bigger screen never makes it wider than it's
-        // always been, only a smaller one shrinks it down toward the
-        // 9rem floor. That floor can't go narrower either: PresetsPanel's
-        // HH:MM:SS input needs that much room even at its own smallest
-        // font size before it starts clipping against the +/- buttons
-        // beside it (a real bug from an earlier 8rem attempt).
+        // w-fit rather than its own clamp — a clamp stretches the row
+        // buttons' flex-1 width to match, but LIST_ROW_BUTTON_STYLE's
+        // own font-size clamp doesn't grow at the same rate, so a wider
+        // sidebar just meant more empty padding around the same-size
+        // "1:05"-style text instead of a genuinely bigger, more legible
+        // list. w-fit sizes this to whatever its widest actual content
+        // needs — fixed once that's determined, so the row buttons'
+        // flex-1 still fills it uniformly, just without an unrelated
+        // width formula stretching it further than the content asks for.
+        // minWidth guards the one real gap in that: PresetsPanel's
+        // HH:MM:SS hint is position:absolute (excluded from intrinsic
+        // width) and the input itself is w-full (contributes none of
+        // its own), so w-fit alone had nothing forcing enough room for
+        // either — the whole sidebar computed narrower than intended,
+        // wrapping the preset/history text and reading as both longer
+        // (wrapped rows) and smaller (cramped) than it should. 9rem is
+        // the same known-safe floor from the earlier clamp-based version.
         <div
-          className="hidden lg:flex w-[clamp(9rem,14vw,12rem)] bg-black border-r-4 border-white flex-col overflow-hidden"
-          style={{ padding: shrinkClamp(0.5, 1, 1.1, 1), gap: shrinkClamp(0.5, 1, 1.1, 1) }}
+          className="hidden lg:flex w-fit bg-black border-r-4 border-white flex-col overflow-hidden"
+          style={{ padding: shrinkClamp(0.5, 1, 1.1, 1), gap: shrinkClamp(0.5, 1, 1.1, 1), minWidth: '9rem' }}
         >
           <PresetsPanel
             presets={presets}
@@ -1743,13 +1781,15 @@ export default function Timer() {
                   rigid right up until the auto-tuck check gave up on it
                   entirely. This keeps shrinking continuously the same
                   way TimeField's own contents already do.
-                  gap between the three fields bumped up from its old
-                  0.3-0.5rem — each TimeField now stacks its own label
-                  above its digit box/arrows instead of sitting beside
-                  them (see TimeField's own comment), so the three rows
-                  are taller than before and want more room between them
-                  to read as separate fields rather than a cramped
-                  column.
+                  gap between the three fields grew some room over its
+                  original 0.3-0.5rem to give the (now taller, stacked —
+                  see TimeField's own comment) fields breathing room, but
+                  its floor stays close to that original so it can still
+                  shrink most of the way back down under real pressure —
+                  this box competes with the word counter for the same
+                  leftover vertical space (both flex-1), and was
+                  collapsing into its own auto-tuck too readily when the
+                  floor sat too high to actually help.
                   Width is w-fit rather than its own clamp — that clamp
                   was sized for the old side-by-side label+box+arrows
                   layout, and left a visibly empty gap on the right once
@@ -1761,7 +1801,7 @@ export default function Timer() {
                   either. */}
               <div
                 className="border-4 border-white bg-black flex flex-col flex-shrink-0 min-w-0 w-fit"
-                style={{ padding: shrinkClamp(0.4, 1, 1.1, 0.75), gap: shrinkClamp(0.6, 1.3, 1.4, 1) }}
+                style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.35, 0.9, 1, 1) }}
               >
                 <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
                 <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />

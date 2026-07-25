@@ -25,7 +25,7 @@ function HistoryRow({ entry, onSelect, inserted, loaded }: {
     <button
       ref={buttonRef}
       onClick={() => onSelect(entry)}
-      className="border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 text-left"
+      className="border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 text-left whitespace-nowrap"
       style={LIST_ROW_BUTTON_STYLE}
     >
       {formatEntryLabel(entry)}

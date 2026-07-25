@@ -15,10 +15,16 @@ interface TimeFieldProps {
 const chevronButtonClass =
   'border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed';
 // This panel sits beside the digits column in the same row, so it
-// shrinks first on a short window like every other non-digit control
-const chevronButtonStyle = { padding: shrinkClamp(0.25, 0.5, 0.55, 0.375) };
-const FIELD_FONT_SIZE = shrinkClamp(1, 1.8, 2, 1.5);
-const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.9, 1.4, 1.5, 1.25), height: shrinkClamp(0.9, 1.4, 1.5, 1.25) };
+// shrinks first on a short window like every other non-digit control.
+// Floors dropped further than usual — this whole panel now stacks each
+// field's label above its digit box/arrows (see the comment below),
+// which made it taller and, competing with the word counter for the
+// same leftover vertical space, easier to push into its own auto-tuck
+// than it should be. Lower floors here give it real room to shrink
+// before that happens instead of collapsing entirely.
+const chevronButtonStyle = { padding: shrinkClamp(0.15, 0.4, 0.45, 0.375) };
+const FIELD_FONT_SIZE = shrinkClamp(0.75, 1.5, 1.7, 1.5);
+const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.7, 1.2, 1.35, 1.25), height: shrinkClamp(0.7, 1.2, 1.35, 1.25) };
 
 // Two-digit time input; digits enter from the right, calculator-style, and
 // nothing is clamped or applied until the edit commits (blur or Enter).
@@ -89,10 +95,10 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
     // lengths from shifting the boxes beside them out of alignment
     // across the three rows — irrelevant once each row stacks on its
     // own instead of sharing a column).
-    <div className="flex flex-col items-start min-w-0" style={{ gap: shrinkClamp(0.2, 0.4, 0.45, 0.3) }}>
+    <div className="flex flex-col items-start min-w-0" style={{ gap: shrinkClamp(0.1, 0.3, 0.35, 0.3) }}>
       <label
         className="text-white font-bold whitespace-nowrap"
-        style={{ fontSize: shrinkClamp(0.8, 1.6, 1.8, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
+        style={{ fontSize: shrinkClamp(0.6, 1.3, 1.5, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
       >
         {label}:
       </label>
@@ -123,7 +129,7 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
             style={{
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: FIELD_FONT_SIZE,
-              padding: shrinkClamp(0.25, 0.5, 0.55, 0.375),
+              padding: shrinkClamp(0.15, 0.4, 0.45, 0.375),
               color: digits === '' ? 'transparent' : '#ffffff',
               caretColor: '#ffffff',
             }}

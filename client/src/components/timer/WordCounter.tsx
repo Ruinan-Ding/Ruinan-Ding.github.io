@@ -79,6 +79,16 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // proxy for "there's room again", since the expanded content isn't in
   // the DOM once collapsed and so can't be re-measured directly.
   const collapsedAtSizeRef = useRef<{ w: number; h: number } | null>(null);
+  // shadow ref mirroring isCollapsed, reassigned every render — check()
+  // below reads through this rather than the state directly, since
+  // window resize and the ResizeObserver can both fire the same check
+  // closure from an effect run whose state has since gone stale (same
+  // hazard as the timer's own equivalent check on the HOURS/MINUTES/
+  // SECONDS panel — see its comment for the concrete sequence). Reading
+  // the ref means every invocation always sees the true current value
+  // regardless of which listener triggered it.
+  const isCollapsedRef = useRef(isCollapsed);
+  isCollapsedRef.current = isCollapsed;
 
   useEffect(() => {
     onFullscreenChange(isFullscreen);
@@ -169,7 +179,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     const el = containerRef.current;
     if (!el) return;
     const check = () => {
-      if (isCollapsed) {
+      if (isCollapsedRef.current) {
         if (
           collapsedAtSizeRef.current &&
           window.innerWidth >= collapsedAtSizeRef.current.w &&

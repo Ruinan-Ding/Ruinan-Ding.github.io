@@ -40,7 +40,7 @@ function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
       <button
         ref={buttonRef}
         onClick={() => onSelect(preset)}
-        className="flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0"
+        className="flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 whitespace-nowrap"
         style={LIST_ROW_BUTTON_STYLE}
       >
         {formatEntryLabel(preset)}
