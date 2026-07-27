@@ -25,7 +25,7 @@ function HistoryRow({ entry, onSelect, inserted, loaded }: {
     <button
       ref={buttonRef}
       onClick={() => onSelect(entry)}
-      className="border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 text-left whitespace-nowrap"
+      className="self-start border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 text-left whitespace-nowrap"
       style={LIST_ROW_BUTTON_STYLE}
     >
       {formatEntryLabel(entry)}
@@ -43,7 +43,7 @@ function HistoryPanel({ history, onSelect, onClear, inserted, loaded }: HistoryP
         className="flex justify-between items-center border-b-2 border-white flex-shrink-0"
         style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
       >
-        <h2 className="text-white font-bold" style={{ fontSize: shrinkClamp(0.875, 1.3, 1.4, 1.125) }}>HISTORY</h2>
+        <h2 className="text-white font-bold" style={{ fontSize: shrinkClamp(0.875, 1.3, 1.4, 1.25) }}>HISTORY</h2>
         {history.length > 0 && (
           <button
             onClick={onClear}

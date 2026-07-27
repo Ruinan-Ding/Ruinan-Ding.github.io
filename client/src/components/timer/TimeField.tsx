@@ -88,17 +88,17 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
   };
 
   return (
-    // label on its own line, digit box + arrows below it rather than
-    // beside it — was a single row (label | box | arrows), stacked now
-    // per request. No more need for the label's old fixed width (that
-    // existed only to keep HOURS/MINUTES/SECONDS's differing label
-    // lengths from shifting the boxes beside them out of alignment
-    // across the three rows — irrelevant once each row stacks on its
-    // own instead of sharing a column).
-    <div className="flex flex-col items-start min-w-0" style={{ gap: shrinkClamp(0.1, 0.3, 0.35, 0.3) }}>
+    // label beside the digit box/arrows, not stacked above them — stacking
+    // doubled this field's height, which made the whole HOURS/MINUTES/
+    // SECONDS panel collide with the word counter (and so auto-hide) far
+    // sooner than it needed to. Fixed label width (9ch — "SECONDS:", the
+    // longest of the three) keeps the boxes aligned across the three
+    // fields despite their differing label lengths, same reason the old
+    // pre-stack version had one.
+    <div className="flex items-center min-w-0" style={{ gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}>
       <label
-        className="text-white font-bold whitespace-nowrap"
-        style={{ fontSize: shrinkClamp(0.6, 1.3, 1.5, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
+        className="text-white font-bold whitespace-nowrap flex-shrink-0"
+        style={{ fontSize: shrinkClamp(0.6, 1.3, 1.5, 1.1), fontFamily: "'IBM Plex Mono', monospace", width: '9ch' }}
       >
         {label}:
       </label>

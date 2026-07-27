@@ -6,17 +6,25 @@ import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
 import { useEntryFlash } from './useDomFlash';
 
-// matches the font size of the preset list buttons below (LIST_ROW_
-// BUTTON_STYLE — reverted back to these same original coefficients for
-// the same reason: a wider-elastic-range version reached its own max so
-// much later that the actual typed digits read as tiny next to the
-// sidebar's now-wider box at ordinary window sizes). This sidebar sits
-// in a fixed, overflow-hidden column, so its own controls need to
-// shrink first on a short window just like the main column's do —
-// nothing here scrolls if it overflows.
-const PRESET_INPUT_FONT_SIZE = shrinkClamp(0.75, 1.5, 1.6, 0.875);
-// shared by the +/- preset buttons
-const PRESET_BUTTON_STYLE = { padding: shrinkClamp(0.25, 0.33, 0.37, 0.375), fontSize: shrinkClamp(0.7, 0.8, 0.87, 0.875), minWidth: shrinkClamp(1.5, 2, 2, 2) };
+// Deliberately a step below the list buttons' own size (LIST_ROW_BUTTON_
+// STYLE in constants.ts) rather than matching it, which it used to.
+// This row holds the longest string in the whole sidebar — the 8
+// character HH:MM:SS hint, against 4-5 characters for a real "1:05"
+// label — so at a matched size it, not the labels, decides how wide the
+// sidebar gets: the labels would be the thing sized to fit around it,
+// which is backwards. Sizing the hint down instead lets this row and a
+// label row come out about the same width, so the sidebar is as narrow
+// as its labels need while those labels get the largest size that fits.
+// This sidebar sits in a fixed, overflow-hidden column, so its own
+// controls still need to shrink first on a short window just like the
+// main column's do — nothing here scrolls if it overflows.
+const PRESET_INPUT_FONT_SIZE = shrinkClamp(0.75, 1.6, 2, 1.25);
+// Shared by the +/- preset buttons. No minWidth of its own any more —
+// that floor made these squares wider than the single glyph in them
+// needs, and this row is what sets the whole sidebar's width (it holds
+// the longest string in the panel, the HH:MM:SS hint), so every pixel
+// spent here is a pixel the list labels can't have.
+const PRESET_BUTTON_STYLE = { padding: '0.12em 0.35em', fontSize: shrinkClamp(0.7, 1.4, 1.6, 1.1) };
 
 function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   preset: TimerEntry;
@@ -40,7 +48,7 @@ function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
       <button
         ref={buttonRef}
         onClick={() => onSelect(preset)}
-        className="flex-1 border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 whitespace-nowrap"
+        className="border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 whitespace-nowrap"
         style={LIST_ROW_BUTTON_STYLE}
       >
         {formatEntryLabel(preset)}
@@ -102,7 +110,7 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
           their own fix. */}
       <h2
         className="text-white font-bold border-b-2 border-white"
-        style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.125), marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
+        style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25), marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
       >
         PRESETS
       </h2>
@@ -121,14 +129,29 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
           >
             +
           </button>
-          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', minWidth: 0 }}>
-            <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: PRESET_INPUT_FONT_SIZE, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            {/* no letter-spacing here or on the input itself: the two
+                have to render the same 8 characters at the same width
+                (this div shows through while the input's own text is
+                transparent), and the extra spacing pushed both past the
+                8 characters the input now sizes itself to. */}
+            <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: PRESET_INPUT_FONT_SIZE, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
               {displayValue === '' ? 'HH:MM:SS' : ''}
             </div>
             <input
               ref={inputRef}
               type="text"
               inputMode="numeric"
+              // sizes itself to the 8-character hint through the input's
+              // own native intrinsic width instead of a CSS width: the
+              // old `width: 9ch` was a border-box width (Tailwind's
+              // preflight sets box-sizing globally), so padding+border
+              // ate into those 9 characters and the hint spilled out
+              // past both edges of its own box. size counts content
+              // characters, so padding and border are added on top
+              // rather than taken out, and it's one number to keep in
+              // step with the hint instead of a hand-solved ch value.
+              size={8}
               disabled={atCapacity}
               title={atCapacity ? `Preset limit reached (${MAX_PRESETS})` : undefined}
               aria-label="New preset time"
@@ -139,10 +162,13 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
               onBlur={handleBlur}
               onFocus={(e) => pinCaret(e.target)}
               onSelect={handleSelect}
-              className="border-4 border-white font-bold transition-colors duration-0 w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              className="border-4 border-white font-bold transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 fontFamily: "'IBM Plex Mono', monospace",
-                padding: shrinkClamp(0.375, 0.65, 0.72, 0.5),
+                // em-based, same as the list-row buttons below it, so
+                // this row's box hugs the hint at every size instead of
+                // padding out wider than the labels it sits under
+                padding: '0.12em 0.3em',
                 fontSize: PRESET_INPUT_FONT_SIZE,
                 // invisible while showing the hint's character count, so the
                 // decorative hint div shows through underneath instead —
@@ -153,8 +179,6 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
                 backgroundColor: 'transparent',
                 position: 'relative',
                 zIndex: 1,
-                letterSpacing: '0.05em',
-                minWidth: 0,
                 // centered, so the caret naturally lands right after the
                 // last typed digit (or the hint's last "S") instead of at
                 // the box's outer edge

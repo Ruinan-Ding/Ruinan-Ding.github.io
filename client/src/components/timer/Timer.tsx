@@ -21,6 +21,18 @@ import { useFlashOnToken } from './useFlashOnToken';
 // rather than one of several equal icons
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
 
+// Drops the HOURS/MINUTES/SECONDS panel (and the arrow that stands in
+// for it while hidden — they share this so toggling never shifts either
+// one) just clear of the CONFIRMATIONS/RESET buttons in the same corner.
+// Both start at the content column's own padding edge, so clearing them
+// is exactly one header button tall plus a gap. This used to be a flat
+// mt-20 (5rem): fine at full size, but it doesn't shrink with the
+// buttons it's clearing the way everything else here does, so on a short
+// window those 80 fixed px were a third of the panel's whole footprint —
+// enough to overflow the row and auto-tuck a panel that had already
+// shrunk to its own floors and would otherwise still have fit.
+const TIME_FIELDS_TOP_MARGIN = { marginTop: `calc(${HEADER_BUTTON_SIZE.height} + 0.5rem)` };
+
 // Speaker with sound waves that grow in as the volume rises; an X when muted
 function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean; color: string }) {
   const wave = (threshold: number) => Math.max(0, Math.min(1, (volume - threshold) / 0.25));
@@ -245,7 +257,11 @@ export default function Timer() {
         setIsTimeFieldsAutoTucked(false);
         return;
       }
-      if (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) {
+      // a few px of tolerance — sub-pixel layout rounding (fractional
+      // clamp() results, font metrics) alone was enough to trip a bare
+      // `>` comparison and tuck this away over a 1px "overflow" that was
+      // never actually visible
+      if (el.scrollWidth > el.clientWidth + 4 || el.scrollHeight > el.clientHeight + 4) {
         tuckedAtSizeRef.current = { w: el.clientWidth, h: el.clientHeight };
         setIsTimeFieldsHidden(true);
         setIsTimeFieldsAutoTucked(true);
@@ -319,8 +335,14 @@ export default function Timer() {
     writeJSON(STORAGE_KEYS.skipConfirmations, skipConfirmations);
     writeJSON(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
     writeJSON(STORAGE_KEYS.sidebarHidden, isSidebarHidden);
-    writeJSON(STORAGE_KEYS.timeFieldsHidden, isTimeFieldsHidden);
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden, isSidebarHidden, isTimeFieldsHidden]);
+    // only a MANUAL hide persists. An auto-tuck is a reaction to the
+    // window it happened in, and the check that reverses it needs the
+    // panel's own tuckedAtSizeRef (in-memory, gone on reload) to know
+    // there's room again — so persisting one meant a single moment of
+    // cramped layout hid the panel for good, reopenable only by finding
+    // its arrow, on every later visit at any window size.
+    writeJSON(STORAGE_KEYS.timeFieldsHidden, isTimeFieldsHidden && !isTimeFieldsAutoTucked);
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden, isSidebarHidden, isTimeFieldsHidden, isTimeFieldsAutoTucked]);
 
   // The regular persist effect above only fires on whole-second changes
   // (re-running it every 10ms tick to catch milliseconds would hammer
@@ -1461,17 +1483,19 @@ export default function Timer() {
         // needs — fixed once that's determined, so the row buttons'
         // flex-1 still fills it uniformly, just without an unrelated
         // width formula stretching it further than the content asks for.
-        // minWidth guards the one real gap in that: PresetsPanel's
-        // HH:MM:SS hint is position:absolute (excluded from intrinsic
-        // width) and the input itself is w-full (contributes none of
-        // its own), so w-fit alone had nothing forcing enough room for
-        // either — the whole sidebar computed narrower than intended,
-        // wrapping the preset/history text and reading as both longer
-        // (wrapped rows) and smaller (cramped) than it should. 9rem is
-        // the same known-safe floor from the earlier clamp-based version.
+        // The 9rem minWidth this used to carry is gone: it was there
+        // because PresetsPanel's input contributed no intrinsic width of
+        // its own (its HH:MM:SS hint is position:absolute, so w-fit had
+        // nothing to measure), but that input now sizes itself natively
+        // (size={8} — see its own comment) and does contribute one. The
+        // floor had stopped being a safety net and become the binding
+        // width at ordinary window heights, holding the sidebar ~40%
+        // wider than its own content while the list labels inside it
+        // shrank on their own clamps — exactly the empty stretch it was
+        // meant to prevent.
         <div
           className="hidden lg:flex w-fit bg-black border-r-4 border-white flex-col overflow-hidden"
-          style={{ padding: shrinkClamp(0.5, 1, 1.1, 1), gap: shrinkClamp(0.5, 1, 1.1, 1), minWidth: '9rem' }}
+          style={{ padding: shrinkClamp(0.5, 1, 1.1, 1), gap: shrinkClamp(0.5, 1, 1.1, 1) }}
         >
           <PresetsPanel
             presets={presets}
@@ -1652,9 +1676,24 @@ export default function Timer() {
               // add another ~7.9rem — so total container content height is
               // ~10.75rem + 1.73x font-size. Solving that for font-size in
               // terms of the container's own height (100cqh) gives an
-              // exact fit instead of a guessed percentage; the constants
-              // below are rounded up/divided a bit further for margin. On
-              // any reasonably tall window this still clamps at the same
+              // exact fit instead of a guessed percentage.
+              // That reserved part isn't actually a constant, though,
+              // which is what a flat 12.5rem got wrong in both
+              // directions: those siblings are themselves sized on
+              // min(vw, vh) clamps, so they measure ~13rem on a tall
+              // window (where a flat 12.5rem under-reserves) and shrink
+              // to their own rem floors of ~9.7rem on a short one (where
+              // it over-reserves by ~45px — and since every reserved
+              // pixel costs 1.75x its own height in font-size, that alone
+              // was pinning the digits at their 1.2rem floor on windows
+              // ~580px tall, on a row with room to spare). Reserving
+              // max(floor, vh-scaled) instead tracks them through both:
+              // the vh term follows the siblings while they still scale,
+              // the floor takes over once they've bottomed out, and each
+              // leaves ~10px of slack so this column still can't be the
+              // thing that overflows the row and auto-tucks the
+              // HOURS/MINUTES/SECONDS panel beside it.
+              // On any reasonably tall window this still clamps at the same
               // 10.5vw/7.5rem ceiling as before (unchanged normal-case
               // size) — it only pulls back once the query container (see
               // its own comment above) is genuinely short, shrinking the
@@ -1663,7 +1702,7 @@ export default function Timer() {
               // above), so this falls back to the original vw-only clamp.
               style={{
                 fontSize: isDesktopLayout
-                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - 11.5rem) / 1.75)), 7.5rem)'
+                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh)) / 1.75)), 7.5rem)'
                   : 'clamp(1.2rem, 10.5vw, 7.5rem)',
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
@@ -1753,7 +1792,8 @@ export default function Timer() {
                   setIsTimeFieldsAutoTucked(false);
                   setIsTimeFieldsHidden(false);
                 }}
-                className="absolute top-20 right-2 sm:right-3 md:right-4 lg:static lg:top-auto lg:right-auto lg:self-start lg:mt-20"
+                className="absolute top-20 right-2 sm:right-3 md:right-4 lg:static lg:top-auto lg:right-auto lg:self-start"
+                style={isDesktopLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
                 icon={<ChevronsLeft style={HEADER_ICON_SIZE} />}
                 label="Show hours/minutes/seconds"
               />
@@ -1762,10 +1802,13 @@ export default function Timer() {
             // items-start: the hide button sits flush against the box's
             // top-left corner — its right edge touching the box's left
             // edge — rather than centered on the box's full height.
-            // lg:self-start + lg:mt-20 on the wrapper keeps that corner
-            // pinned below the header buttons, matching the collapsed
-            // button above so toggling never shifts its position.
-            <div className="flex items-start flex-shrink-0 lg:self-start lg:mt-20">
+            // lg:self-start + TIME_FIELDS_TOP_MARGIN on the wrapper keeps
+            // that corner pinned below the header buttons, matching the
+            // collapsed button above so toggling never shifts its position.
+            <div
+              className="flex items-start flex-shrink-0 lg:self-start"
+              style={isDesktopLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
+            >
               <HeaderToggleButton
                 onClick={() => {
                   tuckedAtSizeRef.current = null;
@@ -1781,27 +1824,21 @@ export default function Timer() {
                   rigid right up until the auto-tuck check gave up on it
                   entirely. This keeps shrinking continuously the same
                   way TimeField's own contents already do.
-                  gap between the three fields grew some room over its
-                  original 0.3-0.5rem to give the (now taller, stacked —
-                  see TimeField's own comment) fields breathing room, but
-                  its floor stays close to that original so it can still
-                  shrink most of the way back down under real pressure —
-                  this box competes with the word counter for the same
-                  leftover vertical space (both flex-1), and was
-                  collapsing into its own auto-tuck too readily when the
-                  floor sat too high to actually help.
-                  Width is w-fit rather than its own clamp — that clamp
-                  was sized for the old side-by-side label+box+arrows
-                  layout, and left a visibly empty gap on the right once
-                  each field stacked instead (the label moved to its own
-                  line, so the widest row is now just the digit box +
-                  arrows, narrower than the clamp assumed). This box only
-                  ever renders at lg+ now (see the auto-tuck effect
-                  above), so there's no sub-lg width fallback to keep
-                  either. */}
+                  Each TimeField keeps its label beside its digit box/
+                  arrows rather than stacked above (see TimeField's own
+                  comment) — stacking doubled this box's height, which
+                  competes with the word counter for the same leftover
+                  vertical space (both flex-1) and was pushing this into
+                  its own auto-tuck far too readily.
+                  Width is w-fit — the label is now a fixed 9ch inside
+                  TimeField itself (see its own comment), so this box just
+                  sizes to whatever that plus the box/arrows needs. This
+                  box only ever renders at lg+ now (see the auto-tuck
+                  effect above), so there's no sub-lg width fallback to
+                  keep either. */}
               <div
                 className="border-4 border-white bg-black flex flex-col flex-shrink-0 min-w-0 w-fit"
-                style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.35, 0.9, 1, 1) }}
+                style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
               >
                 <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
                 <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { HEADER_BUTTON_SIZE } from './constants';
 
 interface HeaderToggleButtonProps {
@@ -6,16 +6,17 @@ interface HeaderToggleButtonProps {
   icon: ReactNode;
   label: string;
   className?: string;
+  style?: CSSProperties;
 }
 
 // Shared chrome for the boxed square hide/show toggles (sidebar,
 // time fields, word counter) so a look tweak only has to happen once
-export default function HeaderToggleButton({ onClick, icon, label, className = '' }: HeaderToggleButtonProps) {
+export default function HeaderToggleButton({ onClick, icon, label, className = '', style }: HeaderToggleButtonProps) {
   return (
     <button
       onClick={onClick}
       className={`flex items-center justify-center border-3 border-white text-white transition-all duration-200 hover:opacity-80 flex-shrink-0 ${className}`}
-      style={{ ...HEADER_BUTTON_SIZE, backgroundColor: '#000000' }}
+      style={{ ...HEADER_BUTTON_SIZE, backgroundColor: '#000000', ...style }}
       title={label}
       aria-label={label}
     >
