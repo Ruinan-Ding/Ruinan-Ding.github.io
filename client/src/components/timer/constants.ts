@@ -28,15 +28,24 @@ export const LIST_ROW_BUTTON_STYLE = { fontFamily: "'IBM Plex Mono', monospace",
 // started timer appends a history row, and one "99:59:59" among the
 // "1:05"s widened the whole column and shoved the timer beside it over.
 // So reserve the widest row that can ever appear once, up front, and
-// never move again. That row is [− button] gap [8-character label]:
-// 8 characters is 4.8em of this monospace font, plus the button's own
-// 0.3em side padding, is the 5.4em below (its 4px borders are in the
-// 12px, along with the sidebar's own right border); the − button is one
-// glyph plus its 0.35em side padding at its own smaller size.
+// never move again. That row is a preset row — [− button] gap [label] —
+// since history rows have no − button and a thinner border.
+//
+// A boxed 8-character label ("99:59:59", the longest formatEntryLabel
+// can produce) is LIST_ROW_LABEL_EM of its own font size: 8 glyphs at
+// this monospace font's 0.6em advance, plus the button's 0.3em side
+// padding. The − button is one glyph plus its own 0.35em side padding,
+// so 1.3em of its (smaller) font size.
+//
+// The 16px is every border on that row that em-based widths can't
+// carry: the label button's border-4 (8px), the − button's border-2
+// (4px) and the sidebar's own border-r-4 (4px). Miss any one of them
+// and the widest row is clipped by the sidebar's overflow-hidden.
+export const LIST_ROW_LABEL_EM = 5.4;
 export const SIDEBAR_PADDING = shrinkClamp(0.5, 1, 1.1, 1);
 export const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
 export const LIST_ROW_REMOVE_FONT_SIZE = shrinkClamp(0.7, 1.4, 1.6, 1.1);
-export const SIDEBAR_WIDTH = `calc(5.4 * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 12px)`;
+export const SIDEBAR_WIDTH = `calc(${LIST_ROW_LABEL_EM} * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 16px)`;
 
 // localStorage keys — don't rename, older saves use them
 export const STORAGE_KEYS = {
