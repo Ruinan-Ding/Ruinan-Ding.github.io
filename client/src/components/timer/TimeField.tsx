@@ -88,14 +88,24 @@ function TimeField({ label, placeholder, value, max, onRequestChange }: TimeFiel
   };
 
   return (
-    // label beside the digit box/arrows, not stacked above them — stacking
-    // doubled this field's height, which made the whole HOURS/MINUTES/
-    // SECONDS panel collide with the word counter (and so auto-hide) far
-    // sooner than it needed to. Fixed label width (9ch — "SECONDS:", the
-    // longest of the three) keeps the boxes aligned across the three
-    // fields despite their differing label lengths, same reason the old
-    // pre-stack version had one.
-    <div className="flex items-center min-w-0" style={{ gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}>
+    // Label beside the digit box/arrows by default, not stacked above
+    // them — stacking doubled this field's height, which made the whole
+    // HOURS/MINUTES/SECONDS panel collide with the word counter (and so
+    // auto-hide) far sooner than it needed to. Fixed label width (9ch —
+    // "SECONDS:", the longest of the three) keeps the boxes aligned
+    // across the three fields despite their differing label lengths.
+    // flex-wrap restores the old stacked form on demand rather than by
+    // breakpoint: the label and the box/arrows group each refuse to
+    // shrink, so when the panel is squeezed horizontally (the row runs
+    // out of width beside the digits) the group drops to its own line
+    // and the panel is suddenly a third as wide. That's the difference
+    // between the panel getting narrower and the panel disappearing —
+    // a horizontal squeeze used to overflow the row and auto-tuck it.
+    // min-w-min, not the min-w-0 this used to carry (and that
+    // index.css hands every .flex anyway): the wrap only helps if the
+    // field then refuses to shrink past a stacked line's own width —
+    // otherwise the squeeze just keeps going and crushes the box.
+    <div className="flex flex-wrap items-center min-w-min" style={{ gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}>
       <label
         className="text-white font-bold whitespace-nowrap flex-shrink-0"
         style={{ fontSize: shrinkClamp(0.6, 1.3, 1.5, 1.1), fontFamily: "'IBM Plex Mono', monospace", width: '9ch' }}

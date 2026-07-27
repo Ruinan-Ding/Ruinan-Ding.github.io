@@ -20,7 +20,23 @@ export const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: 
 // the size range below is raised again — the old (0.8, 2, 2.2, 1.375)
 // range spent most ordinary window heights pinned at its own ceiling
 // with the button still narrower than half the sidebar it sat in.
-export const LIST_ROW_BUTTON_STYLE = { fontFamily: "'IBM Plex Mono', monospace", padding: '0.12em 0.3em', fontSize: shrinkClamp(0.9, 2.2, 2.8, 1.75) };
+export const LIST_ROW_FONT_SIZE = shrinkClamp(0.9, 2.2, 2.8, 1.75);
+export const LIST_ROW_BUTTON_STYLE = { fontFamily: "'IBM Plex Mono', monospace", padding: '0.12em 0.3em', fontSize: LIST_ROW_FONT_SIZE };
+
+// Sidebar geometry. The width is computed rather than fit to content:
+// w-fit meant the sidebar resized whenever the content did — every
+// started timer appends a history row, and one "99:59:59" among the
+// "1:05"s widened the whole column and shoved the timer beside it over.
+// So reserve the widest row that can ever appear once, up front, and
+// never move again. That row is [− button] gap [8-character label]:
+// 8 characters is 4.8em of this monospace font, plus the button's own
+// 0.3em side padding, is the 5.4em below (its 4px borders are in the
+// 12px, along with the sidebar's own right border); the − button is one
+// glyph plus its 0.35em side padding at its own smaller size.
+export const SIDEBAR_PADDING = shrinkClamp(0.5, 1, 1.1, 1);
+export const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
+export const LIST_ROW_REMOVE_FONT_SIZE = shrinkClamp(0.7, 1.4, 1.6, 1.1);
+export const SIDEBAR_WIDTH = `calc(5.4 * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 12px)`;
 
 // localStorage keys — don't rename, older saves use them
 export const STORAGE_KEYS = {

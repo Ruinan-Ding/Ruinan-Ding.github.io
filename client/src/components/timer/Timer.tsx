@@ -10,7 +10,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, STORAGE_KEYS, TICK_MS, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimeUnit } from './types';
@@ -1340,12 +1340,17 @@ export default function Timer() {
           CONFIRMATIONS label elsewhere) rather than shrinking further —
           on an already-cramped window this is the least essential thing
           here, and this row never wraps, so freeing the space matters
-          more than keeping the tip legible. maxWidth widened to span
-          under the ringer+speaker row above it (not just the ringer
-          alone) now that there's more to say. */}
+          more than keeping the tip legible.
+          Width is exactly the ringer+speaker row above it, at every
+          size, rather than its own maxWidth clamp that only roughly
+          tracked that row and drifted past the speaker's right edge:
+          width 0 + minWidth 100% takes the parent's full width while
+          contributing nothing to how that parent (fit-content, sized by
+          the row) measures itself — a plain width: 100% would size the
+          parent to this paragraph's own long text instead. */}
       <p
         className="hidden sm:block opacity-75 font-bold text-white text-left"
-        style={{ fontSize: shrinkClamp(0.45, 0.95, 1, 0.6), maxWidth: shrinkClamp(8, 12, 12, 11), lineHeight: 1.25 }}
+        style={{ fontSize: shrinkClamp(0.45, 0.95, 1, 0.6), width: 0, minWidth: '100%', lineHeight: 1.25 }}
       >
         Tip: mute the volume or turn off repeat to silence the alarm — OFF + start at 00:00:00 = count-up stopwatch
       </p>
@@ -1483,19 +1488,18 @@ export default function Timer() {
         // needs — fixed once that's determined, so the row buttons'
         // flex-1 still fills it uniformly, just without an unrelated
         // width formula stretching it further than the content asks for.
-        // The 9rem minWidth this used to carry is gone: it was there
-        // because PresetsPanel's input contributed no intrinsic width of
-        // its own (its HH:MM:SS hint is position:absolute, so w-fit had
-        // nothing to measure), but that input now sizes itself natively
-        // (size={8} — see its own comment) and does contribute one. The
-        // floor had stopped being a safety net and become the binding
-        // width at ordinary window heights, holding the sidebar ~40%
-        // wider than its own content while the list labels inside it
-        // shrank on their own clamps — exactly the empty stretch it was
-        // meant to prevent.
+        // Fixed width (SIDEBAR_WIDTH — see its own comment), not w-fit
+        // and not the 9rem minWidth floor before that. w-fit tracked the
+        // content, which sounds right until you notice the content
+        // changes constantly: every started timer appends a history row,
+        // and one long entry among the short ones resized this column
+        // and shifted the whole timer beside it mid-use. The computed
+        // width fits the longest row that can ever appear, so the labels
+        // still set the size — just once, up front, instead of every
+        // time the list changes.
         <div
-          className="hidden lg:flex w-fit bg-black border-r-4 border-white flex-col overflow-hidden"
-          style={{ padding: shrinkClamp(0.5, 1, 1.1, 1), gap: shrinkClamp(0.5, 1, 1.1, 1) }}
+          className="hidden lg:flex bg-black border-r-4 border-white flex-col overflow-hidden flex-shrink-0"
+          style={{ width: SIDEBAR_WIDTH, padding: SIDEBAR_PADDING, gap: SIDEBAR_PADDING }}
         >
           <PresetsPanel
             presets={presets}
@@ -1616,7 +1620,15 @@ export default function Timer() {
         >
           <div className="flex-1 hidden lg:block"></div>
 
-          <div className="flex flex-col items-center justify-center flex-shrink-0 lg:flex-shrink min-w-0 gap-1 w-full lg:w-auto lg:self-stretch">
+          {/* never shrinks, at any width: its inner box carries an
+              explicit width (see below), so letting the flex row shrink
+              this column only pushed that box past the column's own
+              clipped edge — and the resulting overflow auto-tucked the
+              HOURS/MINUTES/SECONDS panel beside it. With this fixed,
+              that panel is the row's only shrinkable item, so a narrow
+              row squeezes the panel (which has a stacked form to fall
+              back on) rather than clipping the digits. */}
+          <div className="flex flex-col items-center justify-center flex-shrink-0 min-w-0 gap-1 w-full lg:w-auto lg:self-stretch">
             {/* Link to my main site: living in this column (rather than
                 the absolute-positioned header strip) means it's centered
                 by the same items-center that centers the digits below it,
@@ -1805,8 +1817,21 @@ export default function Timer() {
             // lg:self-start + TIME_FIELDS_TOP_MARGIN on the wrapper keeps
             // that corner pinned below the header buttons, matching the
             // collapsed button above so toggling never shifts its position.
+            // Shrinkable (no flex-shrink-0) so a row that's short on
+            // width squeezes this panel instead of overflowing and
+            // auto-tucking it — the fields inside wrap to their stacked
+            // form as it narrows (see TimeField). Everything else in
+            // this row is fixed-width or an empty spacer, so this is the
+            // only item with anywhere to give. min-w-min all the way
+            // down this subtree, deliberately: the squeeze has to stop
+            // at the stacked form's own min-content rather than crushing
+            // the box past it, and index.css's blanket
+            // `.flex { min-width: 0 }` overrides the automatic minimum
+            // size that would otherwise do that for free. A row still
+            // too narrow after stacking then overflows honestly, and the
+            // auto-tuck takes it from there.
             <div
-              className="flex items-start flex-shrink-0 lg:self-start"
+              className="flex items-start min-w-min lg:self-start"
               style={isDesktopLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
             >
               <HeaderToggleButton
@@ -1837,7 +1862,7 @@ export default function Timer() {
                   effect above), so there's no sub-lg width fallback to
                   keep either. */}
               <div
-                className="border-4 border-white bg-black flex flex-col flex-shrink-0 min-w-0 w-fit"
+                className="border-4 border-white bg-black flex flex-col w-fit min-w-min"
                 style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
               >
                 <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />

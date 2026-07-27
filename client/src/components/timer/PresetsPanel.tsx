@@ -1,5 +1,5 @@
 import { memo, useRef, useState } from 'react';
-import { LIST_ROW_BUTTON_STYLE, MAX_PRESETS } from './constants';
+import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_FONT_SIZE, MAX_PRESETS } from './constants';
 import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
@@ -24,7 +24,7 @@ const PRESET_INPUT_FONT_SIZE = shrinkClamp(0.75, 1.6, 2, 1.25);
 // needs, and this row is what sets the whole sidebar's width (it holds
 // the longest string in the panel, the HH:MM:SS hint), so every pixel
 // spent here is a pixel the list labels can't have.
-const PRESET_BUTTON_STYLE = { padding: '0.12em 0.35em', fontSize: shrinkClamp(0.7, 1.4, 1.6, 1.1) };
+const PRESET_BUTTON_STYLE = { padding: '0.12em 0.35em', fontSize: LIST_ROW_REMOVE_FONT_SIZE };
 
 function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   preset: TimerEntry;
