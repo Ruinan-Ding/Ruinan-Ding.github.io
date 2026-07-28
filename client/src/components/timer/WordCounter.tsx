@@ -5,6 +5,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { HEADER_ICON_SIZE, STORAGE_KEYS } from './constants';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
+import { isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState } from './types';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
 
@@ -38,6 +39,10 @@ interface WordCounterProps {
   // control the timer at all while typing in fullscreen
   timerControls: ReactNode;
 }
+
+// The one dialog this component owns, as a constant so the "is it
+// silenced?" check and the "silence it" call can't drift apart
+const CLEAR_DIALOG = { type: 'clearWordCounter' } as const;
 
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
 // used identically in both the decorative row-rules overlay and the
@@ -203,7 +208,22 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         }
         return;
       }
-      if (el.scrollHeight > el.clientHeight) {
+      // Two ways this box stops being usable, and only the first one
+      // overflows: the chrome (toggles, L/W/C header, totals) is fixed
+      // height and spills once the column can't hold it, but the
+      // textarea between them is flex-1 min-h-0 and just keeps shrinking
+      // — silently, down to a couple of pixels, never overflowing
+      // anything. A word counter you can't fit one line of text into is
+      // as tucked-in as one that's clipped, so measure the typing area
+      // against a single line box (line-height plus its own padding,
+      // read off the element so it tracks COUNTER_FONT_SIZE /
+      // COUNTER_PADDING at whatever the current viewport makes them).
+      const textarea = textareaRef.current;
+      const style = textarea && getComputedStyle(textarea);
+      const oneLine = style
+        ? parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+        : 0;
+      if (el.scrollHeight > el.clientHeight || (textarea && textarea.clientHeight < oneLine)) {
         collapsedAtSizeRef.current = { w: window.innerWidth, h: window.innerHeight };
         setIsAutoCollapsed(true);
         collapse();
@@ -393,7 +413,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             )}
             <label
               className={`font-bold text-left whitespace-nowrap flex-shrink-0 ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isActive ? 'text-green-500' : 'text-red-500'}`}
-              style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': '#000000' } : {}) } as React.CSSProperties}
+              style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': 'var(--app-surface)' } : {}) } as React.CSSProperties}
             >
               WORD COUNTER
             </label>
@@ -414,7 +434,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
               aria-pressed={alnumWordsOnly}
               className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-              style={{ color: alnumWordsOnly ? '#ffffff' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              style={{ color: alnumWordsOnly ? 'var(--app-ink)' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
               title="When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included."
               aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
             >
@@ -432,7 +452,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               onClick={() => setAlnumCharsOnly((prev) => !prev)}
               aria-pressed={alnumCharsOnly}
               className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-              style={{ color: alnumCharsOnly ? '#ffffff' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              style={{ color: alnumCharsOnly ? 'var(--app-ink)' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
               title="When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces."
               aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
             >
@@ -476,7 +496,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                   {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Failed' : 'Copy'}
                 </button>
                 <button
-                  onClick={() => setClearDialog({ type: 'clearWordCounter' })}
+                  onClick={() => (isDialogSuppressed(CLEAR_DIALOG) ? setText('') : setClearDialog(CLEAR_DIALOG))}
                   className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
                   style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
                 >
@@ -581,7 +601,8 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     <ConfirmDialog
       dialog={clearDialog}
       onDismiss={() => setClearDialog({ type: null })}
-      onConfirm={() => {
+      onConfirm={(dontAskAgain) => {
+        if (dontAskAgain) suppressDialog(CLEAR_DIALOG);
         setText('');
         setClearDialog({ type: null });
       }}

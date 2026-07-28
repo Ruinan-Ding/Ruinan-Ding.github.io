@@ -158,8 +158,8 @@ function TimeField({ label, placeholder, value, max, stacked, onRequestChange }:
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: FIELD_FONT_SIZE,
               padding: shrinkClamp(0.15, 0.4, 0.45, 0.375),
-              color: digits === '' ? 'transparent' : '#ffffff',
-              caretColor: '#ffffff',
+              color: digits === '' ? 'transparent' : 'var(--app-ink)',
+              caretColor: 'var(--app-ink)',
             }}
           />
         </div>

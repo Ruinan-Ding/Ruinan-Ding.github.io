@@ -32,7 +32,12 @@ function AlertDialogOverlay({
         // fullscreen is z-[60], the header icon clusters are z-[70]) —
         // a modal dialog must never end up visually buried under one of
         // those while still blocking interaction with everything else
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[80] bg-black/50',
+        // A literal black scrim, not bg-black/50 — that utility follows
+        // the app's own --app-surface (see index.css), so under the light
+        // theme it turned into a white veil that washed the page out
+        // instead of dimming it. A scrim's whole job is "everything
+        // behind this is inactive", which is darker in both themes.
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[80] bg-[rgba(0,0,0,0.5)]',
         className
       )}
       {...props}

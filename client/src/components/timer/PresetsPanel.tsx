@@ -240,10 +240,10 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
               {displayValue === '' && 'HH:MM:SS'}
               {correctedUnits && labelSegments(rawPresetDigits(digits)).map((segment, index) => (
                 <span key={segment.unit}>
-                  {index > 0 && <span style={{ color: '#ffffff' }}>:</span>}
+                  {index > 0 && <span style={{ color: 'var(--app-ink)' }}>:</span>}
                   <span
                     className={correctedUnits[segment.unit] ? 'animate-correctFlashText' : ''}
-                    style={{ color: '#ffffff' }}
+                    style={{ color: 'var(--app-ink)' }}
                   >
                     {segment.text}
                   </span>
@@ -282,8 +282,8 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
                 // decorative div underneath shows through in both cases —
                 // caretColor is set separately since it inherits from color
                 // and would otherwise vanish along with the text
-                color: digits === '' || correctedUnits ? 'transparent' : '#ffffff',
-                caretColor: '#ffffff',
+                color: digits === '' || correctedUnits ? 'transparent' : 'var(--app-ink)',
+                caretColor: 'var(--app-ink)',
                 backgroundColor: 'transparent',
                 position: 'relative',
                 zIndex: 1,

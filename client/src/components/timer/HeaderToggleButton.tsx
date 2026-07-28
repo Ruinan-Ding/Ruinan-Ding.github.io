@@ -16,7 +16,7 @@ export default function HeaderToggleButton({ onClick, icon, label, className = '
     <button
       onClick={onClick}
       className={`flex items-center justify-center border-3 border-white text-white transition-all duration-200 hover:opacity-80 flex-shrink-0 ${className}`}
-      style={{ ...HEADER_BUTTON_SIZE, backgroundColor: '#000000', ...style }}
+      style={{ ...HEADER_BUTTON_SIZE, backgroundColor: 'var(--app-surface)', ...style }}
       title={label}
       aria-label={label}
     >

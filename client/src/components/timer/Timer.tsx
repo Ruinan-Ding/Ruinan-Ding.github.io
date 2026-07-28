@@ -1,4 +1,4 @@
-import { Bell, ChevronsLeft, ChevronsRight, ExternalLink, Repeat, Trash2, X } from 'lucide-react';
+import { Bell, ChevronsLeft, ChevronsRight, ExternalLink, Moon, Repeat, Sun, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
@@ -13,7 +13,8 @@ import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
-import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimeUnit } from './types';
+import { isDialogSuppressed, suppressDialog } from './suppressions';
+import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { useFlashOnToken } from './useFlashOnToken';
 
 // The alarm-repeat button's Bell is bigger than a normal header icon,
@@ -175,6 +176,16 @@ export default function Timer() {
   // manual hide leaves this false, so that arrow keeps working normally.
   const [isTimeFieldsAutoTucked, setIsTimeFieldsAutoTucked] = useState(false);
   const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => readBoolean(STORAGE_KEYS.websiteLinkHidden, false));
+  // Light theme, persisted like the hide toggles above. The whole switch
+  // is one attribute on <html> — index.css swaps --app-surface and
+  // --app-ink off it, and every color in the app resolves through that
+  // pair, so nothing here needs to know which components exist. Written
+  // in a layout effect rather than during render so the paint that shows
+  // the new state and the attribute that causes it land together.
+  const [isLightTheme, setIsLightTheme] = useState(() => readBoolean(STORAGE_KEYS.lightTheme, false));
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = isLightTheme ? 'light' : 'dark';
+  }, [isLightTheme]);
   // Mirrors Tailwind's own sm breakpoint — at and above it the timer row
   // is horizontal, so the HOURS/MINUTES/SECONDS panel sits beside the
   // digits (rather than stacked under them) and the digits column gets
@@ -419,8 +430,13 @@ export default function Timer() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
-  // only prompt for time adjustments once per running/paused state
-  const promptShownInStateRef = useRef(false);
+  // Timer states an adjustment has already been asked about, so HOURS,
+  // MINUTES and SECONDS share one prompt per state rather than one each
+  // (see requestConfiguredChange). In-memory on purpose: this is "you
+  // already answered that a moment ago", which shouldn't outlive the
+  // session — the dialog's own "don't ask this again" checkbox is what
+  // makes an answer permanent, and that goes to storage instead.
+  const askedAdjustInStatesRef = useRef(new Set<TimerStateKind>());
   // Radix fires both onClick and onOpenChange for the same click, so the
   // dismiss handler needs a ref to tell "just confirmed" from "cancelled"
   const justConfirmedRef = useRef(false);
@@ -440,6 +456,35 @@ export default function Timer() {
 
   const closeDialog = () => setDialog({ type: null });
 
+  // Every "are you sure?" in this component goes through here, so the two
+  // ways a question can already be answered are checked in one place
+  // instead of at a dozen call sites: confirmations turned off globally
+  // (the CONFIRMATIONS button), or this particular question silenced by
+  // its own "don't ask again" checkbox (see suppressions.ts). Either way
+  // the action just runs.
+  //
+  // The two dialogs that call setDialog directly rather than coming
+  // through here are the deliberate exceptions: the site RESET and the
+  // switch that turns confirmations off. Both are documented in
+  // dialogKey, and both would be self-defeating to let anything skip.
+  const askThenRun = useCallback((next: DialogState, run: () => void) => {
+    if (skipConfirmations || isDialogSuppressed(next)) {
+      run();
+      return;
+    }
+    setDialog(next);
+  }, [skipConfirmations]);
+
+  // Which of the four situations the timer is in right now. Read off
+  // timeRef rather than `seconds` so a caller mid-click sees the live
+  // value, same as every other check in this component.
+  const timerStateKind = useCallback((): TimerStateKind => {
+    if (timeRef.current.seconds < 0) return 'ringing';
+    if (isPaused) return 'paused';
+    if (isRunning) return 'running';
+    return 'unstarted';
+  }, [isRunning, isPaused]);
+
   // Persist state; each key writes independently so one failing write
   // (e.g. quota exceeded on the large history value) can't drop the rest
   useEffect(() => {
@@ -453,6 +498,7 @@ export default function Timer() {
     writeJSON(STORAGE_KEYS.skipConfirmations, skipConfirmations);
     writeJSON(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
     writeJSON(STORAGE_KEYS.sidebarHidden, isSidebarHidden);
+    writeJSON(STORAGE_KEYS.lightTheme, isLightTheme);
     // only a MANUAL hide persists. An auto-tuck is a reaction to the
     // window it happened in, and the check that reverses it needs the
     // panel's own tuckedNeedsRef (in-memory, gone on reload) to know
@@ -460,7 +506,7 @@ export default function Timer() {
     // cramped layout hid the panel for good, reopenable only by finding
     // its arrow, on every later visit at any window size.
     writeJSON(STORAGE_KEYS.timeFieldsHidden, isTimeFieldsHidden && !isTimeFieldsAutoTucked);
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden, isSidebarHidden, isTimeFieldsHidden, isTimeFieldsAutoTucked]);
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden, isSidebarHidden, isLightTheme, isTimeFieldsHidden, isTimeFieldsAutoTucked]);
 
   // The regular persist effect above only fires on whole-second changes
   // (re-running it every 10ms tick to catch milliseconds would hammer
@@ -482,10 +528,6 @@ export default function Timer() {
       window.removeEventListener('beforeunload', flushMilliseconds);
     };
   }, []);
-
-  useEffect(() => {
-    promptShownInStateRef.current = false;
-  }, [isRunning, isPaused]);
 
   // Confirming via Space closes the dialog without a Radix close event, so
   // the flag isn't consumed by onOpenChange; clear it as each dialog opens
@@ -703,11 +745,7 @@ export default function Timer() {
       return;
     }
     if (!hasMutedBefore) {
-      if (skipConfirmations) {
-        handleConfirmMute();
-      } else {
-        setDialog({ type: 'mute' });
-      }
+      askThenRun({ type: 'mute' }, handleConfirmMute);
       return;
     }
     setIsSilentMode(true);
@@ -820,11 +858,7 @@ export default function Timer() {
     // the one number a count-up run exists to produce, and the alarm has
     // its own mute and repeat-off controls for the urgent case. So this
     // asks like every other stop now.
-    if (skipConfirmations) {
-      handleConfirmStop();
-      return;
-    }
-    setDialog({ type: 'stop' });
+    askThenRun({ type: 'stop' }, handleConfirmStop);
   };
 
   const handleConfirmStop = () => {
@@ -839,11 +873,7 @@ export default function Timer() {
     // preset-switching used to make. It's wrong for the same reason:
     // restarting throws away how far past zero the timer counted, which
     // on a count-up run is the only number it produced.
-    if (skipConfirmations) {
-      handleConfirmReset();
-      return;
-    }
-    setDialog({ type: 'reset' });
+    askThenRun({ type: 'reset' }, handleConfirmReset);
   };
 
   const handleConfirmReset = () => {
@@ -899,11 +929,7 @@ export default function Timer() {
     // actively counting down (not paused): confirm, then start the new
     // preset immediately
     if (isRunning && !isPaused && timeRef.current.seconds >= 0) {
-      if (skipConfirmations) {
-        applySwitch(parts, true);
-      } else {
-        setDialog({ type: 'switch', data: parts, mode: 'switchRunning' });
-      }
+      askThenRun({ type: 'switch', data: parts, mode: 'switchRunning' }, () => applySwitch(parts, true));
       return;
     }
     // paused (even paused in overtime), or a stopped timer showing
@@ -912,11 +938,7 @@ export default function Timer() {
     // discarding it, but confirming only loads the preset without
     // starting it
     if (isPaused || (!isRunning && timeRef.current.seconds !== configuredTotalSeconds)) {
-      if (skipConfirmations) {
-        applySwitch(parts, false);
-      } else {
-        setDialog({ type: 'switch', data: parts, mode: 'loadOnly' });
-      }
+      askThenRun({ type: 'switch', data: parts, mode: 'loadOnly' }, () => applySwitch(parts, false));
       return;
     }
     // A ringing timer used to hand off to the new preset and keep
@@ -926,23 +948,15 @@ export default function Timer() {
     // it just as thoroughly as switching mid-countdown discards the time
     // remaining. Same question, then.
     if (isRunning && timeRef.current.seconds < 0) {
-      if (skipConfirmations) {
-        applySwitch(parts, true);
-      } else {
-        setDialog({ type: 'switch', data: parts, mode: 'switchRunning' });
-      }
+      askThenRun({ type: 'switch', data: parts, mode: 'switchRunning' }, () => applySwitch(parts, true));
       return;
     }
     // Never run (idle at its configured time): nothing to lose, so this
     // only loads — picking a time out of a list isn't a request to start
     // counting it, and START is right there. Every other branch already
     // worked this way except the two that were already running.
-    if (skipConfirmations) {
-      applySwitch(parts, false);
-    } else {
-      setDialog({ type: 'switch', data: parts, mode: 'startFromIdle' });
-    }
-  }, [isRunning, isPaused, configuredTotalSeconds, loadEntry, isSilentMode, beep, skipConfirmations]);
+    askThenRun({ type: 'switch', data: parts, mode: 'startFromIdle' }, () => applySwitch(parts, false));
+  }, [isRunning, isPaused, configuredTotalSeconds, loadEntry, isSilentMode, beep, askThenRun]);
 
   const handleConfirmSwitch = (parts: TimeParts, start: boolean) => {
     applySwitch(parts, start);
@@ -965,14 +979,10 @@ export default function Timer() {
   const [removingPresetId, setRemovingPresetId] = useState<string | null>(null);
 
   const handleRequestRemovePreset = useCallback((id: string) => {
-    if (skipConfirmations) {
-      setRemovingPresetId(id);
-      return;
-    }
     const preset = presets.find((p) => p.id === id);
     if (!preset) return;
-    setDialog({ type: 'removePreset', data: { id, label: formatEntryLabel(preset) } });
-  }, [presets, skipConfirmations]);
+    askThenRun({ type: 'removePreset', data: { id, label: formatEntryLabel(preset) } }, () => setRemovingPresetId(id));
+  }, [presets, askThenRun]);
 
   const handleRemovePreset = useCallback((id: string) => {
     setPresets((prev) => prev.filter((p) => p.id !== id));
@@ -986,16 +996,16 @@ export default function Timer() {
 
   const handleRequestPresetCorrection = useCallback((digits: string, add: boolean) => {
     const corrected = parsePresetDigits(digits);
-    setDialog({
+    const correction = { digits: presetDigitsFromParts(corrected), add };
+    askThenRun({
       type: 'correctPreset',
       data: {
         typed: formatEntryLabel(rawPresetDigits(digits)),
         corrected: formatEntryLabel(corrected),
-        digits: presetDigitsFromParts(corrected),
-        add,
+        ...correction,
       },
-    });
-  }, []);
+    }, () => setPresetCorrection(correction));
+  }, [askThenRun]);
 
   const handlePresetCorrectionApplied = useCallback(() => setPresetCorrection(null), []);
 
@@ -1021,10 +1031,14 @@ export default function Timer() {
   // Apply a change to one unit of the configured time and restart the
   // countdown from the new configured total, refilling the drain bar. A
   // running timer keeps running from the top, a paused one waits there,
-  // and a finished (beeping) one restarts running. previous is passed in
-  // explicitly rather than read off `configured`, since by the time a
-  // dialog-confirmed call reaches here `configured` already reflects the
-  // eagerly-applied field edit, not the value being changed from.
+  // and a finished (beeping) one restarts running. This is the ONLY
+  // place a field edit lands: the request path used to apply it up front
+  // and have the dialog's dismiss handler put it back, which meant the
+  // configured total visibly changed underneath the "adjust?" dialog
+  // that was still asking whether to change it. previous is passed in
+  // (rather than read off `configured`) because it's the value being
+  // changed FROM, which a confirmed call needs after the fact to pick
+  // the flash direction — `configured` still holds it here either way.
   const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
     setterFor(unit)(value);
     if (timeRef.current.seconds < 0) setIsPaused(false);
@@ -1036,31 +1050,42 @@ export default function Timer() {
     }
   }, [setterFor, flashSetterFor, configured]);
 
-  // Changing a field while running/paused asks for confirmation first
+  // Changing a field asks for confirmation first — once per timer state,
+  // for all three fields together.
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
     const previous = configured[unit];
-    setterFor(unit)(value);
-
     if (value === previous) return;
 
-    // An unstarted timer asks too now. It used to change in silence on
-    // the grounds that there was no run to disturb — but these fields
-    // are also how the timer is set up in the first place, an arrow is
-    // one misclick, and a silently changed configured time is only
+    // An unstarted timer asks too. It used to change in silence on the
+    // grounds that there was no run to disturb — but these fields are
+    // also how the timer is set up in the first place, an arrow is one
+    // misclick, and a silently changed configured time is only
     // noticeable if you happen to read the digits before pressing START.
-    // Still once per state, via the same promptShownInStateRef that
-    // re-arms whenever the timer starts, pauses or resumes: adjusting
-    // three fields in a row is one intent, not three.
-    // Still nothing while beeping — seconds < 0 keeps its own exemption
-    // here, since an adjustment is the ordinary way to restart out of an
-    // alarm and RESET already asks before doing the same thing.
-    if (!skipConfirmations && timeRef.current.seconds >= 0 && !promptShownInStateRef.current) {
-      setDialog({ type: 'adjust', data: { unit, value, previous, restarts: isRunning || isPaused } });
-      promptShownInStateRef.current = true;
-    } else {
-      applyAdjustment(unit, value, previous);
+    //
+    // HOURS, MINUTES and SECONDS share one question per state, tracked
+    // by kind (see askedAdjustInStatesRef) rather than by transition:
+    // setting up a timer means touching two or three of these fields in
+    // a row, which is one intent, not three — and pausing to nudge a
+    // minute, resuming, then pausing to nudge it again is still the same
+    // question about the same paused timer. Answer it once per situation
+    // the timer can be in; tick "don't ask this again" in the dialog to
+    // answer it for that situation permanently.
+    const state = timerStateKind();
+    if (!askedAdjustInStatesRef.current.has(state)) {
+      const next: DialogState = { type: 'adjust', data: { unit, value, previous, state } };
+      // marked before asking, not after confirming: the point is one
+      // dialog per state, and a cancelled question was still asked. The
+      // dismiss handler clears it again so cancelling doesn't silently
+      // hand the next adjustment a free pass.
+      askedAdjustInStatesRef.current.add(state);
+      askThenRun(next, () => {
+        askedAdjustInStatesRef.current.delete(state);
+        applyAdjustment(unit, value, previous);
+      });
+      return;
     }
-  }, [configured, isRunning, isPaused, setterFor, applyAdjustment, skipConfirmations]);
+    applyAdjustment(unit, value, previous);
+  }, [configured, timerStateKind, applyAdjustment, askThenRun]);
 
   const handleHoursChange = useCallback((value: number) => requestConfiguredChange('hours', value), [requestConfiguredChange]);
   const handleMinutesChange = useCallback((value: number) => requestConfiguredChange('minutes', value), [requestConfiguredChange]);
@@ -1071,10 +1096,14 @@ export default function Timer() {
     closeDialog();
   };
 
-  // always confirms, ignoring skipConfirmations — same as the site RESET
-  // button, since hiding the link isn't reversible from the UI itself
+  // Goes through askThenRun like every other question now, so both the
+  // CONFIRMATIONS switch and this dialog's own "don't ask again" apply
+  // to it. It used to be exempt on the grounds that hiding the link
+  // isn't reversible from the UI — it still isn't, but the site RESET
+  // brings it back, and that's the same escape hatch every other
+  // silenced dialog has.
   const handleHideWebsiteLinkClick = () => {
-    setDialog({ type: 'hideWebsiteLink' });
+    askThenRun({ type: 'hideWebsiteLink' }, () => setIsWebsiteLinkHidden(true));
   };
 
   // Seeking via the drain bar moves only the remaining time while the
@@ -1100,12 +1129,8 @@ export default function Timer() {
   };
 
   const requestSeek = (targetSeconds: number) => {
-    if (skipConfirmations) {
-      applySeek(targetSeconds);
-      return;
-    }
     const mode = !isRunning ? 'idle' : isPaused ? 'paused' : 'running';
-    setDialog({ type: 'seek', data: { targetSeconds, mode } });
+    askThenRun({ type: 'seek', data: { targetSeconds, mode } }, () => applySeek(targetSeconds));
   };
 
   // maps a mouse position on the track to its time: the bar drains left
@@ -1116,8 +1141,11 @@ export default function Timer() {
     return { x, seconds: Math.round((1 - x / rect.width) * configuredTotalSeconds) };
   };
 
-  const handleDialogConfirm = () => {
+  const handleDialogConfirm = (dontAskAgain: boolean) => {
     justConfirmedRef.current = true;
+    // Recorded before the switch below runs, since some of these close
+    // over dialog state the actions themselves go on to clear
+    if (dontAskAgain) suppressDialog(dialog);
     switch (dialog.type) {
       case 'stop':
         handleConfirmStop();
@@ -1171,11 +1199,13 @@ export default function Timer() {
     }
   };
 
-  // Dismissing an 'adjust' dialog reverts the eagerly-applied field edit
+  // Dismissing an 'adjust' dialog has no edit to undo — nothing was
+  // applied to begin with (see requestConfiguredChange) — but the
+  // once-per-state prompt has to re-arm, or the next adjustment in this
+  // same state would skip its dialog and apply silently.
   const handleDialogDismiss = () => {
     if (!justConfirmedRef.current && dialog.type === 'adjust') {
-      setterFor(dialog.data.unit)(dialog.data.previous);
-      promptShownInStateRef.current = false;
+      askedAdjustInStatesRef.current.delete(dialog.data.state);
     }
     justConfirmedRef.current = false;
     closeDialog();
@@ -1241,7 +1271,7 @@ export default function Timer() {
         minHeight: '0.5rem',
         marginTop: tooltipBelow ? 0 : '0.08em',
         width,
-        borderColor: isRunning ? '#ffffff' : '#6b7280',
+        borderColor: isRunning ? 'var(--app-ink)' : '#6b7280',
       }}
       onMouseMove={(e) => {
         if (configuredTotalSeconds > 0) setBarHover(barPointSeconds(e));
@@ -1313,7 +1343,7 @@ export default function Timer() {
   const fadeSuffix = runCycle % 2 === 0 ? 'A' : 'B';
   const runFadeClass = `animate-runFade${fadeSuffix}`;
   const glowFadeClass = `animate-glowFade${fadeSuffix}`;
-  const textGlowStyle = { '--glow-from': '#000000' } as React.CSSProperties;
+  const textGlowStyle = { '--glow-from': 'var(--app-surface)' } as React.CSSProperties;
 
   // a reloaded overtime timer isn't ringing — the keys act on the timer
   const hintSubject = isRunning && seconds < 0 ? 'alarm' : 'timer';
@@ -1339,7 +1369,7 @@ export default function Timer() {
       className={`opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
       style={{
         fontSize: shrinkClamp(0.5, 1.1, 1.2, 0.75),
-        color: isWordCounterFocused ? '#ef4444' : '#ffffff',
+        color: isWordCounterFocused ? '#ef4444' : 'var(--app-ink)',
         ...textGlowStyle,
       }}
     >
@@ -1380,7 +1410,7 @@ export default function Timer() {
     if (prevCategory === 'white' || prevCategory === 'yellowWave' || prevCategory === 'redWave') {
       setDigitColorStyle({ color: '#ef4444', transition: 'color 2.5s ease' });
     } else {
-      setDigitColorStyle({ color: '#ffffff', transition: 'color 0s' });
+      setDigitColorStyle({ color: 'var(--app-ink)', transition: 'color 0s' });
       const id = setTimeout(() => setDigitColorStyle({ color: '#ef4444', transition: 'color 2.5s ease' }), 0);
       return () => clearTimeout(id);
     }
@@ -1404,7 +1434,7 @@ export default function Timer() {
     borderColor: color,
     color,
     // black chip so the colored borders stay readable on the colored window
-    backgroundColor: '#000000',
+    backgroundColor: 'var(--app-surface)',
     minWidth: shrinkClamp(7, 16.5, 17.5, 11.25),
   });
   // Word counter fullscreen covers the digits column (and its START/
@@ -1418,7 +1448,7 @@ export default function Timer() {
     fontSize: shrinkClamp(0.6, 1.3, 1.4, 0.9),
     borderColor: color,
     color,
-    backgroundColor: '#000000',
+    backgroundColor: 'var(--app-surface)',
   });
   // Mute/volume and alarm-repeat controls, shared between their normal
   // floating spot (top-left corner, hidden during word counter
@@ -1436,14 +1466,14 @@ export default function Timer() {
         className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
         style={{
           ...HEADER_BUTTON_SIZE,
-          borderColor: isSilentMode ? '#ffffff' : '#22c55e',
-          backgroundColor: '#000000',
+          borderColor: isSilentMode ? 'var(--app-ink)' : '#22c55e',
+          backgroundColor: 'var(--app-surface)',
           fontFamily: "'IBM Plex Mono', monospace",
         }}
         title={isSilentMode ? 'Click to unmute' : 'Click to mute'}
         aria-label={isSilentMode ? 'Unmute' : 'Mute'}
       >
-        <SpeakerIcon volume={volume} muted={isSilentMode} color={isSilentMode ? '#ffffff' : '#22c55e'} />
+        <SpeakerIcon volume={volume} muted={isSilentMode} color={isSilentMode ? 'var(--app-ink)' : '#22c55e'} />
       </button>
 
       {/* Volume slider: revealed on hover/focus; releasing it previews
@@ -1466,7 +1496,7 @@ export default function Timer() {
               }
             }}
             className="block"
-            style={{ width: '6rem', accentColor: isSilentMode ? '#ffffff' : '#22c55e' }}
+            style={{ width: '6rem', accentColor: isSilentMode ? 'var(--app-ink)' : '#22c55e' }}
             aria-label="Volume"
             title={`Volume: ${Math.round(volume * 100)}%`}
           />
@@ -1490,8 +1520,8 @@ export default function Timer() {
       className="relative flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80 flex-shrink-0"
       style={{
         ...HEADER_BUTTON_SIZE,
-        borderColor: isAlarmLooping ? '#22c55e' : '#ffffff',
-        backgroundColor: '#000000',
+        borderColor: isAlarmLooping ? '#22c55e' : 'var(--app-ink)',
+        backgroundColor: 'var(--app-surface)',
       }}
       title={isAlarmLooping ? 'Alarm repeats until stopped — click to ring a single burst instead' : 'Alarm rings a single burst then stays quiet — click to repeat until stopped'}
       aria-label={isAlarmLooping ? 'Disable alarm repeat' : 'Enable alarm repeat'}
@@ -1501,13 +1531,13 @@ export default function Timer() {
           of the button; Repeat sits centered inside the bell's own
           body as a badge for the repeat setting specifically */}
       <Bell
-        color={isAlarmLooping ? '#22c55e' : '#ffffff'}
+        color={isAlarmLooping ? '#22c55e' : 'var(--app-ink)'}
         style={RINGER_BELL_SIZE}
       />
       <Repeat
         aria-hidden
-        color={isAlarmLooping ? '#22c55e' : '#ffffff'}
-        fill="#000000"
+        color={isAlarmLooping ? '#22c55e' : 'var(--app-ink)'}
+        fill="var(--app-surface)"
         className="absolute"
         style={{
           width: shrinkClamp(0.7, 1.6, 1.6, 1.1),
@@ -1572,7 +1602,7 @@ export default function Timer() {
       <button
         onClick={handleHideWebsiteLinkClick}
         className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
-        style={{ width: shrinkClamp(1.4, 2, 2.2, 1.8), height: shrinkClamp(1.4, 2, 2.2, 1.8), backgroundColor: '#000000' }}
+        style={{ width: shrinkClamp(1.4, 2, 2.2, 1.8), height: shrinkClamp(1.4, 2, 2.2, 1.8), backgroundColor: 'var(--app-surface)' }}
         title="Hide this link — stays hidden until you reset the website to defaults"
         aria-label="Hide website link"
       >
@@ -1607,7 +1637,7 @@ export default function Timer() {
       style={{
         fontFamily: "'IBM Plex Mono', monospace",
         fontSize: shrinkClamp(0.7, 1.5, 1.6, 1),
-        color: seconds < 0 ? '#ef4444' : '#ffffff',
+        color: seconds < 0 ? '#ef4444' : 'var(--app-ink)',
       }}
     >
       {remaining.sign}{remaining.hours && `${remaining.hours}:`}{remaining.minutes}:{remaining.seconds}·{remaining.ms}
@@ -1768,7 +1798,7 @@ export default function Timer() {
             : 'bg-black'
       }`}
     >
-      {/* Sidebar: lg+ only — no mobile drawer, so it never pops up over
+      {/* Sidebar: sm+ only — no mobile drawer, so it never pops up over
           the timer on a shrunk window. Hidden entirely at any width via
           the << header toggle. Word counter fullscreen (z-[60], no
           z-index here) deliberately covers this when active — see its
@@ -1792,8 +1822,16 @@ export default function Timer() {
         // width fits the longest row that can ever appear, so the labels
         // still set the size — just once, up front, instead of every
         // time the list changes.
+        //
+        // sm, not lg: SIDEBAR_WIDTH works out to ~160px at these sizes,
+        // so 1024px was hiding the panel across a whole band of widths
+        // that had several times the room it asks for — it just vanished
+        // on the way down. sm is where the timer row itself stops being
+        // a row (isRowLayout) and the whole page stacks; below that a
+        // left column genuinely doesn't belong, and above it there's
+        // room, so that's the honest line.
         <div
-          className="hidden lg:flex bg-black border-r-4 border-white flex-col overflow-hidden flex-shrink-0"
+          className="hidden sm:flex bg-black border-r-4 border-white flex-col overflow-hidden flex-shrink-0"
           style={{ width: SIDEBAR_WIDTH, padding: SIDEBAR_PADDING, gap: SIDEBAR_PADDING }}
         >
           <PresetsPanel
@@ -1813,7 +1851,7 @@ export default function Timer() {
             history={history}
             onSelect={handleSelectEntry}
             onRemove={handleRemoveHistoryEntry}
-            onClear={() => setDialog({ type: 'clearHistory' })}
+            onClear={() => askThenRun({ type: 'clearHistory' }, handleClearHistory)}
             inserted={insertedHistory}
             loaded={loadedEntry}
           />
@@ -1832,8 +1870,8 @@ export default function Timer() {
             competing with the digits for space. */}
         {!isWordCounterFullscreen && (
         <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[70] flex items-start gap-2">
-          {/* below lg the sidebar itself is force-hidden (see its own
-              hidden lg:flex above) regardless of isSidebarHidden — so
+          {/* below sm the sidebar itself is force-hidden (see its own
+              hidden sm:flex above) regardless of isSidebarHidden — so
               this toggle would sit there doing nothing below that
               width. Matching its breakpoint here means it only shows
               once there's an actual panel for it to control. */}
@@ -1841,7 +1879,7 @@ export default function Timer() {
             onClick={() => setIsSidebarHidden((prev) => !prev)}
             icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
             label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
-            className="hidden lg:flex"
+            className="hidden sm:flex"
           />
           {ringerAndSpeakerCluster}
         </div>
@@ -1858,6 +1896,16 @@ export default function Timer() {
               dialogs are: this only ever fires while confirmations are
               still on, so there's nothing to skip. Turning them back on
               is a safe direction and goes straight through. */}
+          {/* Same square box as the sidebar/word-counter arrows — this is
+              a view switch like those, not one of the two bordered word
+              buttons beside it, and it has no label to spend width on.
+              Sun while dark (what clicking gets you), moon while light. */}
+          <HeaderToggleButton
+            onClick={() => setIsLightTheme((prev) => !prev)}
+            icon={isLightTheme ? <Moon style={HEADER_ICON_SIZE} /> : <Sun style={HEADER_ICON_SIZE} />}
+            label={isLightTheme ? 'Switch to the dark theme' : 'Switch to the light theme'}
+          />
+
           <button
             onClick={() => {
               if (skipConfirmations) {
@@ -1867,14 +1915,20 @@ export default function Timer() {
               }
             }}
             aria-pressed={!skipConfirmations}
-            className="flex items-center gap-2 border-3 font-bold px-3 transition-all duration-200 hover:opacity-80"
+            // Narrower than the RESET button beside it: px-1.5/gap-1.5
+            // and a font a notch down from RESET's own. It's the widest
+            // control in this corner by a distance — 13 characters
+            // against RESET's 5 — and it's a setting you flip rarely,
+            // so it's the one that gives up width rather than crowding
+            // the digits underneath on a narrow window.
+            className="flex items-center gap-1.5 border-3 font-bold px-1.5 transition-all duration-200 hover:opacity-80"
             style={{
               height: HEADER_BUTTON_SIZE.height,
-              borderColor: skipConfirmations ? '#6b7280' : '#ffffff',
-              color: skipConfirmations ? '#6b7280' : '#ffffff',
-              backgroundColor: '#000000',
+              borderColor: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
+              color: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
+              backgroundColor: 'var(--app-surface)',
               fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: shrinkClamp(0.65, 1.5, 1.6, 1),
+              fontSize: shrinkClamp(0.55, 1.2, 1.3, 0.8),
             }}
             title={skipConfirmations
               ? 'Confirmation dialogs are off — actions apply immediately (the RESET button still always asks). Click to turn confirmations back on'
@@ -1897,7 +1951,7 @@ export default function Timer() {
             className="flex items-center gap-2 border-3 border-red-500 text-red-500 font-bold px-3 transition-all duration-200 hover:opacity-80"
             style={{
               height: HEADER_BUTTON_SIZE.height,
-              backgroundColor: '#000000',
+              backgroundColor: 'var(--app-surface)',
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: shrinkClamp(0.65, 1.5, 1.6, 1),
             }}

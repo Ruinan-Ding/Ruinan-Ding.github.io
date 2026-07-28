@@ -1,12 +1,17 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { formatEntryLabel, fromTotalSeconds } from './format';
+import { dialogKey } from './suppressions';
 import type { DialogState } from './types';
 
 interface ConfirmDialogProps {
   dialog: DialogState;
   onDismiss: () => void;
-  onConfirm: () => void;
+  // dontAskAgain is the checkbox below: true means don't ask THIS
+  // question again (see dialogKey for what counts as the same question).
+  // It only ever arrives via confirm — cancelling answers nothing, so
+  // there's nothing to remember.
+  onConfirm: (dontAskAgain: boolean) => void;
 }
 
 const getCopy = (dialog: DialogState) => {
@@ -87,14 +92,14 @@ const getCopy = (dialog: DialogState) => {
       };
     }
     case 'adjust': {
-      const { unit, value, restarts } = dialog.data;
+      const { unit, value, state } = dialog.data;
       return {
         title: 'ADJUST TIME',
         // an unstarted timer has no run to restart — saying it would
         // suggest this throws something away, and it doesn't
-        description: restarts
-          ? `Change ${unit} to ${value}? The timer will restart from the new time.`
-          : `Change ${unit} to ${value}? That's the time the timer will start from.`,
+        description: state === 'unstarted'
+          ? `Change ${unit} to ${value}? That's the time the timer will start from.`
+          : `Change ${unit} to ${value}? The timer will restart from the new time.`,
         action: 'CONFIRM',
       };
     }
@@ -130,7 +135,7 @@ const getCopy = (dialog: DialogState) => {
       return {
         title: 'TURN OFF CONFIRMATIONS',
         description:
-          "Turn off confirmations? Stopping, resetting, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset and clearing history will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice.",
+          "Turn off confirmations? Stopping, resetting, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset, clearing history, correcting an out-of-range preset and hiding the website link will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice. To silence just one of these instead, tick \"Don't ask this again\" in its own dialog.",
         action: 'TURN OFF',
       };
     case 'clearWordCounter':
@@ -153,6 +158,21 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   if (currentCopy) lastCopyRef.current = currentCopy;
   const copy = currentCopy ?? lastCopyRef.current;
 
+  // Unticked every time a dialog opens: this is a per-answer choice, and
+  // one dialog's ticked box must never carry into the next one. Keyed on
+  // the question rather than on open/closed so it also resets between two
+  // dialogs that follow each other without a gap.
+  const [dontAskAgain, setDontAskAgain] = useState(false);
+  const key = dialogKey(dialog);
+  useEffect(() => {
+    if (key !== null) setDontAskAgain(false);
+  }, [key]);
+  // Nothing to offer for the two dialogs that can never be silenced (see
+  // dialogKey), so they render without the row entirely. Held through the
+  // exit animation like the copy above, so it doesn't pop out mid-fade.
+  const suppressibleRef = useRef(false);
+  if (dialog.type !== null) suppressibleRef.current = key !== null;
+
   return (
     <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss()}>
       <AlertDialogContent
@@ -166,10 +186,16 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           // stop the event here too — otherwise it keeps bubbling to that
           // window listener, which would immediately re-trigger on the
           // same keystroke once this closes the dialog.
+          // ...except while the "don't ask again" checkbox itself has
+          // focus, where Space is how you tick a checkbox. Without this
+          // it would confirm the dialog out from under someone reaching
+          // for the box by keyboard — the one place in this dialog where
+          // Space has to mean something else.
+          if (e.code === 'Space' && (e.target as HTMLElement).closest('[data-dont-ask]')) return;
           if (e.code === 'Space' || e.key === 'Enter') {
             e.preventDefault();
             e.stopPropagation();
-            onConfirm();
+            onConfirm(dontAskAgain);
           }
         }}
       >
@@ -177,7 +203,34 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           <AlertDialogTitle className="text-white text-2xl font-bold">{copy?.title}</AlertDialogTitle>
           <AlertDialogDescription className="text-white text-lg">{copy?.description}</AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="flex gap-4 justify-end">
+        {/* Its own row above the buttons rather than sharing theirs: the
+            dialog is only so wide, and squeezed in beside CANCEL/CONFIRM
+            it pushed one of them onto a second line. Same
+            square-with-a-dot checkbox as the CONFIRMATIONS toggle and the
+            word counter's own switches, so it reads as the same kind of
+            control. Deliberately worded as this one question, not all of
+            them: the CONFIRMATIONS button is what turns the whole lot
+            off. */}
+        {suppressibleRef.current && (
+          <button
+            type="button"
+            data-dont-ask
+            onClick={() => setDontAskAgain((prev) => !prev)}
+            aria-pressed={dontAskAgain}
+            className="flex items-center gap-2 text-white font-bold self-start transition-opacity duration-200 hover:opacity-80"
+            title="Skip this particular confirmation from now on. Resetting the website to defaults brings it back."
+          >
+            <span
+              aria-hidden
+              className="inline-flex items-center justify-center border-2 flex-shrink-0"
+              style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
+            >
+              <span style={{ width: '0.45em', height: '0.45em', backgroundColor: dontAskAgain ? 'currentColor' : 'transparent' }} />
+            </span>
+            Don't ask this again
+          </button>
+        )}
+        <div className="flex gap-4 justify-end items-center">
           <AlertDialogCancel
             onClick={onDismiss}
             className="border-4 border-white text-white font-bold px-6 py-3 hover:bg-white hover:text-black"
@@ -185,7 +238,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             CANCEL <span className="opacity-60 font-normal">(ESC)</span>
           </AlertDialogCancel>
           <AlertDialogAction
-            onClick={onConfirm}
+            onClick={() => onConfirm(dontAskAgain)}
             className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
           >
             {copy?.action} <span className="opacity-60 font-normal">(SPACE)</span>

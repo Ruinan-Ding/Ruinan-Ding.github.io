@@ -23,25 +23,54 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  /* Overrides Tailwind's own --color-black/--color-white, so every
+     bg-black, text-white, border-white utility in the app follows these
+     two variables without touching a single className. The keyframes
+     below and the components' inline styles point at the same pair, so
+     the app has exactly two colors to set — which is what makes the
+     light theme below a two-line swap instead of a rewrite.
+     The utility names are the app's own vocabulary at this point:
+     bg-black means "the window color" and text-white means "whatever
+     reads on it", regardless of which is actually darker. */
+  --color-black: var(--app-surface);
+  --color-white: var(--app-ink);
 }
 
 :root {
-  --primary: oklch(1 0 0);
-  --primary-foreground: oklch(0 0 0);
+  /* Not pitch black: a flat #000 makes the white borders on every box
+     ring hard against it, and on OLED it's the panel actually switching
+     off rather than displaying a color. Lifting it a few points keeps
+     the same near-black look with the edges softened. */
+  --app-surface: #141414;
+  --app-ink: #ffffff;
+  --primary: var(--app-ink);
+  --primary-foreground: var(--app-surface);
   --radius: 0;
-  --background: oklch(0 0 0);
-  --foreground: oklch(1 0 0);
+  --background: var(--app-surface);
+  --foreground: var(--app-ink);
   --secondary: oklch(0.5 0 0);
-  --secondary-foreground: oklch(1 0 0);
+  --secondary-foreground: var(--app-ink);
   --muted: oklch(0.3 0 0);
-  --muted-foreground: oklch(1 0 0);
-  --accent: oklch(0 0 0);
-  --accent-foreground: oklch(1 0 0);
+  --muted-foreground: var(--app-ink);
+  --accent: var(--app-surface);
+  --accent-foreground: var(--app-ink);
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(1 0 0);
-  --input: oklch(0 0 0);
-  --ring: oklch(1 0 0);
+  --destructive-foreground: var(--app-ink);
+  --border: var(--app-ink);
+  --input: var(--app-surface);
+  --ring: var(--app-ink);
+}
+
+/* Light theme: the same two roles with their values swapped, set by the
+   sun/moon toggle (see Timer.tsx). Nothing else in the app changes —
+   every window, box, border and label already draws from this pair, and
+   the green/yellow/red state colors deliberately stay put so a running
+   timer, a paused one and a ringing one read the same either way.
+   Not pure white for the surface, same reasoning as the dark side: flat
+   #fff against black borders is harsher than a hair off it. */
+:root[data-theme='light'] {
+  --app-surface: #f4f4f4;
+  --app-ink: #141414;
 }
 
 @layer base {
@@ -83,7 +112,7 @@
 
 @keyframes pauseFlash {
   0%, 100% {
-    background-color: oklch(0 0 0);
+    background-color: var(--app-surface);
   }
   50% {
     background-color: oklch(0.8 0.2 85);
@@ -104,7 +133,7 @@
     background-color: #22c55e;
   }
   to {
-    background-color: #000000;
+    background-color: var(--app-surface);
   }
 }
 
@@ -113,16 +142,16 @@
     background-color: #22c55e;
   }
   to {
-    background-color: #000000;
+    background-color: var(--app-surface);
   }
 }
 
 @keyframes glowFadeA {
   0% {
-    color: var(--glow-from, #ffffff);
+    color: var(--glow-from, var(--app-ink));
   }
   50% {
-    color: #ffffff;
+    color: var(--app-ink);
   }
   50.01%, 100% {
     color: #22c55e;
@@ -131,10 +160,10 @@
 
 @keyframes glowFadeB {
   0% {
-    color: var(--glow-from, #ffffff);
+    color: var(--glow-from, var(--app-ink));
   }
   50% {
-    color: #ffffff;
+    color: var(--app-ink);
   }
   50.01%, 100% {
     color: #22c55e;
@@ -163,7 +192,7 @@
     background-color: oklch(0.8 0.2 85);
   }
   to {
-    background-color: oklch(0 0 0);
+    background-color: var(--app-surface);
   }
 }
 
@@ -176,7 +205,7 @@
     background-color: #ef4444;
   }
   50%, 100% {
-    background-color: oklch(0 0 0);
+    background-color: var(--app-surface);
   }
 }
 
@@ -193,7 +222,7 @@
     background-color: #eab308;
   }
   to {
-    background-color: #000000;
+    background-color: var(--app-surface);
   }
 }
 
@@ -206,7 +235,7 @@
     background-color: #22c55e;
   }
   to {
-    background-color: #000000;
+    background-color: var(--app-surface);
   }
 }
 
@@ -224,20 +253,20 @@
   0% {
     background-color: #ef4444;
     border-color: #ef4444;
-    color: #ffffff;
+    color: var(--app-ink);
     opacity: 1;
   }
   45% {
     background-color: #ef4444;
     border-color: #ef4444;
-    color: #ffffff;
+    color: var(--app-ink);
     opacity: 1;
     transform: none;
   }
   100% {
     background-color: #ef4444;
     border-color: #ef4444;
-    color: #ffffff;
+    color: var(--app-ink);
     opacity: 0;
     transform: translateX(-0.75rem) scale(0.7);
   }
@@ -257,7 +286,7 @@
     color: #22c55e;
   }
   to {
-    color: #ffffff;
+    color: var(--app-ink);
   }
 }
 
@@ -270,7 +299,7 @@
     color: #ef4444;
   }
   to {
-    color: #ffffff;
+    color: var(--app-ink);
   }
 }
 
@@ -289,7 +318,7 @@
     color: #eab308;
   }
   to {
-    color: #ffffff;
+    color: var(--app-ink);
   }
 }
 

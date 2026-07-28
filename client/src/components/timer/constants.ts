@@ -90,6 +90,8 @@ export const STORAGE_KEYS = {
   sidebarHidden: 'timerSidebarHidden',
   timeFieldsHidden: 'timerTimeFieldsHidden',
   wordCounterCollapsed: 'wordCounterCollapsed',
+  lightTheme: 'timerLightTheme',
+  dontAskAgain: 'timerDontAskAgain',
 } as const;
 
 // countdown floor: -99:59:59
