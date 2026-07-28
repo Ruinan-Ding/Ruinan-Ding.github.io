@@ -33,6 +33,10 @@ export type DialogState =
   | { type: 'hideWebsiteLink' }
   | { type: 'clearHistory' }
   | { type: 'removePreset'; data: { id: string; label: string } }
+  // an out-of-range preset entry (99:99:99), asked about at commit time
+  // rather than corrected while it's still being typed. `add` is whether
+  // the commit was an add (Enter / +) or just leaving the field
+  | { type: 'correctPreset'; data: { typed: string; corrected: string; digits: string; add: boolean } }
   // turning confirmations OFF asks once, and can't be skipped by the
   // very setting it's turning off; turning them back on never asks
   | { type: 'skipConfirmations' }

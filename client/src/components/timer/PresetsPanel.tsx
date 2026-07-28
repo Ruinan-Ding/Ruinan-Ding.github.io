@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS } from './constants';
-import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
+import { formatEntryLabel, isPresetOutOfRange, parsePresetDigits, presetDigits, presetDigitsFromParts, rawPresetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
@@ -66,6 +66,11 @@ interface PresetsPanelProps {
   // the preset whose removal has been confirmed, and which should now be
   // playing its fizz — null the rest of the time
   removingId: string | null;
+  // asks whether to correct an out-of-range entry; the answer comes back
+  // as `correction`, which is applied and then acknowledged
+  onRequestCorrect: (digits: string, add: boolean) => void;
+  correction: { digits: string; add: boolean } | null;
+  onCorrectionApplied: () => void;
   onSelect: (entry: TimerEntry) => void;
   inserted: FlashTarget;
   loaded: FlashTarget;
@@ -75,22 +80,40 @@ interface PresetsPanelProps {
 // onChange alone can't tell a partial entry from a complete one. Track the
 // raw typed digits instead, and render them unpadded (same style used
 // everywhere else in the app: "1:30", not "00:01:30").
-function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onSelect, inserted, loaded }: PresetsPanelProps) {
+function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onRequestCorrect, correction, onCorrectionApplied, onSelect, inserted, loaded }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
 
-  const displayValue = digits === '' ? '' : formatEntryLabel(parsePresetDigits(digits));
+  // Shows exactly what was typed, out of range and all — see
+  // rawPresetDigits. Correcting happens once, at commit, and only after
+  // asking (handleCommit below).
+  const displayValue = digits === '' ? '' : formatEntryLabel(rawPresetDigits(digits));
   // the input's real value matches the hint's character count while empty
   // (rendered invisible) purely so the caret lands right after the hint's
   // last "S" instead of in the middle of the empty box
   const inputValue = digits === '' ? 'HH:MM:SS' : displayValue;
 
-  const handleAdd = () => {
-    if (atCapacity || digits === '') return;
-    onAdd(parsePresetDigits(digits));
-    setDigits('');
+  // The three ways an entry is finished: Enter, the + button, and
+  // leaving the field. Only the first two add it; blurring just settles
+  // the text. All three are a commit, though, so all three are where an
+  // out-of-range entry gets questioned.
+  const handleCommit = (add: boolean) => {
+    if (digits === '') return;
+    if (add && atCapacity) return;
+    if (isPresetOutOfRange(digits)) {
+      onRequestCorrect(digits, add);
+      return;
+    }
+    if (add) {
+      onAdd(parsePresetDigits(digits));
+      setDigits('');
+    } else {
+      setDigits(presetDigitsFromParts(parsePresetDigits(digits)));
+    }
   };
+
+  const handleAdd = () => handleCommit(true);
 
   const { handleKeyDown, handlePaste, handleSelect, pinCaret } = useDigitEntry(inputRef, inputValue, {
     append: (text) => {
@@ -101,11 +124,20 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
     onCommit: handleAdd,
   });
 
-  const handleBlur = () => {
-    if (digits === '') return;
-    const { hours, minutes, seconds } = parsePresetDigits(digits);
-    setDigits(`${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}${String(seconds).padStart(2, '0')}`);
-  };
+  const handleBlur = () => handleCommit(false);
+
+  // A correction the dialog got a yes to, applied here because this is
+  // where the typed digits live.
+  useEffect(() => {
+    if (!correction) return;
+    if (correction.add) {
+      onAdd(parsePresetDigits(correction.digits));
+      setDigits('');
+    } else {
+      setDigits(correction.digits);
+    }
+    onCorrectionApplied();
+  }, [correction, onAdd, onCorrectionApplied]);
 
   return (
     <div>
@@ -135,6 +167,12 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
         <div className="flex items-stretch" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), marginTop: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
           <button
             onClick={handleAdd}
+            // keeps the input focused through the click, so this is one
+            // commit (an add) rather than two: without it the input
+            // blurs first, which is itself a commit, and an
+            // out-of-range entry would open the correction dialog on the
+            // way down — swallowing the click that was meant to add it
+            onMouseDown={(e) => e.preventDefault()}
             disabled={atCapacity}
             aria-label="Add preset"
             title={atCapacity ? `Preset limit reached (${MAX_PRESETS})` : 'Add preset'}

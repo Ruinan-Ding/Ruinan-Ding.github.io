@@ -50,3 +50,28 @@ export const parsePresetDigits = (digits: string): TimeParts => {
     seconds: Math.min(parseInt(padded.slice(4, 6), 10), MAX_SECONDS),
   };
 };
+
+// The same split with no clamping — literally what was typed. The
+// preset input shows this rather than the clamped parse, because digits
+// fill from the right: every digit of "990000" passes through the
+// seconds and minutes fields on its way to the hours, so clamping what's
+// displayed meant typing 99 hours showed "0:59", then "9:59", then
+// "59:59" — the field silently rewriting each keystroke, and no way to
+// see the 99 you were aiming for until the last digit landed. Nothing is
+// corrected until the entry is committed, and then only by asking.
+export const rawPresetDigits = (digits: string): TimeParts => {
+  const padded = digits.padStart(6, '0');
+  return {
+    hours: parseInt(padded.slice(0, 2), 10),
+    minutes: parseInt(padded.slice(2, 4), 10),
+    seconds: parseInt(padded.slice(4, 6), 10),
+  };
+};
+
+export const presetDigitsFromParts = ({ hours, minutes, seconds }: TimeParts) =>
+  `${pad(hours)}${pad(minutes)}${pad(seconds)}`;
+
+export const isPresetOutOfRange = (digits: string) => {
+  const raw = rawPresetDigits(digits);
+  return raw.hours > MAX_HOURS || raw.minutes > MAX_MINUTES || raw.seconds > MAX_SECONDS;
+};

@@ -111,6 +111,12 @@ const getCopy = (dialog: DialogState) => {
         description: `Delete the ${dialog.data.label} preset? This can't be undone — you'd have to add it again.`,
         action: 'DELETE',
       };
+    case 'correctPreset':
+      return {
+        title: 'CORRECT TIME',
+        description: `${dialog.data.typed} isn't a valid time — minutes and seconds only go up to 59, and hours to 99. Use ${dialog.data.corrected} instead?`,
+        action: 'CORRECT',
+      };
     case 'skipConfirmations':
       return {
         title: 'TURN OFF CONFIRMATIONS',

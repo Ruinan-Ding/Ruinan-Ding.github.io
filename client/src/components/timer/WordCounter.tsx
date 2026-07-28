@@ -375,9 +375,14 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         )}
       </div>
 
+      {/* gap-1 on the box below, not gap-3: three fixed 12px gaps
+          between its four children is 36px of nothing, spent whether the
+          window has room or not, and every pixel of it comes straight
+          off the typing area — the only part of this box anyone
+          actually uses. Same reasoning as the padding trims inside. */}
       {!isCollapsed && (
-      <div className={`flex flex-col gap-3 border-4 transition-colors duration-200 w-full flex-1 ${isActive ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
-        <div className="flex justify-between items-center gap-3 flex-wrap px-3 pt-3">
+      <div className={`flex flex-col gap-1 border-4 transition-colors duration-200 w-full flex-1 ${isActive ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
+        <div className="flex justify-between items-center gap-3 flex-wrap px-3 pt-1">
           <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
@@ -455,7 +460,9 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             <div className="border-2 border-white px-1 py-1">C</div>
           </div>
         </div>
-        <div className="flex flex-col gap-2 px-3 pb-3 flex-1 overflow-hidden min-h-0">
+        {/* pb-1 rather than pb-3, and no gap: this wrapper has exactly
+            one child, so its gap-2 was never anything but dead height */}
+        <div className="flex flex-col px-3 pb-1 flex-1 overflow-hidden min-h-0">
           <div className="relative flex-1 overflow-hidden min-h-0">
             {/* Counter numbers + rule lines as one full-width row per line of
                 text, so the row's own border-bottom runs unbroken straight
@@ -505,7 +512,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             />
           </div>
         </div>
-        <div className="flex justify-between items-start px-3 py-1 gap-4" style={{ fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}>
+        <div className="flex justify-between items-start px-3 pb-1 gap-4" style={{ fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}>
           <div className="text-white font-bold flex flex-col gap-0">
             <div className="text-white mb-0.5" style={{ fontSize: shrinkClamp(0.35, 0.8, 0.9, 0.55) }}>TOTAL</div>
             <div className="grid grid-cols-3 text-center" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>

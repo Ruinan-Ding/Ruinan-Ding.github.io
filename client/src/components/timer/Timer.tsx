@@ -11,7 +11,7 @@ import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TONES } from './constants';
-import { formatEntryLabel, formatTime, fromTotalSeconds, toTotalSeconds } from './format';
+import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimeUnit } from './types';
 import { useFlashOnToken } from './useFlashOnToken';
@@ -961,6 +961,26 @@ export default function Timer() {
     setRemovingPresetId((current) => (current === id ? null : current));
   }, []);
 
+  // Same two-step shape as the removal above: the panel asks, the dialog
+  // answers, and the answer travels back down as `presetCorrection` for
+  // the panel to apply — the typed digits live down there, not here.
+  const [presetCorrection, setPresetCorrection] = useState<{ digits: string; add: boolean } | null>(null);
+
+  const handleRequestPresetCorrection = useCallback((digits: string, add: boolean) => {
+    const corrected = parsePresetDigits(digits);
+    setDialog({
+      type: 'correctPreset',
+      data: {
+        typed: formatEntryLabel(rawPresetDigits(digits)),
+        corrected: formatEntryLabel(corrected),
+        digits: presetDigitsFromParts(corrected),
+        add,
+      },
+    });
+  }, []);
+
+  const handlePresetCorrectionApplied = useCallback(() => setPresetCorrection(null), []);
+
   const handleClearHistory = useCallback(() => {
     setHistory([]);
     setInsertedHistory(null);
@@ -1107,6 +1127,10 @@ export default function Timer() {
         // hands off to the row's fizz; the actual removal happens when
         // that animation ends (see handleRemovePreset)
         setRemovingPresetId(dialog.data.id);
+        closeDialog();
+        break;
+      case 'correctPreset':
+        setPresetCorrection({ digits: dialog.data.digits, add: dialog.data.add });
         closeDialog();
         break;
       case 'skipConfirmations':
@@ -1747,6 +1771,9 @@ export default function Timer() {
             onRequestRemove={handleRequestRemovePreset}
             onRemove={handleRemovePreset}
             removingId={removingPresetId}
+            onRequestCorrect={handleRequestPresetCorrection}
+            correction={presetCorrection}
+            onCorrectionApplied={handlePresetCorrectionApplied}
             onSelect={handleSelectEntry}
             inserted={insertedPreset}
             loaded={loadedEntry}
