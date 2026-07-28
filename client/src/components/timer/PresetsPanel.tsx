@@ -1,5 +1,5 @@
 import { memo, useRef, useState } from 'react';
-import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_FONT_SIZE, MAX_PRESETS } from './constants';
+import { LIST_ROW_BUTTON_STYLE, LIST_ROW_LABEL_EM, LIST_ROW_REMOVE_FONT_SIZE, MAX_PRESETS } from './constants';
 import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
@@ -12,6 +12,17 @@ import { useEntryFlash } from './useDomFlash';
 // the longest string in the panel, the HH:MM:SS hint), so every pixel
 // spent here is a pixel the list labels can't have.
 const PRESET_BUTTON_STYLE = { padding: '0.12em 0.35em', fontSize: LIST_ROW_REMOVE_FONT_SIZE };
+// Fixed, and sized off the same LIST_ROW_LABEL_EM the sidebar's own
+// width is solved from, so the input and the column it lives in can't
+// drift apart. This used to be size={8}, which resolves to exactly 8
+// glyph advances of content — a perfect fit for an 8-character string
+// and therefore no fit at all, since a fraction of a pixel of layout
+// rounding is enough to clip the last "S" off HH:MM:SS (or the last
+// digit off 99:59:59). Border-box here, so the 8px of border-4 and the
+// 2px of rounding slack are spelled out rather than left to the input's
+// own intrinsic sizing; the em part already includes the 0.3em side
+// padding. Fixed also means the box doesn't twitch as digits are typed.
+const PRESET_INPUT_WIDTH = `calc(${LIST_ROW_LABEL_EM}em + 10px)`;
 
 function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   preset: TimerEntry;
@@ -147,21 +158,14 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
                 // padding out wider than the labels it sits under
                 padding: '0.12em 0.3em',
                 // Same size as the list buttons — this box is one of
-                // them, not a lesser control under them.
+                // them, not a lesser control under them. That makes this
+                // row the widest in the sidebar by the 2px of slack in
+                // PRESET_INPUT_WIDTH, which SIDEBAR_WIDTH accounts for.
                 fontSize: LIST_ROW_BUTTON_STYLE.fontSize,
-                // Fixed at exactly the full HH:MM:SS, and fixed to the
-                // same width as a widest-possible "99:59:59" list button
-                // so the two rows measure identically and SIDEBAR_WIDTH
-                // (constants.ts) covers both without growing.
-                // box-sizing is border-box here (Tailwind preflight), so
-                // this is an outer width: 9ch = 5.4em, minus the 0.6em
-                // of side padding above, leaves 4.8em = 8 monospace
-                // characters, and the +8px covers the 4px borders. That
-                // works because 1ch (0.6em in IBM Plex Mono) happens to
-                // equal this box's total horizontal padding — change the
-                // padding and the hint silently spills out of its box
-                // again, which is what a bare `width: 9ch` did before.
-                width: 'calc(9ch + 8px)',
+                // see PRESET_INPUT_WIDTH's own comment above
+                width: PRESET_INPUT_WIDTH,
+                boxSizing: 'border-box',
+                flexShrink: 0,
                 // invisible while showing the hint's character count, so the
                 // decorative hint div shows through underneath instead —
                 // caretColor is set separately since it inherits from color
