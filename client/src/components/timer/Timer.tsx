@@ -1043,9 +1043,19 @@ export default function Timer() {
 
     if (value === previous) return;
 
-    // no confirmation while beeping — the adjustment restarts the timer
-    if (!skipConfirmations && (isRunning || isPaused) && timeRef.current.seconds >= 0 && !promptShownInStateRef.current) {
-      setDialog({ type: 'adjust', data: { unit, value, previous } });
+    // An unstarted timer asks too now. It used to change in silence on
+    // the grounds that there was no run to disturb — but these fields
+    // are also how the timer is set up in the first place, an arrow is
+    // one misclick, and a silently changed configured time is only
+    // noticeable if you happen to read the digits before pressing START.
+    // Still once per state, via the same promptShownInStateRef that
+    // re-arms whenever the timer starts, pauses or resumes: adjusting
+    // three fields in a row is one intent, not three.
+    // Still nothing while beeping — seconds < 0 keeps its own exemption
+    // here, since an adjustment is the ordinary way to restart out of an
+    // alarm and RESET already asks before doing the same thing.
+    if (!skipConfirmations && timeRef.current.seconds >= 0 && !promptShownInStateRef.current) {
+      setDialog({ type: 'adjust', data: { unit, value, previous, restarts: isRunning || isPaused } });
       promptShownInStateRef.current = true;
     } else {
       applyAdjustment(unit, value, previous);

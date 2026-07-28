@@ -87,10 +87,14 @@ const getCopy = (dialog: DialogState) => {
       };
     }
     case 'adjust': {
-      const { unit, value } = dialog.data;
+      const { unit, value, restarts } = dialog.data;
       return {
         title: 'ADJUST TIME',
-        description: `Change ${unit} to ${value}? The timer will restart from the new time.`,
+        // an unstarted timer has no run to restart — saying it would
+        // suggest this throws something away, and it doesn't
+        description: restarts
+          ? `Change ${unit} to ${value}? The timer will restart from the new time.`
+          : `Change ${unit} to ${value}? That's the time the timer will start from.`,
         action: 'CONFIRM',
       };
     }

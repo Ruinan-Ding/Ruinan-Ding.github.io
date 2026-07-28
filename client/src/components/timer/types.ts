@@ -29,7 +29,9 @@ export type DialogState =
   | { type: 'mute' }
   | { type: 'switch'; data: TimeParts; mode: 'startFromIdle' | 'switchRunning' | 'loadOnly' }
   | { type: 'seek'; data: { targetSeconds: number; mode: 'idle' | 'paused' | 'running' } }
-  | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number } }
+  // restarts: whether a run is actually in flight to be restarted, or
+  // this is just setting up an unstarted timer
+  | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number; restarts: boolean } }
   | { type: 'hideWebsiteLink' }
   | { type: 'clearHistory' }
   | { type: 'removePreset'; data: { id: string; label: string } }
