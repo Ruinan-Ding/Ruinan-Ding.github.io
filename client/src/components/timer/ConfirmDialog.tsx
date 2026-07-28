@@ -39,13 +39,18 @@ const getCopy = (dialog: DialogState) => {
       const label = formatEntryLabel(dialog.data);
       switch (dialog.mode) {
         // never run yet — nothing to lose, so this skips the "progress
-        // will be lost" warning switchRunning below needs
+        // will be lost" warning switchRunning below needs, and it only
+        // loads: picking a time isn't asking to start counting it
         case 'startFromIdle':
           return {
-            title: 'START TIMER',
-            description: `Start ${label} now?`,
-            action: 'START',
+            title: 'LOAD TIMER',
+            description: `Load ${label}? Press START when you want to run it.`,
+            action: 'LOAD',
           };
+        // the only mode that starts the new time, because a timer was
+        // already counting when it was asked for. "Progress" covers both
+        // directions: time left on a countdown, or time counted past
+        // zero by an alarm that's still running
         case 'switchRunning':
           return {
             title: 'SWITCH TIMER',

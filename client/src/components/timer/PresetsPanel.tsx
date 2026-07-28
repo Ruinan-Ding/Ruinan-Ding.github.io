@@ -1,10 +1,28 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS } from './constants';
-import { formatEntryLabel, isPresetOutOfRange, parsePresetDigits, presetDigits, presetDigitsFromParts, rawPresetDigits } from './format';
+import { formatEntryLabel, isPresetOutOfRange, pad, parsePresetDigits, presetDigits, presetDigitsFromParts, rawPresetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
-import { useDomFlash, useEntryFlash, useFizzRemove } from './useDomFlash';
+import { useEntryFlash, useFizzRemove } from './useDomFlash';
+import { FLASH_DURATION_MS } from './useFlashOnToken';
+
+type CorrectedUnits = { hours: boolean; minutes: boolean; seconds: boolean };
+
+// The displayed value, split the way formatEntryLabel builds it, so each
+// piece can be colored on its own: hours only when there are any, and
+// minutes unpadded in that case since it leads.
+const labelSegments = ({ hours, minutes, seconds }: TimeParts): Array<{ text: string; unit: keyof CorrectedUnits }> =>
+  hours > 0
+    ? [
+        { text: String(hours), unit: 'hours' },
+        { text: pad(minutes), unit: 'minutes' },
+        { text: pad(seconds), unit: 'seconds' },
+      ]
+    : [
+        { text: String(minutes), unit: 'minutes' },
+        { text: pad(seconds), unit: 'seconds' },
+      ];
 
 function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, inserted, loaded }: {
   preset: TimerEntry;
@@ -126,15 +144,21 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
 
   const handleBlur = () => handleCommit(false);
 
-  // Flashes the corrected value yellow, the same one-shot cue the
-  // countdown's own HH/MM/SS segments get when a HOURS/MINUTES/SECONDS
-  // field changes them — this field just rewrote what you typed, so it
-  // says so rather than quietly swapping the number. Only for the
-  // correct-and-stay path: correcting on the way to adding leaves an
-  // empty box, and the row that lands in the list below carries its own
-  // yellow insert flash instead.
-  const [correctFlashToken, setCorrectFlashToken] = useState(0);
-  useDomFlash(inputRef, correctFlashToken ? `correct:${correctFlashToken}` : null, 'animate-correctFlashText');
+  // Which of HH/MM/SS the correction actually rewrote, so only those
+  // flash — the same one-shot yellow the countdown's own segments get
+  // when a HOURS/MINUTES/SECONDS field changes them. Correcting 99:99 to
+  // 59:59 rewrote both; correcting 1:99 to 1:59 rewrote only the
+  // seconds, and lighting up the untouched 1 would be pointing at the
+  // wrong number. Only for the correct-and-stay path: correcting on the
+  // way to adding leaves an empty box, and the row that lands in the
+  // list below carries its own yellow insert flash instead.
+  const [correctedUnits, setCorrectedUnits] = useState<CorrectedUnits | null>(null);
+  const isFlashingCorrection = correctedUnits !== null;
+  useEffect(() => {
+    if (!isFlashingCorrection) return;
+    const id = setTimeout(() => setCorrectedUnits(null), FLASH_DURATION_MS);
+    return () => clearTimeout(id);
+  }, [isFlashingCorrection, correctedUnits]);
 
   // A correction the dialog got a yes to, applied here because this is
   // where the typed digits live.
@@ -144,11 +168,17 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
       onAdd(parsePresetDigits(correction.digits));
       setDigits('');
     } else {
+      const before = rawPresetDigits(digits);
+      const after = rawPresetDigits(correction.digits);
       setDigits(correction.digits);
-      setCorrectFlashToken((token) => token + 1);
+      setCorrectedUnits({
+        hours: before.hours !== after.hours,
+        minutes: before.minutes !== after.minutes,
+        seconds: before.seconds !== after.seconds,
+      });
     }
     onCorrectionApplied();
-  }, [correction, onAdd, onCorrectionApplied]);
+  }, [correction, digits, onAdd, onCorrectionApplied]);
 
   return (
     <div>
@@ -198,8 +228,27 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
                 (this div shows through while the input's own text is
                 transparent), and the extra spacing pushed both past the
                 8 characters the input now sizes itself to. */}
+            {/* Two jobs, one box, both shown through a transparent
+                input: the grey HH:MM:SS hint while empty, and — for the
+                length of a correction flash — the corrected value split
+                into its HH/MM/SS pieces so only the rewritten ones glow.
+                An input renders one uniform color for its whole value,
+                so per-segment coloring has to happen out here; the input
+                already goes transparent for the hint, and this is the
+                same trick for the same reason. */}
             <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: LIST_ROW_BUTTON_STYLE.fontSize, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-              {displayValue === '' ? 'HH:MM:SS' : ''}
+              {displayValue === '' && 'HH:MM:SS'}
+              {correctedUnits && labelSegments(rawPresetDigits(digits)).map((segment, index) => (
+                <span key={segment.unit}>
+                  {index > 0 && <span style={{ color: '#ffffff' }}>:</span>}
+                  <span
+                    className={correctedUnits[segment.unit] ? 'animate-correctFlashText' : ''}
+                    style={{ color: '#ffffff' }}
+                  >
+                    {segment.text}
+                  </span>
+                </span>
+              ))}
             </div>
             <input
               ref={inputRef}
@@ -213,7 +262,13 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               onBlur={handleBlur}
-              onFocus={(e) => pinCaret(e.target)}
+              // typing again ends the flash early — the segments below
+              // are a still image of what the correction did, and they'd
+              // stop matching the moment the value changes under them
+              onFocus={(e) => {
+                setCorrectedUnits(null);
+                pinCaret(e.target);
+              }}
               onSelect={handleSelect}
               className="border-4 border-white font-bold transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
@@ -222,11 +277,12 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
                 // is the one every other box in the sidebar is sized to
                 // hold: 8 characters of HH:MM:SS.
                 ...LIST_ROW_BUTTON_STYLE,
-                // invisible while showing the hint's character count, so the
-                // decorative hint div shows through underneath instead —
+                // invisible while showing the hint's character count, and
+                // again while a correction flash is playing, so the
+                // decorative div underneath shows through in both cases —
                 // caretColor is set separately since it inherits from color
                 // and would otherwise vanish along with the text
-                color: digits === '' ? 'transparent' : '#ffffff',
+                color: digits === '' || correctedUnits ? 'transparent' : '#ffffff',
                 caretColor: '#ffffff',
                 backgroundColor: 'transparent',
                 position: 'relative',

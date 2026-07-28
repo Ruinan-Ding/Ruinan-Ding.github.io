@@ -814,12 +814,12 @@ export default function Timer() {
   };
 
   const handleStopClick = () => {
-    // an actively beeping alarm stops without confirmation
-    if (seconds < 0 && isRunning && !isPaused) {
-      playTone('stop');
-      stopToConfigured();
-      return;
-    }
+    // A ringing alarm used to stop with no confirmation, on the theory
+    // that silencing it is urgent. But stopping doesn't just silence —
+    // it throws away how far past zero the timer had counted, which is
+    // the one number a count-up run exists to produce, and the alarm has
+    // its own mute and repeat-off controls for the urgent case. So this
+    // asks like every other stop now.
     if (skipConfirmations) {
       handleConfirmStop();
       return;
@@ -911,16 +911,26 @@ export default function Timer() {
       }
       return;
     }
-    // a beeping timer hands off to the new preset and keeps running, no
-    // confirmation needed since it's already actively alarming
+    // A ringing timer used to hand off to the new preset and keep
+    // running with no confirmation, on the grounds that it was already
+    // alarming. But how far past zero it had counted is real elapsed
+    // time — the whole output of a count-up run — and switching discards
+    // it just as thoroughly as switching mid-countdown discards the time
+    // remaining. Same question, then.
     if (isRunning && timeRef.current.seconds < 0) {
-      applySwitch(parts, true);
+      if (skipConfirmations) {
+        applySwitch(parts, true);
+      } else {
+        setDialog({ type: 'switch', data: parts, mode: 'switchRunning' });
+      }
       return;
     }
-    // never run (idle at its configured time) — confirm, then start
-    // fresh, same as pressing START would
+    // Never run (idle at its configured time): nothing to lose, so this
+    // only loads — picking a time out of a list isn't a request to start
+    // counting it, and START is right there. Every other branch already
+    // worked this way except the two that were already running.
     if (skipConfirmations) {
-      applySwitch(parts, true);
+      applySwitch(parts, false);
     } else {
       setDialog({ type: 'switch', data: parts, mode: 'startFromIdle' });
     }
@@ -1106,7 +1116,10 @@ export default function Timer() {
         handleConfirmReset();
         break;
       case 'switch':
-        handleConfirmSwitch(dialog.data, dialog.mode !== 'loadOnly');
+        // switchRunning is now the only mode that starts the new time:
+        // it's the one where a timer was already counting, so carrying
+        // on counting is continuity rather than a new decision
+        handleConfirmSwitch(dialog.data, dialog.mode === 'switchRunning');
         break;
       case 'seek':
         applySeek(dialog.data.targetSeconds);
