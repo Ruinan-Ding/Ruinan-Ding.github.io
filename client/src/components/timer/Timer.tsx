@@ -1869,7 +1869,13 @@ export default function Timer() {
             column, so a short window shrinks these too instead of
             competing with the digits for space. */}
         {!isWordCounterFullscreen && (
-        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[70] flex items-start gap-2">
+        {/* z-[80], one above the other header strip and the website
+            link (both z-[70]): the volume popup swings right out of the
+            speaker into the space the link occupies, and on a tie the
+            link — later in the DOM — was painting over it. Nothing here
+            ever overlaps the right-hand strip, so out-stacking it costs
+            nothing. */}
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[80] flex items-start gap-2">
           {/* below sm the sidebar itself is force-hidden (see its own
               hidden sm:flex above) regardless of isSidebarHidden — so
               this toggle would sit there doing nothing below that
