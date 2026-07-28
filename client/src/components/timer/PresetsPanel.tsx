@@ -4,7 +4,7 @@ import { formatEntryLabel, isPresetOutOfRange, parsePresetDigits, presetDigits, 
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
-import { useEntryFlash, useFizzRemove } from './useDomFlash';
+import { useDomFlash, useEntryFlash, useFizzRemove } from './useDomFlash';
 
 function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, inserted, loaded }: {
   preset: TimerEntry;
@@ -126,6 +126,16 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
 
   const handleBlur = () => handleCommit(false);
 
+  // Flashes the corrected value yellow, the same one-shot cue the
+  // countdown's own HH/MM/SS segments get when a HOURS/MINUTES/SECONDS
+  // field changes them — this field just rewrote what you typed, so it
+  // says so rather than quietly swapping the number. Only for the
+  // correct-and-stay path: correcting on the way to adding leaves an
+  // empty box, and the row that lands in the list below carries its own
+  // yellow insert flash instead.
+  const [correctFlashToken, setCorrectFlashToken] = useState(0);
+  useDomFlash(inputRef, correctFlashToken ? `correct:${correctFlashToken}` : null, 'animate-correctFlashText');
+
   // A correction the dialog got a yes to, applied here because this is
   // where the typed digits live.
   useEffect(() => {
@@ -135,6 +145,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
       setDigits('');
     } else {
       setDigits(correction.digits);
+      setCorrectFlashToken((token) => token + 1);
     }
     onCorrectionApplied();
   }, [correction, onAdd, onCorrectionApplied]);

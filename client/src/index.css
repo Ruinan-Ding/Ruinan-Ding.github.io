@@ -278,6 +278,25 @@
   animation: decreaseFlashRedText 1.2s ease-out forwards;
 }
 
+/* Same one-shot text cue for a preset entry that was just corrected on
+   commit (99:99:99 -> 99:59:59): yellow rather than the green/red pair
+   above, because a correction is neither an increase nor a decrease —
+   it's the field telling you it changed what you typed. Animations
+   outrank inline styles in the cascade, which is what lets this show
+   through the input's own inline color. */
+@keyframes correctFlashYellowText {
+  from {
+    color: #eab308;
+  }
+  to {
+    color: #ffffff;
+  }
+}
+
+.animate-correctFlashText {
+  animation: correctFlashYellowText 1.2s ease-out forwards;
+}
+
 /* Paused + repeat off, once the window's own 3-cycle flash settles: the
    digits wave between the state color and a dark gray (kept well off pure
    black so it stays visible against the background, not near-invisible)

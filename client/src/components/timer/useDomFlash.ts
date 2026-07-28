@@ -8,7 +8,7 @@ import { FLASH_DURATION_MS } from './useFlashOnToken';
 // previous kind's class sitting alongside the new one — two "animation"
 // values on the same element otherwise fight over which one the browser
 // actually renders.
-const ALL_FLASH_CLASSES = ['animate-insertFlash', 'animate-loadFlash'];
+const ALL_FLASH_CLASSES = ['animate-insertFlash', 'animate-loadFlash', 'animate-correctFlashText'];
 
 // Toggling a React-driven className isn't enough to replay a still-running
 // CSS animation: even when state genuinely flips false->true across two
