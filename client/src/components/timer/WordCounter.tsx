@@ -6,6 +6,7 @@ import { HEADER_ICON_SIZE, STORAGE_KEYS } from './constants';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
 import type { DialogState } from './types';
+import { FLASH_DURATION_MS } from './useFlashOnToken';
 
 interface WordCounterProps {
   onFocusChange: (focused: boolean) => void;
@@ -60,6 +61,16 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // state (rather than routed through the timer's dialog prop) since
   // `text` itself lives entirely in this component.
   const [clearDialog, setClearDialog] = useState<DialogState>({ type: null });
+  // Copy reports back on its own button for a beat, then goes quiet —
+  // no dialog, since copying changes nothing and asking about it would
+  // cost more than the action. Shares the app's one-shot cue duration so
+  // it reads at the same tempo as the flashes elsewhere.
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  useEffect(() => {
+    if (copyState === 'idle') return;
+    const id = setTimeout(() => setCopyState('idle'), FLASH_DURATION_MS);
+    return () => clearTimeout(id);
+  }, [copyState]);
   const [isFocused, setIsFocused] = useState(false);
   // fullscreen is a transient view toggle — not persisted, so a reload
   // always comes back out of fullscreen. Collapse, unlike fullscreen, IS
@@ -253,6 +264,21 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     };
   }, [text, alnumWordsOnly, alnumCharsOnly]);
 
+  // navigator.clipboard is the whole implementation on purpose: it needs
+  // a secure context, which this has everywhere it actually runs (https
+  // in production, localhost in dev). The legacy execCommand fallback
+  // would only ever fire where the modern one is blocked on purpose, so
+  // the honest answer there is to say it failed rather than to smuggle
+  // the text out through a hidden textarea.
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
+  };
+
   const setFocused = (focused: boolean) => {
     setIsFocused(focused);
     onFocusChange(focused);
@@ -430,13 +456,33 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
 
           <div className="flex items-center gap-2 flex-shrink-0">
             {text !== '' && (
-              <button
-                onClick={() => setClearDialog({ type: 'clearWordCounter' })}
-                className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
-                style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
-              >
-                Clear
-              </button>
+              <>
+                {/* Same conditional as Clear — there's nothing to copy
+                    from an empty box either. The label reports the
+                    result rather than assuming it: writeText can be
+                    refused (denied permission, or a non-secure context),
+                    and a Copy button that looks identical whether or not
+                    anything reached the clipboard is worse than one that
+                    says so. minWidth holds the box at its longest label
+                    so Clear and the fullscreen toggle beside it don't
+                    shuffle sideways when it changes. */}
+                <button
+                  onClick={handleCopy}
+                  title="Copy all text to the clipboard"
+                  aria-label="Copy text to clipboard"
+                  className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0 text-center"
+                  style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75), minWidth: '5.6em' }}
+                >
+                  {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Failed' : 'Copy'}
+                </button>
+                <button
+                  onClick={() => setClearDialog({ type: 'clearWordCounter' })}
+                  className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
+                  style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
+                >
+                  Clear
+                </button>
+              </>
             )}
             <button
               onClick={() => setIsFullscreen((prev) => !prev)}
