@@ -834,14 +834,11 @@ export default function Timer() {
   };
 
   const handleResetClick = () => {
-    // If finished, auto-restart without confirmation
-    if (seconds < 0) {
-      restartCountdown(configuredTotalSeconds);
-      recordHistory(configured);
-      setIsRunning(true);
-      setIsPaused(false);
-      return;
-    }
+    // A finished timer used to restart on the spot, no question asked —
+    // the same "it's already alarming, just do it" reasoning STOP and
+    // preset-switching used to make. It's wrong for the same reason:
+    // restarting throws away how far past zero the timer counted, which
+    // on a count-up run is the only number it produced.
     if (skipConfirmations) {
       handleConfirmReset();
       return;
@@ -888,6 +885,17 @@ export default function Timer() {
     // entry shows green immediately instead of staying yellow until the
     // insert flash's own timing runs out.
     setLoadedEntry((prev) => bumpFlash(prev, entry.id));
+    // Already loaded, and the timer is sitting at it unstarted: there is
+    // nothing to load and nothing to lose, so asking "load 30:35?" of a
+    // timer reading 30:35 is a dialog whose yes and no do the same
+    // thing. Clicking it stays a no-op — the row still flashes, so the
+    // click visibly registered, but nothing is confirmed or restarted.
+    // Only from the unstarted state: mid-run or after a stop, the same
+    // value is a real request to go back to the top, which the branches
+    // below handle.
+    if (!isRunning && timeRef.current.seconds === configuredTotalSeconds && toTotalSeconds(parts) === configuredTotalSeconds) {
+      return;
+    }
     // actively counting down (not paused): confirm, then start the new
     // preset immediately
     if (isRunning && !isPaused && timeRef.current.seconds >= 0) {
