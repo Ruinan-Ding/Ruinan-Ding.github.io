@@ -36,7 +36,13 @@ export const LIST_ROW_BUTTON_STYLE = { fontFamily: "'IBM Plex Mono', monospace",
 export const SIDEBAR_PADDING = shrinkClamp(0.5, 1, 1.1, 1);
 export const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
 export const LIST_ROW_REMOVE_FONT_SIZE = shrinkClamp(0.7, 1.4, 1.6, 1.1);
-export const SIDEBAR_WIDTH = `calc(5.4 * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 12px)`;
+// 12px is the real border total (the 4px each side of a list button, plus
+// this sidebar's own 4px right border); the extra 2px is slack. Solved
+// exactly, the widest row lands within a few tenths of a px of the space
+// this reserves, and `ch` is fractional — so without it a rounding of the
+// wrong sign puts the widest label a hair past the sidebar's own
+// overflow-hidden edge.
+export const SIDEBAR_WIDTH = `calc(5.4 * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 14px)`;
 
 // localStorage keys — don't rename, older saves use them
 export const STORAGE_KEYS = {

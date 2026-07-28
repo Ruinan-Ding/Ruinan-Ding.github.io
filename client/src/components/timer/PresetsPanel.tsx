@@ -6,19 +6,6 @@ import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
 import { useEntryFlash } from './useDomFlash';
 
-// Deliberately a step below the list buttons' own size (LIST_ROW_BUTTON_
-// STYLE in constants.ts) rather than matching it, which it used to.
-// This row holds the longest string in the whole sidebar — the 8
-// character HH:MM:SS hint, against 4-5 characters for a real "1:05"
-// label — so at a matched size it, not the labels, decides how wide the
-// sidebar gets: the labels would be the thing sized to fit around it,
-// which is backwards. Sizing the hint down instead lets this row and a
-// label row come out about the same width, so the sidebar is as narrow
-// as its labels need while those labels get the largest size that fits.
-// This sidebar sits in a fixed, overflow-hidden column, so its own
-// controls still need to shrink first on a short window just like the
-// main column's do — nothing here scrolls if it overflows.
-const PRESET_INPUT_FONT_SIZE = shrinkClamp(0.75, 1.6, 2, 1.25);
 // Shared by the +/- preset buttons. No minWidth of its own any more —
 // that floor made these squares wider than the single glyph in them
 // needs, and this row is what sets the whole sidebar's width (it holds
@@ -135,23 +122,13 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
                 (this div shows through while the input's own text is
                 transparent), and the extra spacing pushed both past the
                 8 characters the input now sizes itself to. */}
-            <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: PRESET_INPUT_FONT_SIZE, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: LIST_ROW_BUTTON_STYLE.fontSize, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
               {displayValue === '' ? 'HH:MM:SS' : ''}
             </div>
             <input
               ref={inputRef}
               type="text"
               inputMode="numeric"
-              // sizes itself to the 8-character hint through the input's
-              // own native intrinsic width instead of a CSS width: the
-              // old `width: 9ch` was a border-box width (Tailwind's
-              // preflight sets box-sizing globally), so padding+border
-              // ate into those 9 characters and the hint spilled out
-              // past both edges of its own box. size counts content
-              // characters, so padding and border are added on top
-              // rather than taken out, and it's one number to keep in
-              // step with the hint instead of a hand-solved ch value.
-              size={8}
               disabled={atCapacity}
               title={atCapacity ? `Preset limit reached (${MAX_PRESETS})` : undefined}
               aria-label="New preset time"
@@ -169,7 +146,22 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
                 // this row's box hugs the hint at every size instead of
                 // padding out wider than the labels it sits under
                 padding: '0.12em 0.3em',
-                fontSize: PRESET_INPUT_FONT_SIZE,
+                // Same size as the list buttons — this box is one of
+                // them, not a lesser control under them.
+                fontSize: LIST_ROW_BUTTON_STYLE.fontSize,
+                // Fixed at exactly the full HH:MM:SS, and fixed to the
+                // same width as a widest-possible "99:59:59" list button
+                // so the two rows measure identically and SIDEBAR_WIDTH
+                // (constants.ts) covers both without growing.
+                // box-sizing is border-box here (Tailwind preflight), so
+                // this is an outer width: 9ch = 5.4em, minus the 0.6em
+                // of side padding above, leaves 4.8em = 8 monospace
+                // characters, and the +8px covers the 4px borders. That
+                // works because 1ch (0.6em in IBM Plex Mono) happens to
+                // equal this box's total horizontal padding — change the
+                // padding and the hint silently spills out of its box
+                // again, which is what a bare `width: 9ch` did before.
+                width: 'calc(9ch + 8px)',
                 // invisible while showing the hint's character count, so the
                 // decorative hint div shows through underneath instead —
                 // caretColor is set separately since it inherits from color

@@ -230,25 +230,31 @@ export default function Timer() {
   // since collapsing it changes how much room THIS row gets — checking
   // it from here would just watch its own fix take effect.)
   //
-  // Below lg the row switches to flex-col (see its own className), which
-  // would otherwise stack this panel underneath the digits instead of
-  // beside them — explicitly not wanted here, so sub-lg is treated as
-  // its own always-hide condition rather than something the overflow
-  // check happens to catch. tuckedAtSizeRef stays null in that case
-  // (there's no meaningful "size to recover to" below lg); the effect's
-  // own isDesktopLayout dependency re-fires the moment the breakpoint is
-  // crossed back, at which point the "was only sub-lg-hidden" branch
-  // gives it one fresh look — same as a manual re-show — and the real
-  // overflow check on the very next run decides whether it actually fits.
+  // Below lg this check doesn't run at all, and nothing here hides the
+  // panel: it moves out of this row entirely and becomes its own item
+  // under it (see the render), in the 3-across form, so there's nothing
+  // left for a tuck to get out of the way of. This branch used to be an
+  // unconditional always-hide — the row goes flex-col below lg and a
+  // panel stacked under the digits was judged worse than no panel — and
+  // that, not any squeeze, was where the panel actually disappeared:
+  // narrow the window past 1024 and it was gone, with its own show arrow
+  // suppressed too (that arrow is gated on NOT being auto-tucked), so
+  // there was no way to ask for it back. Any auto-tuck from the lg side
+  // is released on the way through, so crossing the breakpoint can never
+  // strand it hidden-with-no-arrow either.
+  // Running the overflow check below lg would be actively wrong on top
+  // of that: down there the panel is a sibling of this row rather than
+  // its content, so it takes height OFF the row — tuck it and the row
+  // regrows, untuck and it shrinks again, forever.
   useEffect(() => {
     const el = timerRowRef.current;
     if (!el) return;
     const check = () => {
       if (!isDesktopLayout) {
         tuckedAtSizeRef.current = null;
-        if (!isTimeFieldsHiddenRef.current || !isTimeFieldsAutoTuckedRef.current) {
-          setIsTimeFieldsHidden(true);
-          setIsTimeFieldsAutoTucked(true);
+        if (isTimeFieldsAutoTuckedRef.current) {
+          setIsTimeFieldsHidden(false);
+          setIsTimeFieldsAutoTucked(false);
         }
         return;
       }
@@ -267,8 +273,17 @@ export default function Timer() {
         setIsTimeFieldsAutoTucked(true);
       } else if (
         tuckedAtSizeRef.current &&
-        el.clientWidth >= tuckedAtSizeRef.current.w &&
-        el.clientHeight >= tuckedAtSizeRef.current.h
+        // strictly greater, not >=: hiding the panel doesn't move this
+        // row (it's flex-1 in both axes, so its box is set by its parent
+        // rather than its contents), so the size recorded a moment ago
+        // IS the current size — >= made that comparison true instantly
+        // and bounced the panel straight back into the overflow that
+        // just tucked it, tuck/untuck forever. It never fired only
+        // because the overflow was usually the digits column's, not the
+        // panel's, which keeps the branch above true and this one
+        // unreachable. The row has to genuinely grow to earn a re-show.
+        el.clientWidth > tuckedAtSizeRef.current.w &&
+        el.clientHeight > tuckedAtSizeRef.current.h
       ) {
         tuckedAtSizeRef.current = null;
         setIsTimeFieldsHidden(false);
@@ -1407,6 +1422,94 @@ export default function Timer() {
       {' '}<span className="opacity-60">/ {configuredLabel}</span>
     </span>
   );
+  // The HOURS/MINUTES/SECONDS panel (or, while hidden, the arrow that
+  // brings it back). Hoisted out of the JSX because it now renders in
+  // one of two different places depending on the breakpoint — inside the
+  // timer row at lg, as a sibling under it below lg — and it has to be
+  // literally the same element in both, not a copy per slot.
+  const timeFieldsPanel = isTimeFieldsHidden ? (
+    // Hidden with nothing to click: the panel was auto-tucked (not a
+    // manual hide) and there's still no room for it, so this arrow would
+    // just bounce it straight back to hidden on the very next check() —
+    // showing it here would be a dead button. It reappears on its own
+    // once the panel does (see tuckedAtSizeRef above). Only reachable at
+    // lg now: below lg nothing auto-tucks any more, so this arrow is
+    // always the real, clickable one down there.
+    !isTimeFieldsAutoTucked && (
+      <HeaderToggleButton
+        onClick={() => {
+          tuckedAtSizeRef.current = null;
+          setIsTimeFieldsAutoTucked(false);
+          setIsTimeFieldsHidden(false);
+        }}
+        className="lg:self-start"
+        style={isDesktopLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
+        icon={<ChevronsLeft style={HEADER_ICON_SIZE} />}
+        label="Show hours/minutes/seconds"
+      />
+    )
+  ) : (
+    // items-start: the hide button sits flush against the box's
+    // top-left corner — its right edge touching the box's left
+    // edge — rather than centered on the box's full height.
+    // lg:self-start + TIME_FIELDS_TOP_MARGIN on the wrapper keeps
+    // that corner pinned below the header buttons, matching the
+    // collapsed button above so toggling never shifts its position.
+    // Shrinkable (no flex-shrink-0) so a row that's short on
+    // width squeezes this panel instead of overflowing and
+    // auto-tucking it — the fields inside wrap to their stacked
+    // form as it narrows (see TimeField). Everything else in
+    // this row is fixed-width or an empty spacer, so this is the
+    // only item with anywhere to give. min-w-min all the way
+    // down this subtree, deliberately: the squeeze has to stop
+    // at the stacked form's own min-content rather than crushing
+    // the box past it, and index.css's blanket
+    // `.flex { min-width: 0 }` overrides the automatic minimum
+    // size that would otherwise do that for free. A row still
+    // too narrow after stacking then overflows honestly, and the
+    // auto-tuck takes it from there.
+    <div
+      className="flex items-start min-w-min lg:self-start"
+      style={isDesktopLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
+    >
+      <HeaderToggleButton
+        onClick={() => {
+          tuckedAtSizeRef.current = null;
+          setIsTimeFieldsAutoTucked(false);
+          setIsTimeFieldsHidden(true);
+        }}
+        icon={<ChevronsRight style={HEADER_ICON_SIZE} />}
+        label="Hide hours/minutes/seconds"
+      />
+      {/* padding/gap sized on shrinkClamp rather than Tailwind's
+          sm:/md: steps — those jump discretely at fixed
+          breakpoints, so most of this box's own footprint stayed
+          rigid right up until the auto-tuck check gave up on it
+          entirely. This keeps shrinking continuously the same
+          way TimeField's own contents already do.
+          Each TimeField keeps its label beside its digit box/
+          arrows rather than stacked above (see TimeField's own
+          comment), and stacks only under a real squeeze.
+          Width is w-fit — the label is a fixed 9ch inside TimeField
+          itself (see its own comment), so this box just sizes to
+          whatever that plus the box/arrows needs.
+          time-fields-box is the hook for the wide-and-short 3-across
+          form (index.css): the container query there swaps this
+          flex-col for a 3-column grid once the row is too short for
+          the stack, and the --across modifier does it unconditionally
+          below lg, where this sits under the digits instead of beside
+          them. */}
+      <div
+        className={`border-4 border-white bg-black flex flex-col w-fit min-w-min time-fields-box${isDesktopLayout ? '' : ' time-fields-box--across'}`}
+        style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
+      >
+        <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
+        <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
+        <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />
+      </div>
+    </div>
+  );
+
   // Shared between the normal in-column button row and the compact
   // fullscreen-header copy above — same START/RESUME-PAUSE/RESET/STOP
   // logic either way, just a different size/border weight
@@ -1613,10 +1716,24 @@ export default function Timer() {
             inner flex-1 wrapper around the digits/controls below can
             still center THAT content in the leftover space, instead of
             everything bunching up under the link. */}
+        {/* container-type: size makes this row queryable by height, which
+            is what lets the HOURS/MINUTES/SECONDS panel inside it switch
+            to its 3-across form when the row is too short for the stack
+            (see .time-fields-box in index.css) with no state, no
+            observer and no risk of the switch moving its own trigger:
+            this row is flex-1 in both axes with an explicit w-full, so
+            its box comes from its parent, never from what's in it.
+            Size containment needs exactly that guarantee, so it's gated
+            to lg — below lg the panel isn't in this row at all and gets
+            the across form unconditionally instead. The digits column's
+            own nested container (further down) still resolves its 100cqh
+            against itself, being the nearer of the two. */}
         <div
           ref={timerRowRef}
           className="flex flex-col lg:flex-row gap-4 lg:gap-2 w-full min-h-0 flex-1 items-center justify-start lg:justify-between overflow-hidden"
-          style={{ alignItems: 'safe center' }}
+          style={isDesktopLayout
+            ? { alignItems: 'safe center', containerType: 'size', containerName: 'timer-row' }
+            : { alignItems: 'safe center' }}
         >
           <div className="flex-1 hidden lg:block"></div>
 
@@ -1715,7 +1832,27 @@ export default function Timer() {
               style={{
                 fontSize: isDesktopLayout
                   ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh)) / 1.75)), 7.5rem)'
-                  : 'clamp(1.2rem, 10.5vw, 7.5rem)',
+                  // Below lg there's no queryable container (see
+                  // isDesktopLayout above), so the exact cqh solve isn't
+                  // available — but a plain vw-only clamp let the digits
+                  // ignore height entirely and overflow the row, and the
+                  // row clips (overflow-hidden), so the START/RESET/STOP
+                  // buttons under them were being sliced in half on any
+                  // short sub-lg window. This is the same solve as the lg
+                  // one with the two measurements it can't take replaced
+                  // by estimates: the row gets about half the viewport
+                  // height (it splits the column with the word counter),
+                  // and ~15rem of that goes to everything in this column
+                  // that isn't the digit line — its siblings, this
+                  // block's own label/bar/padding, and the time-fields
+                  // strip that now sits under the row down here. A flat
+                  // vh coefficient can't do this job: those parts bottom
+                  // out on rem floors instead of scaling, so anything
+                  // that fits at 900px tall overflows at 500.
+                  // On a tall narrow window (a phone) the vw term is far
+                  // smaller and wins, so this never costs anything where
+                  // height isn't the scarce thing.
+                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem) / 1.75)), 7.5rem)',
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}
@@ -1777,101 +1914,28 @@ export default function Timer() {
 
           <div className="flex-1 hidden lg:block"></div>
 
-          {isTimeFieldsHidden ? (
-            // Hidden with nothing to click: the panel was auto-tucked
-            // (not a manual hide) and there's still no room for it, so
-            // this arrow would just bounce it straight back to hidden on
-            // the very next check() — showing it here would be a dead
-            // button. It reappears on its own once the panel does (see
-            // tuckedAtSizeRef above).
-            !isTimeFieldsAutoTucked && (
-              // Below lg this sits out of the flex flow entirely
-              // (absolute, pinned to the corner) rather than as a normal
-              // row item: the row is column-direction there, so a flow
-              // item competes with the digits for vertical room — and
-              // the digits never yield (see the font-size comment on the
-              // digits block below), so on a short-but-sub-lg window
-              // this tiny button could itself get pushed past the row's
-              // own clipped bounds and vanish along with the panel it's
-              // meant to bring back. At lg the row is horizontal
-              // instead, so the digits never starve it there — lg:static
-              // returns it to being a normal flex item, self-started and
-              // nudged down to clear the header buttons in that same
-              // corner.
-              <HeaderToggleButton
-                onClick={() => {
-                  tuckedAtSizeRef.current = null;
-                  setIsTimeFieldsAutoTucked(false);
-                  setIsTimeFieldsHidden(false);
-                }}
-                className="absolute top-20 right-2 sm:right-3 md:right-4 lg:static lg:top-auto lg:right-auto lg:self-start"
-                style={isDesktopLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
-                icon={<ChevronsLeft style={HEADER_ICON_SIZE} />}
-                label="Show hours/minutes/seconds"
-              />
-            )
-          ) : (
-            // items-start: the hide button sits flush against the box's
-            // top-left corner — its right edge touching the box's left
-            // edge — rather than centered on the box's full height.
-            // lg:self-start + TIME_FIELDS_TOP_MARGIN on the wrapper keeps
-            // that corner pinned below the header buttons, matching the
-            // collapsed button above so toggling never shifts its position.
-            // Shrinkable (no flex-shrink-0) so a row that's short on
-            // width squeezes this panel instead of overflowing and
-            // auto-tucking it — the fields inside wrap to their stacked
-            // form as it narrows (see TimeField). Everything else in
-            // this row is fixed-width or an empty spacer, so this is the
-            // only item with anywhere to give. min-w-min all the way
-            // down this subtree, deliberately: the squeeze has to stop
-            // at the stacked form's own min-content rather than crushing
-            // the box past it, and index.css's blanket
-            // `.flex { min-width: 0 }` overrides the automatic minimum
-            // size that would otherwise do that for free. A row still
-            // too narrow after stacking then overflows honestly, and the
-            // auto-tuck takes it from there.
-            <div
-              className="flex items-start min-w-min lg:self-start"
-              style={isDesktopLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
-            >
-              <HeaderToggleButton
-                onClick={() => {
-                  tuckedAtSizeRef.current = null;
-                  setIsTimeFieldsAutoTucked(false);
-                  setIsTimeFieldsHidden(true);
-                }}
-                icon={<ChevronsRight style={HEADER_ICON_SIZE} />}
-                label="Hide hours/minutes/seconds"
-              />
-              {/* padding/gap sized on shrinkClamp rather than Tailwind's
-                  sm:/md: steps — those jump discretely at fixed
-                  breakpoints, so most of this box's own footprint stayed
-                  rigid right up until the auto-tuck check gave up on it
-                  entirely. This keeps shrinking continuously the same
-                  way TimeField's own contents already do.
-                  Each TimeField keeps its label beside its digit box/
-                  arrows rather than stacked above (see TimeField's own
-                  comment) — stacking doubled this box's height, which
-                  competes with the word counter for the same leftover
-                  vertical space (both flex-1) and was pushing this into
-                  its own auto-tuck far too readily.
-                  Width is w-fit — the label is now a fixed 9ch inside
-                  TimeField itself (see its own comment), so this box just
-                  sizes to whatever that plus the box/arrows needs. This
-                  box only ever renders at lg+ now (see the auto-tuck
-                  effect above), so there's no sub-lg width fallback to
-                  keep either. */}
-              <div
-                className="border-4 border-white bg-black flex flex-col w-fit min-w-min"
-                style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
-              >
-                <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} onRequestChange={handleHoursChange} />
-                <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} onRequestChange={handleMinutesChange} />
-                <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} onRequestChange={handleSecondsChange} />
-              </div>
-            </div>
-          )}
+          {isDesktopLayout && timeFieldsPanel}
         </div>
+
+        {/* Below lg the panel lives here instead — a sibling of the row
+            above, not an item inside it. In the row it would be a
+            flex-col item stacked under the digits, competing with them
+            for vertical room they never yield (see the digits' own
+            font-size comment: below lg they have no container to size
+            against and don't shrink), which is why this used to be
+            force-hidden entirely below lg rather than placed. Out here
+            it takes its own share of the column instead, and the
+            3-across form (see index.css) makes that share small.
+            flex-shrink-0 is load-bearing: its two siblings are flex-1
+            with a zero base size, so they absorb none of a negative free
+            space and this would take all of it and be clipped to nothing
+            by the column's own overflow-hidden.
+            Rendered here or in the row, never both — a CSS-only
+            lg:hidden pair would mount three more TimeFields, doubling
+            every aria-label and tab stop and silently dropping a
+            half-typed digit entry (its useDigitEntry state) whenever the
+            breakpoint is crossed mid-edit. */}
+        {!isDesktopLayout && <div className="flex-shrink-0 w-full flex justify-center">{timeFieldsPanel}</div>}
 
         <WordCounter
           onFocusChange={setIsWordCounterFocused}
