@@ -101,6 +101,23 @@ const getCopy = (dialog: DialogState) => {
         description: "Clear all run history? This can't be undone.",
         action: 'CLEAR',
       };
+    // Presets ask, history doesn't: a preset is something you built and
+    // kept deliberately, and nothing puts it back. A history entry is
+    // just a record the app wrote for you, and running that time again
+    // writes another one.
+    case 'removePreset':
+      return {
+        title: 'DELETE PRESET',
+        description: `Delete the ${dialog.data.label} preset? This can't be undone — you'd have to add it again.`,
+        action: 'DELETE',
+      };
+    case 'skipConfirmations':
+      return {
+        title: 'TURN OFF CONFIRMATIONS',
+        description:
+          "Turn off confirmations? Stopping, resetting, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset and clearing history will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice.",
+        action: 'TURN OFF',
+      };
     case 'clearWordCounter':
       return {
         title: 'CLEAR TEXT',

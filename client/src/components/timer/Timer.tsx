@@ -937,8 +937,28 @@ export default function Timer() {
     setInsertedPreset((prev) => bumpFlash(prev, id));
   }, []);
 
+  // Two steps, because the row's delete animation has to play AFTER the
+  // question is answered, not before it: the − button asks to remove,
+  // and only a confirmed removal sets removingPresetId, which is what
+  // tells that row to turn red and fizz out (see PresetRow). Dropping it
+  // from the array is the last step, once the animation ends and the row
+  // calls back — cancelling leaves a row that never animated at all,
+  // rather than one that faded out and had to be put back.
+  const [removingPresetId, setRemovingPresetId] = useState<string | null>(null);
+
+  const handleRequestRemovePreset = useCallback((id: string) => {
+    if (skipConfirmations) {
+      setRemovingPresetId(id);
+      return;
+    }
+    const preset = presets.find((p) => p.id === id);
+    if (!preset) return;
+    setDialog({ type: 'removePreset', data: { id, label: formatEntryLabel(preset) } });
+  }, [presets, skipConfirmations]);
+
   const handleRemovePreset = useCallback((id: string) => {
     setPresets((prev) => prev.filter((p) => p.id !== id));
+    setRemovingPresetId((current) => (current === id ? null : current));
   }, []);
 
   const handleClearHistory = useCallback(() => {
@@ -1081,6 +1101,16 @@ export default function Timer() {
         break;
       case 'clearHistory':
         handleClearHistory();
+        closeDialog();
+        break;
+      case 'removePreset':
+        // hands off to the row's fizz; the actual removal happens when
+        // that animation ends (see handleRemovePreset)
+        setRemovingPresetId(dialog.data.id);
+        closeDialog();
+        break;
+      case 'skipConfirmations':
+        setSkipConfirmations(true);
         closeDialog();
         break;
     }
@@ -1714,7 +1744,9 @@ export default function Timer() {
           <PresetsPanel
             presets={presets}
             onAdd={handleAddPreset}
+            onRequestRemove={handleRequestRemovePreset}
             onRemove={handleRemovePreset}
+            removingId={removingPresetId}
             onSelect={handleSelectEntry}
             inserted={insertedPreset}
             loaded={loadedEntry}
@@ -1760,8 +1792,22 @@ export default function Timer() {
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
+          {/* Turning confirmations OFF asks first, and spells out what
+              stops asking — it's the one switch that changes what every
+              other click does, and the point of a confirmation is lost
+              if the switch that removes them can be hit by accident.
+              Deliberately not gated on skipConfirmations the way other
+              dialogs are: this only ever fires while confirmations are
+              still on, so there's nothing to skip. Turning them back on
+              is a safe direction and goes straight through. */}
           <button
-            onClick={() => setSkipConfirmations((prev: boolean) => !prev)}
+            onClick={() => {
+              if (skipConfirmations) {
+                setSkipConfirmations(false);
+              } else {
+                setDialog({ type: 'skipConfirmations' });
+              }
+            }}
             aria-pressed={!skipConfirmations}
             className="flex items-center gap-2 border-3 font-bold px-3 transition-all duration-200 hover:opacity-80"
             style={{

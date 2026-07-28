@@ -32,4 +32,8 @@ export type DialogState =
   | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number } }
   | { type: 'hideWebsiteLink' }
   | { type: 'clearHistory' }
+  | { type: 'removePreset'; data: { id: string; label: string } }
+  // turning confirmations OFF asks once, and can't be skipped by the
+  // very setting it's turning off; turning them back on never asks
+  | { type: 'skipConfirmations' }
   | { type: 'clearWordCounter' };

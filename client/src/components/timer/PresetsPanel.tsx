@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS } from './constants';
 import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
 import { shrinkClamp } from './responsive';
@@ -6,9 +6,11 @@ import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
 import { useEntryFlash, useFizzRemove } from './useDomFlash';
 
-function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
+function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, inserted, loaded }: {
   preset: TimerEntry;
+  onRequestRemove: (id: string) => void;
   onRemove: (id: string) => void;
+  isRemoving: boolean;
   onSelect: (entry: TimerEntry) => void;
   inserted: FlashTarget;
   loaded: FlashTarget;
@@ -16,12 +18,20 @@ function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   const buttonRef = useEntryFlash(preset.id, inserted, loaded);
   const fizz = useFizzRemove(useCallback(() => onRemove(preset.id), [onRemove, preset.id]));
 
+  // Unlike a history row, this one doesn't start its own fizz on click —
+  // deleting a preset asks first, so the animation waits for the answer
+  // and is triggered from above once there is one.
+  const { start } = fizz;
+  useEffect(() => {
+    if (isRemoving) start();
+  }, [isRemoving, start]);
+
   return (
     // items-stretch, so the − button takes its height from the box
     // beside it rather than from its own smaller font
     <div className="flex items-stretch" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
       <button
-        onClick={fizz.start}
+        onClick={() => onRequestRemove(preset.id)}
         disabled={fizz.isRemoving}
         aria-label={`Remove preset ${formatEntryLabel(preset)}`}
         className="border-2 border-red-500 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-colors"
@@ -49,7 +59,13 @@ function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
 interface PresetsPanelProps {
   presets: TimerEntry[];
   onAdd: (parts: TimeParts) => void;
+  // asks to remove; onRemove is the other half, called once the row has
+  // finished animating out (see PresetRow)
+  onRequestRemove: (id: string) => void;
   onRemove: (id: string) => void;
+  // the preset whose removal has been confirmed, and which should now be
+  // playing its fizz — null the rest of the time
+  removingId: string | null;
   onSelect: (entry: TimerEntry) => void;
   inserted: FlashTarget;
   loaded: FlashTarget;
@@ -59,7 +75,7 @@ interface PresetsPanelProps {
 // onChange alone can't tell a partial entry from a complete one. Track the
 // raw typed digits instead, and render them unpadded (same style used
 // everywhere else in the app: "1:30", not "00:01:30").
-function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: PresetsPanelProps) {
+function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onSelect, inserted, loaded }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
@@ -105,7 +121,16 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
       </h2>
       <div className="flex flex-col" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
         {presets.map((preset) => (
-          <PresetRow key={preset.id} preset={preset} onRemove={onRemove} onSelect={onSelect} inserted={inserted} loaded={loaded} />
+          <PresetRow
+            key={preset.id}
+            preset={preset}
+            onRequestRemove={onRequestRemove}
+            onRemove={onRemove}
+            isRemoving={removingId === preset.id}
+            onSelect={onSelect}
+            inserted={inserted}
+            loaded={loaded}
+          />
         ))}
         <div className="flex items-stretch" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), marginTop: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
           <button
