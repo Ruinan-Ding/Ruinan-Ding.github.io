@@ -1,28 +1,10 @@
-import { memo, useRef, useState } from 'react';
-import { LIST_ROW_BUTTON_STYLE, LIST_ROW_LABEL_EM, LIST_ROW_REMOVE_FONT_SIZE, MAX_PRESETS } from './constants';
+import { memo, useCallback, useRef, useState } from 'react';
+import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS } from './constants';
 import { formatEntryLabel, parsePresetDigits, presetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
-import { useEntryFlash } from './useDomFlash';
-
-// Shared by the +/- preset buttons. No minWidth of its own any more —
-// that floor made these squares wider than the single glyph in them
-// needs, and this row is what sets the whole sidebar's width (it holds
-// the longest string in the panel, the HH:MM:SS hint), so every pixel
-// spent here is a pixel the list labels can't have.
-const PRESET_BUTTON_STYLE = { padding: '0.12em 0.35em', fontSize: LIST_ROW_REMOVE_FONT_SIZE };
-// Fixed, and sized off the same LIST_ROW_LABEL_EM the sidebar's own
-// width is solved from, so the input and the column it lives in can't
-// drift apart. This used to be size={8}, which resolves to exactly 8
-// glyph advances of content — a perfect fit for an 8-character string
-// and therefore no fit at all, since a fraction of a pixel of layout
-// rounding is enough to clip the last "S" off HH:MM:SS (or the last
-// digit off 99:59:59). Border-box here, so the 8px of border-4 and the
-// 2px of rounding slack are spelled out rather than left to the input's
-// own intrinsic sizing; the em part already includes the 0.3em side
-// padding. Fixed also means the box doesn't twitch as digits are typed.
-const PRESET_INPUT_WIDTH = `calc(${LIST_ROW_LABEL_EM}em + 10px)`;
+import { useEntryFlash, useFizzRemove } from './useDomFlash';
 
 function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   preset: TimerEntry;
@@ -32,21 +14,30 @@ function PresetRow({ preset, onRemove, onSelect, inserted, loaded }: {
   loaded: FlashTarget;
 }) {
   const buttonRef = useEntryFlash(preset.id, inserted, loaded);
+  const fizz = useFizzRemove(useCallback(() => onRemove(preset.id), [onRemove, preset.id]));
 
   return (
-    <div className="flex items-center" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
+    // items-stretch, so the − button takes its height from the box
+    // beside it rather than from its own smaller font
+    <div className="flex items-stretch" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
       <button
-        onClick={() => onRemove(preset.id)}
+        onClick={fizz.start}
+        disabled={fizz.isRemoving}
         aria-label={`Remove preset ${formatEntryLabel(preset)}`}
-        className="border-2 border-red-500 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-colors flex-shrink-0"
-        style={PRESET_BUTTON_STYLE}
+        className="border-2 border-red-500 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-colors"
+        style={LIST_ROW_REMOVE_BUTTON_STYLE}
       >
         −
       </button>
+      {/* the fizz plays on the label box, not the − that triggered it,
+          so what animates out is the thing being deleted; the row
+          unmounts on animationend (see useFizzRemove) */}
       <button
         ref={buttonRef}
         onClick={() => onSelect(preset)}
-        className="border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 whitespace-nowrap"
+        disabled={fizz.isRemoving}
+        onAnimationEnd={fizz.onAnimationEnd}
+        className={`border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 whitespace-nowrap overflow-hidden ${fizz.isRemoving ? 'animate-removeFizz' : ''}`}
         style={LIST_ROW_BUTTON_STYLE}
       >
         {formatEntryLabel(preset)}
@@ -116,14 +107,14 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
         {presets.map((preset) => (
           <PresetRow key={preset.id} preset={preset} onRemove={onRemove} onSelect={onSelect} inserted={inserted} loaded={loaded} />
         ))}
-        <div className="flex items-center" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), marginTop: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
+        <div className="flex items-stretch" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), marginTop: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
           <button
             onClick={handleAdd}
             disabled={atCapacity}
             aria-label="Add preset"
             title={atCapacity ? `Preset limit reached (${MAX_PRESETS})` : 'Add preset'}
-            className="border-2 border-green-500 text-green-500 font-bold hover:bg-green-500 hover:text-white transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={PRESET_BUTTON_STYLE}
+            className="border-2 border-green-500 text-green-500 font-bold hover:bg-green-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={LIST_ROW_REMOVE_BUTTON_STYLE}
           >
             +
           </button>
@@ -152,20 +143,11 @@ function PresetsPanel({ presets, onAdd, onRemove, onSelect, inserted, loaded }: 
               onSelect={handleSelect}
               className="border-4 border-white font-bold transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
-                fontFamily: "'IBM Plex Mono', monospace",
-                // em-based, same as the list-row buttons below it, so
-                // this row's box hugs the hint at every size instead of
-                // padding out wider than the labels it sits under
-                padding: '0.12em 0.3em',
-                // Same size as the list buttons — this box is one of
-                // them, not a lesser control under them. That makes this
-                // row the widest in the sidebar by the 2px of slack in
-                // PRESET_INPUT_WIDTH, which SIDEBAR_WIDTH accounts for.
-                fontSize: LIST_ROW_BUTTON_STYLE.fontSize,
-                // see PRESET_INPUT_WIDTH's own comment above
-                width: PRESET_INPUT_WIDTH,
-                boxSizing: 'border-box',
-                flexShrink: 0,
+                // Literally the same box as a preset or history row —
+                // same font, same padding, same fixed width — since this
+                // is the one every other box in the sidebar is sized to
+                // hold: 8 characters of HH:MM:SS.
+                ...LIST_ROW_BUTTON_STYLE,
                 // invisible while showing the hint's character count, so the
                 // decorative hint div shows through underneath instead —
                 // caretColor is set separately since it inherits from color

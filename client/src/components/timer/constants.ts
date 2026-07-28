@@ -8,11 +8,13 @@ export const HEADER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3.5), height: sh
 export const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkClamp(1.1, 3, 3, 1.375) };
 
 // Shared by the preset and history list-row buttons, so they read as the
-// same kind of control. These buttons no longer stretch to fill the
-// sidebar's own width (see PresetRow/HistoryRow — they hug their own
-// label now instead of flexing/stretching to match the widest row), so
-// the sidebar itself sizes to whatever the labels actually need instead
-// of an arbitrary stretch target.
+// same kind of control.
+// Every box in this sidebar is one size — each preset, each history
+// entry, and the HH:MM:SS input that adds a preset — rather than each
+// hugging its own label. A column of boxes that all differ by a
+// character or two of content reads as ragged, and the widest thing
+// here can't shrink anyway (it's a fixed 8 characters), so the width
+// they'd save by hugging is width nothing else can use.
 // The label is the whole point of these buttons, so everything that
 // isn't the label is kept as thin as possible and the text takes what's
 // left: padding is em-based (a fixed fraction of the label, rather than
@@ -21,36 +23,55 @@ export const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: 
 // range spent most ordinary window heights pinned at its own ceiling
 // with the button still narrower than half the sidebar it sat in.
 export const LIST_ROW_FONT_SIZE = shrinkClamp(0.9, 2.2, 2.8, 1.75);
-export const LIST_ROW_BUTTON_STYLE = { fontFamily: "'IBM Plex Mono', monospace", padding: '0.12em 0.3em', fontSize: LIST_ROW_FONT_SIZE };
+
+// A boxed 8-character label ("99:59:59", the longest formatEntryLabel
+// can produce) is LIST_ROW_LABEL_EM of its own font size: 8 glyphs at
+// this monospace font's 0.6em advance, plus the box's 0.3em side
+// padding. The +10px is its border-4 (8px) plus 2px of rounding slack —
+// em widths land on fractions, and 8 characters in a box sized to
+// exactly 8 characters is a perfect fit and therefore no fit at all.
+export const LIST_ROW_LABEL_EM = 5.4;
+export const LIST_ROW_BOX_WIDTH = `calc(${LIST_ROW_LABEL_EM}em + 10px)`;
+export const LIST_ROW_BUTTON_STYLE = {
+  fontFamily: "'IBM Plex Mono', monospace",
+  padding: '0.12em 0.3em',
+  fontSize: LIST_ROW_FONT_SIZE,
+  width: LIST_ROW_BOX_WIDTH,
+  boxSizing: 'border-box' as const,
+  flexShrink: 0,
+};
 
 // Sidebar geometry. The width is computed rather than fit to content:
 // w-fit meant the sidebar resized whenever the content did — every
 // started timer appends a history row, and one "99:59:59" among the
 // "1:05"s widened the whole column and shoved the timer beside it over.
-// So reserve the widest row that can ever appear once, up front, and
-// never move again. That row is a preset row — [− button] gap [label] —
-// since history rows have no − button and a thinner border.
+// So reserve the row every row now is, once, up front, and never move
+// again: [− button] gap [one LIST_ROW_BOX_WIDTH box].
 //
-// A boxed 8-character label ("99:59:59", the longest formatEntryLabel
-// can produce) is LIST_ROW_LABEL_EM of its own font size: 8 glyphs at
-// this monospace font's 0.6em advance, plus the button's 0.3em side
-// padding. The − button is one glyph plus its own 0.35em side padding,
-// so 1.3em of its (smaller) font size.
-//
-// The 18px is every border on that row that em-based widths can't
-// carry — the label button's border-4 (8px), the − button's border-2
-// (4px) and the sidebar's own border-r-4 (4px) — plus the 2px of
-// rounding slack PRESET_INPUT_WIDTH carries. Miss any one of them and
-// the widest row is clipped by the sidebar's overflow-hidden. The
-// preset input needs that slack because it's a fixed width that has to
-// not clip its own 8 characters, where a label button is auto-width and
-// can't clip itself; at a matched font size that makes the input row,
-// by exactly those 2px, the widest thing in here.
-export const LIST_ROW_LABEL_EM = 5.4;
+// The − button is one glyph plus its own 0.35em side padding, so 1.3em
+// of its (smaller) font size. The 18px is every pixel in that row an em
+// width can't carry: LIST_ROW_BOX_WIDTH's own 10px (border-4 plus its
+// rounding slack), the − button's border-2 (4px), and the sidebar's own
+// border-r-4 (4px). Miss any of it and the rows are clipped by the
+// sidebar's overflow-hidden.
 export const SIDEBAR_PADDING = shrinkClamp(0.5, 1, 1.1, 1);
 export const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
 export const LIST_ROW_REMOVE_FONT_SIZE = shrinkClamp(0.7, 1.4, 1.6, 1.1);
 export const SIDEBAR_WIDTH = `calc(${LIST_ROW_LABEL_EM} * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 18px)`;
+
+// Shared by every − / + button beside those boxes. alignSelf stretch
+// rather than a height of its own: the row's height is whatever the box
+// beside it works out to at the current font size, and these have to
+// match it exactly at every one of those sizes.
+export const LIST_ROW_REMOVE_BUTTON_STYLE = {
+  padding: '0 0.35em',
+  fontSize: LIST_ROW_REMOVE_FONT_SIZE,
+  alignSelf: 'stretch' as const,
+  display: 'flex' as const,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  flexShrink: 0,
+};
 
 // localStorage keys — don't rename, older saves use them
 export const STORAGE_KEYS = {

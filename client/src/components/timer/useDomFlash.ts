@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FlashTarget } from './types';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
 
@@ -53,4 +53,30 @@ export function useEntryFlash(id: string, inserted: FlashTarget, loaded: FlashTa
       : { key: null, className: '' };
   useDomFlash(ref, flash.key, flash.className);
   return ref;
+}
+
+// Shared by both list rows' remove buttons: the row plays its red
+// fizz-out (see removeFizz in index.css) and only actually drops out of
+// the list once that animation ends, so it isn't yanked out from under
+// itself mid-frame. Driven by animationend rather than a timeout so the
+// two can't drift apart when the duration is retuned — with a timeout
+// fallback, since animationend never fires for a row whose animation
+// was suppressed (prefers-reduced-motion, a background tab throttling
+// it), and a row that can't finish animating must still be deletable.
+export function useFizzRemove(onRemove: () => void) {
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  useEffect(() => {
+    if (!isRemoving) return;
+    const timeoutId = setTimeout(onRemove, 700);
+    return () => clearTimeout(timeoutId);
+  }, [isRemoving, onRemove]);
+
+  return {
+    isRemoving,
+    start: () => setIsRemoving(true),
+    onAnimationEnd: (e: React.AnimationEvent) => {
+      if (isRemoving && e.animationName === 'removeFizz') onRemove();
+    },
+  };
 }

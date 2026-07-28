@@ -214,6 +214,39 @@
   animation: loadFlashGreen 1.2s ease-out forwards;
 }
 
+/* Deleting a preset or history entry: the row goes red first — long
+   enough to register as "this one, gone" rather than a flicker — then
+   fizzes out, fading while it shrinks and drifts left toward the minus
+   button that killed it. The row is only unmounted once this finishes
+   (see useFizzRemove), so the list doesn't reflow out from under the
+   animation. forwards holds the last frame through that gap. */
+@keyframes removeFizz {
+  0% {
+    background-color: #ef4444;
+    border-color: #ef4444;
+    color: #ffffff;
+    opacity: 1;
+  }
+  45% {
+    background-color: #ef4444;
+    border-color: #ef4444;
+    color: #ffffff;
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    background-color: #ef4444;
+    border-color: #ef4444;
+    color: #ffffff;
+    opacity: 0;
+    transform: translateX(-0.75rem) scale(0.7);
+  }
+}
+
+.animate-removeFizz {
+  animation: removeFizz 0.5s ease-in forwards;
+}
+
 /* Same "this just happened" cue for bare text sitting on the window
    rather than inside a boxed card — the HH/MM/SS segments of the
    countdown itself: green for an increase, red for a decrease, both
@@ -324,12 +357,6 @@
    Unlayered on purpose: it has to beat the Tailwind flex utilities that
    are on the same element, and unlayered declarations outrank every
    @layer. */
-.time-fields-box--across {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(min-content, 1fr));
-  align-items: start;
-}
-
 @container timer-row (max-height: 17.5rem) {
   .time-fields-box {
     display: grid;

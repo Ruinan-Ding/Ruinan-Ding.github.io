@@ -287,30 +287,28 @@ export default function Timer() {
   // disappearing, so nothing here fires until every form that would
   // actually help has already been tried.
   //
-  // Below sm this check doesn't run at all, and nothing here hides the
-  // panel: it moves out of this row entirely and becomes its own item
-  // under it (see the render), in the 3-across form, so there's nothing
-  // left for a tuck to get out of the way of. This branch used to be an
-  // unconditional always-hide, and that — not any squeeze — is where the
-  // panel actually disappeared: narrow the window past the breakpoint
-  // and it was gone, with its own show arrow suppressed too (that arrow
-  // is gated on NOT being auto-tucked), so there was no way to ask for
-  // it back. Any auto-tuck from the wide side is released on the way
-  // through, so crossing the breakpoint can't strand it hidden-with-no-
-  // arrow either.
-  // Running the overflow check below sm would be actively wrong on top
-  // of that: down there the panel is a sibling of this row rather than
-  // its content, so it takes height OFF the row — tuck it and the row
-  // regrows, untuck and it shrinks again, forever.
+  // Below sm the row switches to flex-col (see its own className), which
+  // would put this panel underneath the digits rather than beside them.
+  // Deliberately not done: tucked under the timer it reads as part of
+  // the countdown rather than a control for it, and it pushes the whole
+  // column down. Below that breakpoint it just goes away — the ladder
+  // above is what keeps it alive everywhere there's room for any of its
+  // forms, and once there isn't, disappearing is the honest outcome.
+  // tuckedNeedsRef stays null in that case (there's no meaningful "size
+  // to recover to" below sm); the effect's own isRowLayout dependency
+  // re-fires the moment the breakpoint is crossed back, at which point
+  // the "was only sub-sm-hidden" branch gives it one fresh look — same
+  // as a manual re-show — and the real overflow check on the very next
+  // run decides whether it actually fits.
   useEffect(() => {
     const el = timerRowRef.current;
     if (!el) return;
     const check = () => {
       if (!isRowLayoutRef.current) {
         tuckedNeedsRef.current = null;
-        if (isTimeFieldsAutoTuckedRef.current) {
-          setIsTimeFieldsHidden(false);
-          setIsTimeFieldsAutoTucked(false);
+        if (!isTimeFieldsHiddenRef.current || !isTimeFieldsAutoTuckedRef.current) {
+          setIsTimeFieldsHidden(true);
+          setIsTimeFieldsAutoTucked(true);
         }
         return;
       }
@@ -948,6 +946,10 @@ export default function Timer() {
     setInsertedHistory(null);
   }, []);
 
+  const handleRemoveHistoryEntry = useCallback((id: string) => {
+    setHistory((prev) => prev.filter((entry) => entry.id !== id));
+  }, []);
+
   const setterFor = useCallback(
     (unit: TimeUnit) => (unit === 'hours' ? setHours : unit === 'minutes' ? setMinutes : setTimerSeconds),
     []
@@ -1528,13 +1530,8 @@ export default function Timer() {
     </span>
   );
   // The HOURS/MINUTES/SECONDS panel (or, while hidden, the arrow that
-  // brings it back). Hoisted out of the JSX because it renders in one of
-  // two different places depending on the breakpoint — inside the timer
-  // row at sm+, as a sibling under it below sm — and it has to be
-  // literally the same element in both, not a copy per slot. A copy per
-  // slot would double every aria-label and tab stop, and drop a
-  // half-typed digit entry (TimeField's own useDigitEntry state) each
-  // time the breakpoint was crossed mid-edit.
+  // brings it back). Hoisted out of the JSX only to keep the timer row's
+  // own markup readable — it has exactly one slot, in that row.
   const timeFieldsPanel = isTimeFieldsHidden ? (
     // Hidden with nothing to click: the panel was auto-tucked (not a
     // manual hide) and there's still no room for it, so this arrow would
@@ -1607,13 +1604,10 @@ export default function Timer() {
           time-fields-box is the hook for the wide-and-short 3-across
           form (index.css), which is the other half of that ladder:
           the container query there turns this flex-col into a
-          3-column grid once the row is too short for a vertical
-          stack of three, and the --across modifier does it
-          unconditionally below sm, where this sits under the digits
-          rather than beside them and short-and-wide is the only
-          shape that fits. */}
+          3-column grid once the row it sits in is too short for a
+          vertical stack of three. */}
       <div
-        className={`border-4 border-white bg-black flex flex-col w-fit time-fields-box${isRowLayout ? '' : ' time-fields-box--across'}`}
+        className="border-4 border-white bg-black flex flex-col w-fit time-fields-box"
         style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
       >
         <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} stacked={isTimeFieldsStacked} onRequestChange={handleHoursChange} />
@@ -1728,6 +1722,7 @@ export default function Timer() {
           <HistoryPanel
             history={history}
             onSelect={handleSelectEntry}
+            onRemove={handleRemoveHistoryEntry}
             onClear={() => setDialog({ type: 'clearHistory' })}
             inserted={insertedHistory}
             loaded={loadedEntry}
@@ -2030,24 +2025,6 @@ export default function Timer() {
 
           {isRowLayout && timeFieldsPanel}
         </div>
-
-        {/* Below sm the panel lives here instead — a sibling of the row
-            above, not an item inside it. Down there the row is
-            flex-col, so in it the panel would be stacked under the
-            digits and competing with them for vertical room they never
-            yield (see the digits' own font-size comment: below sm they
-            have no container to size against). That's why this used to
-            be force-hidden below the breakpoint rather than placed —
-            and being force-hidden, with its show arrow suppressed along
-            with it, is exactly how the panel came to vanish on a
-            narrowing window. Out here it takes its own share of the
-            column instead, and the 3-across form (index.css) keeps that
-            share to one field's height.
-            flex-shrink-0 is load-bearing: its two siblings are flex-1
-            with a zero base size, so they absorb none of a negative free
-            space and this would take all of it and be clipped to nothing
-            by the column's own overflow-hidden. */}
-        {!isRowLayout && <div className="flex-shrink-0 w-full flex justify-center">{timeFieldsPanel}</div>}
 
         <WordCounter
           onFocusChange={setIsWordCounterFocused}
