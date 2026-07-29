@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import { readBoolean, readRaw, writeJSON, writeRaw } from '@/lib/storage';
 import ConfirmDialog from './ConfirmDialog';
 import { HEADER_ICON_SIZE, STORAGE_KEYS } from './constants';
+import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
@@ -438,13 +439,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               title="When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included."
               aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
             >
-              <span
-                aria-hidden
-                className="inline-flex items-center justify-center border-2 flex-shrink-0"
-                style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
-              >
-                <span style={{ width: '0.45em', height: '0.45em', backgroundColor: alnumWordsOnly ? 'currentColor' : 'transparent' }} />
-              </span>
+              <DotCheckbox checked={alnumWordsOnly} />
               Alphanumeric words only
             </button>
 
@@ -456,13 +451,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               title="When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces."
               aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
             >
-              <span
-                aria-hidden
-                className="inline-flex items-center justify-center border-2 flex-shrink-0"
-                style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
-              >
-                <span style={{ width: '0.45em', height: '0.45em', backgroundColor: alnumCharsOnly ? 'currentColor' : 'transparent' }} />
-              </span>
+              <DotCheckbox checked={alnumCharsOnly} />
               Alphanumeric chars only
             </button>
 

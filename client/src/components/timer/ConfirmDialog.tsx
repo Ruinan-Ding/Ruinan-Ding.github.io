@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import DotCheckbox from './DotCheckbox';
 import { formatEntryLabel, fromTotalSeconds } from './format';
 import { dialogKey } from './suppressions';
 import type { DialogState } from './types';
@@ -220,13 +221,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             className="flex items-center gap-2 text-white font-bold self-start transition-opacity duration-200 hover:opacity-80"
             title="Skip this particular confirmation from now on. Resetting the website to defaults brings it back."
           >
-            <span
-              aria-hidden
-              className="inline-flex items-center justify-center border-2 flex-shrink-0"
-              style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
-            >
-              <span style={{ width: '0.45em', height: '0.45em', backgroundColor: dontAskAgain ? 'currentColor' : 'transparent' }} />
-            </span>
+            <DotCheckbox checked={dontAskAgain} />
             Don't ask this again
           </button>
         )}

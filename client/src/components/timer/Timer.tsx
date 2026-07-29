@@ -5,6 +5,7 @@ import { useFavicon } from '@/hooks/useFavicon';
 import { readBoolean, readJSON, writeJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
 import ConfirmDialog from './ConfirmDialog';
+import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
@@ -1868,13 +1869,13 @@ export default function Timer() {
             header control below sizes on min(vw, vh), like the digits
             column, so a short window shrinks these too instead of
             competing with the digits for space. */}
-        {!isWordCounterFullscreen && (
         {/* z-[80], one above the other header strip and the website
             link (both z-[70]): the volume popup swings right out of the
             speaker into the space the link occupies, and on a tie the
             link — later in the DOM — was painting over it. Nothing here
             ever overlaps the right-hand strip, so out-stacking it costs
             nothing. */}
+        {!isWordCounterFullscreen && (
         <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[80] flex items-start gap-2">
           {/* below sm the sidebar itself is force-hidden (see its own
               hidden sm:flex above) regardless of isSidebarHidden — so
@@ -1941,13 +1942,7 @@ export default function Timer() {
               : 'Confirmation dialogs are on — actions ask before applying (the RESET button always asks either way). Click to skip them'}
             aria-label={skipConfirmations ? 'Turn confirmation dialogs back on' : 'Turn confirmation dialogs off'}
           >
-            <span
-              aria-hidden
-              className="inline-flex items-center justify-center border-2 flex-shrink-0"
-              style={{ width: '0.9em', height: '0.9em', borderColor: 'currentColor' }}
-            >
-              <span style={{ width: '0.45em', height: '0.45em', backgroundColor: !skipConfirmations ? 'currentColor' : 'transparent' }} />
-            </span>
+            <DotCheckbox checked={!skipConfirmations} />
             <span className="hidden sm:inline">CONFIRMATIONS</span>
           </button>
 
