@@ -1632,6 +1632,53 @@ export default function Timer() {
       </p>
     </div>
   );
+  // The wall clock's two settings — zone and 12/24 — riding in the
+  // top-left header cluster rather than beside the readout they drive
+  // (that stays above the digits).
+  const clockControls = (
+    <div className="flex items-center gap-2" style={{ fontSize: CLOCK_FONT_SIZE }}>
+      {/* Native select, so the zone list is the browser's own (TIME_ZONES)
+          and the picker is whatever the platform already does well —
+          400-odd options, type-to-find included, for free.
+          Grouped by region, with each option labelled by just the part
+          after it, because a select is as wide as its widest option and
+          the full ids run to "America/Argentina/Buenos_Aires" — 435px,
+          which is wider than everything else in this row put together.
+          The closed box shows "New York" while the open list still says
+          which region that's in, so Asia/Nicosia and Europe/Nicosia stay
+          tellable apart. The value is the full id either way, so what's
+          stored and validated doesn't change. */}
+      <select
+        value={timeZone}
+        onChange={(e) => setTimeZone(e.target.value)}
+        className="border-2 border-white bg-black text-white font-bold min-w-0 self-center"
+        style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit', maxWidth: '10em' }}
+        title="Time zone the clock reads in"
+        aria-label="Clock time zone"
+      >
+        {ZONES_BY_REGION.map(([region, zones]) => (
+          <optgroup key={region} label={region}>
+            {zones.map(({ zone, label }) => (
+              <option key={zone} value={zone}>{label}</option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      {/* Labelled with the format it switches TO, not the one showing —
+          the clock itself already says which that is */}
+      <button
+        onClick={() => setIs24Hour((prev) => !prev)}
+        aria-pressed={is24Hour}
+        className="flex items-center gap-1 text-white font-bold whitespace-nowrap flex-shrink-0 transition-opacity duration-200 hover:opacity-80"
+        style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit' }}
+        title={is24Hour ? 'Clock shows 24-hour time — click for 12-hour with AM/PM' : 'Clock shows 12-hour time — click for 24-hour'}
+        aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
+      >
+        <DotCheckbox checked={is24Hour} fontSize="inherit" />
+        {is24Hour ? '12H' : '24H'}
+      </button>
+    </div>
+  );
   // Website link, shared between its normal spot (centered above the
   // digits, hidden during word counter fullscreen) and that fullscreen
   // view's own header row, which gets a copy inline instead — see that
@@ -1914,19 +1961,26 @@ export default function Timer() {
             ever overlaps the right-hand strip, so out-stacking it costs
             nothing. */}
         {!isWordCounterFullscreen && (
-        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[80] flex items-start gap-2">
-          {/* below sm the sidebar itself is force-hidden (see its own
-              hidden sm:flex above) regardless of isSidebarHidden — so
-              this toggle would sit there doing nothing below that
-              width. Matching its breakpoint here means it only shows
-              once there's an actual panel for it to control. */}
-          <HeaderToggleButton
-            onClick={() => setIsSidebarHidden((prev) => !prev)}
-            icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
-            label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
-            className="hidden sm:flex"
-          />
-          {ringerAndSpeakerCluster}
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[80] flex flex-col items-start gap-1">
+          <div className="flex items-start gap-2">
+            {/* below sm the sidebar itself is force-hidden (see its own
+                hidden sm:flex above) regardless of isSidebarHidden — so
+                this toggle would sit there doing nothing below that
+                width. Matching its breakpoint here means it only shows
+                once there's an actual panel for it to control. */}
+            <HeaderToggleButton
+              onClick={() => setIsSidebarHidden((prev) => !prev)}
+              icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
+              label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
+              className="hidden sm:flex"
+            />
+            {ringerAndSpeakerCluster}
+          </div>
+          {/* Under that row rather than alongside it: this strip grows
+              rightwards from the corner, and the row is already as wide as
+              it can get before it runs into the website link centered above
+              the digits. */}
+          {clockControls}
         </div>
         )}
 
@@ -2135,16 +2189,15 @@ export default function Timer() {
               // digits to fit instead of overflowing past it. Below sm
               // there's no queryable container at all (see isRowLayout
               // above), so this falls back to the original vw-only clamp.
-              // The wall clock row added above the digits is one more line
-              // this block has to fit, so both solves below reserve its
-              // height too — as a clamp of the same shape as that row's
-              // own contents (its text, or the zone select's box,
-              // whichever ends up taller), so the reserve tracks it
-              // through a shrinking window rather than being a constant
-              // that's only right at one size.
+              // The wall clock readout added above the digits is one more
+              // line this block has to fit, so both solves below reserve
+              // its height too — a clamp of the same shape as that line's
+              // own font size (CLOCK_FONT_SIZE, plus its leading), so the
+              // reserve tracks it through a shrinking window rather than
+              // being a constant that's only right at one size.
               style={{
                 fontSize: isRowLayout
-                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh) - max(1.6rem, min(2.2vw, 2.4vh))) / 1.75)), 7.5rem)'
+                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh) - max(1.2rem, min(1.4vw, 1.5vh))) / 1.75)), 7.5rem)'
                   // Below lg there's no queryable container (see
                   // isRowLayout above), so the exact cqh solve isn't
                   // available — but a plain vw-only clamp let the digits
@@ -2165,7 +2218,7 @@ export default function Timer() {
                   // On a tall narrow window (a phone) the vw term is far
                   // smaller and wins, so this never costs anything where
                   // height isn't the scarce thing.
-                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem - max(1.6rem, min(2.2vw, 2.4vh))) / 1.75)), 7.5rem)',
+                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem - max(1.2rem, min(1.4vw, 1.5vh))) / 1.75)), 7.5rem)',
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}
@@ -2174,62 +2227,15 @@ export default function Timer() {
                   have (that's moved below the digits it describes). Every
                   child here sets its own font-size: this block's own is
                   the digit size, which is enormous. */}
-              {/* One line, always: nothing here wraps, and all three parts
-                  share one font size (CLOCK_FONT_SIZE) so the row shrinks
-                  as a unit instead of one part growing until it shoves
-                  another onto a second line. The zone select is the only
-                  part allowed to shrink past its own content (min-w-0) —
-                  on a genuinely narrow window something has to give, and a
-                  clipped zone name costs less than a clipped clock. */}
-              <div className="flex items-center justify-center gap-2 max-w-full" style={{ fontSize: CLOCK_FONT_SIZE }}>
-                <span className="opacity-80 whitespace-nowrap flex-shrink-0" style={{ letterSpacing: '0.05em' }}>
-                  {clock.time.format(nowMs)} · {clock.date.format(nowMs)}
-                </span>
-                {/* Native select, so the zone list is the browser's own
-                    (TIME_ZONES) and the picker is whatever the platform
-                    already does well — 400-odd options, type-to-find
-                    included, for free.
-                    Grouped by region, with each option labelled by just
-                    the part after it, because a select is as wide as its
-                    widest option and the full ids run to
-                    "America/Argentina/Buenos_Aires" — 435px of this row,
-                    which is what stopped everything fitting on one line.
-                    The closed box now shows "New York" while the open list
-                    still says which region that's in, so Asia/Nicosia and
-                    Europe/Nicosia are still tellable apart. The value is
-                    the full id either way, so what's stored and validated
-                    doesn't change. */}
-                <select
-                  value={timeZone}
-                  onChange={(e) => setTimeZone(e.target.value)}
-                  className="border-2 border-white bg-black text-white font-bold min-w-0"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit', maxWidth: '10em' }}
-                  title="Time zone this clock reads in"
-                  aria-label="Clock time zone"
-                >
-                  {ZONES_BY_REGION.map(([region, zones]) => (
-                    <optgroup key={region} label={region}>
-                      {zones.map(({ zone, label }) => (
-                        <option key={zone} value={zone}>{label}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-                {/* Labelled with the format it switches TO, not the one
-                    showing — the clock right beside it already says which
-                    that is, and two characters here is width the row can
-                    spend on the readout instead. */}
-                <button
-                  onClick={() => setIs24Hour((prev) => !prev)}
-                  aria-pressed={is24Hour}
-                  className="flex items-center gap-1 text-white font-bold whitespace-nowrap flex-shrink-0 transition-opacity duration-200 hover:opacity-80"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit' }}
-                  title={is24Hour ? 'Clock shows 24-hour time — click for 12-hour with AM/PM' : 'Clock shows 12-hour time — click for 24-hour'}
-                  aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
-                >
-                  <DotCheckbox checked={is24Hour} fontSize="inherit" />
-                  {is24Hour ? '12H' : '24H'}
-                </button>
+              {/* Just the readout here — its two settings live in the
+                  top-left header row with the other controls (see
+                  clockControls above). One line, and nothing left in it
+                  that could push a second one. */}
+              <div
+                className="text-center opacity-80 whitespace-nowrap"
+                style={{ fontSize: CLOCK_FONT_SIZE, letterSpacing: '0.05em' }}
+              >
+                {clock.time.format(nowMs)} · {clock.date.format(nowMs)}
               </div>
               <div
                 className={`flex items-baseline justify-center gap-1 ${digitWaveClass}`}

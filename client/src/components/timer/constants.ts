@@ -18,13 +18,12 @@ export const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: 
 // looked centered.
 export const TOGGLE_FONT_SIZE = shrinkClamp(0.65, 1.35, 1.5, 0.85);
 
-// The wall clock's whole row — readout, zone select, 12/24 switch — on one
-// size, so it shrinks as a single unit and always fits on one line rather
-// than one part growing until it pushes another onto a second. The vw term
-// is set from what that row costs at this font (~30 of its own em, all
-// three parts plus their gaps) against the width it has to fit (the digits
-// column, 40vw), with the floor stopping just above where a 0.9em checkbox
-// has no room left inside its own 2px border for a dot.
+// One size for the whole wall clock: the readout above the digits and the
+// zone select and 12/24 switch that drive it, which ride in the top-left
+// header row instead. The vw term keeps the readout (~21 of its own em,
+// one line, never wrapping) inside the digits column it sits in, 40vw,
+// and the floor stops just above where a 0.9em checkbox would have no
+// room left inside its own 2px border for a dot.
 export const CLOCK_FONT_SIZE = shrinkClamp(0.56, 1.05, 1.15, 0.9);
 
 // Shared by the preset and history list-row buttons, so they read as the
