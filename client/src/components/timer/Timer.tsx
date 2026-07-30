@@ -1645,18 +1645,21 @@ export default function Timer() {
   // box's own width cap included, so one number scales the lot.
   const renderClockControls = (fontSize: string) => (
     <div className="flex items-center gap-2" style={{ fontSize }}>
-      {/* Labelled with the format it switches TO, not the one showing —
-          the clock itself already says which that is */}
+      {/* Reads as the state it's in, not the one clicking would get: the
+          label is whichever format the clock is showing right now, and the
+          box is ticked while that's 12-hour. Ticked "12H" therefore means
+          the clock IS in 12-hour — the other way round (label as the
+          target) put a ticked "12H" next to a clock reading 13:52. */}
       <button
         onClick={() => setIs24Hour((prev) => !prev)}
-        aria-pressed={is24Hour}
+        aria-pressed={!is24Hour}
         className="flex items-center gap-1 text-white font-bold whitespace-nowrap flex-shrink-0 transition-opacity duration-200 hover:opacity-80"
         style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit' }}
-        title={is24Hour ? 'Clock shows 24-hour time — click for 12-hour with AM/PM' : 'Clock shows 12-hour time — click for 24-hour'}
+        title={is24Hour ? 'Clock is on 24-hour time — click for 12-hour with AM/PM' : 'Clock is on 12-hour time — click for 24-hour'}
         aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
       >
-        <DotCheckbox checked={is24Hour} fontSize="inherit" />
-        {is24Hour ? '12H' : '24H'}
+        <DotCheckbox checked={!is24Hour} fontSize="inherit" />
+        {is24Hour ? '24H' : '12H'}
       </button>
       {/* Native select, so the zone list is the browser's own (TIME_ZONES)
           and the picker is whatever the platform already does well —
@@ -2016,11 +2019,13 @@ export default function Timer() {
         )}
 
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
-          {/* Relocated during word counter fullscreen, like the mute/repeat
-              pair opposite: these sat directly over that view's own header
-              row — the STOP button, specifically — so they move into it
-              instead, alongside the readout they drive. */}
-          {!isWordCounterFullscreen && renderClockControls(CLOCK_FONT_SIZE)}
+          {/* Stays put in fullscreen, unlike the mute/repeat pair opposite
+              — this corner floats over that view, so these are reachable
+              there without moving. Compact there, though: the row
+              underneath has to fit its own contents between this corner
+              and the mirror of it on the left, and this corner at full
+              size left them nothing to fit in. */}
+          {renderClockControls(isWordCounterFullscreen ? COMPACT_CLOCK_FONT_SIZE : CLOCK_FONT_SIZE)}
 
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
@@ -2226,15 +2231,16 @@ export default function Timer() {
               // digits to fit instead of overflowing past it. Below sm
               // there's no queryable container at all (see isRowLayout
               // above), so this falls back to the original vw-only clamp.
-              // The wall clock readout added above the digits is one more
-              // line this block has to fit, so both solves below reserve
-              // its height too — a clamp of the same shape as that line's
-              // own font size (CLOCK_FONT_SIZE, plus its leading), so the
-              // reserve tracks it through a shrinking window rather than
-              // being a constant that's only right at one size.
+              // The wall clock readout added above the digits is two more
+              // lines this block has to fit (time over date), so both
+              // solves below reserve their height too — a clamp of the
+              // same shape as those lines' own font size (CLOCK_FONT_SIZE,
+              // plus leading, doubled), so the reserve tracks them through
+              // a shrinking window rather than being a constant that's
+              // only right at one size.
               style={{
                 fontSize: isRowLayout
-                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh) - max(1.2rem, min(1.4vw, 1.5vh))) / 1.75)), 7.5rem)'
+                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh) - max(2.4rem, min(2.8vw, 3vh))) / 1.75)), 7.5rem)'
                   // Below lg there's no queryable container (see
                   // isRowLayout above), so the exact cqh solve isn't
                   // available — but a plain vw-only clamp let the digits
@@ -2255,18 +2261,20 @@ export default function Timer() {
                   // On a tall narrow window (a phone) the vw term is far
                   // smaller and wins, so this never costs anything where
                   // height isn't the scarce thing.
-                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem - max(1.2rem, min(1.4vw, 1.5vh))) / 1.75)), 7.5rem)',
+                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem - max(2.4rem, min(2.8vw, 3vh))) / 1.75)), 7.5rem)',
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}
             >
-              {/* Wall clock, in the slot the configured total used to
-                  have (that's moved below the digits it describes). Every
-                  child here sets its own font-size: this block's own is
-                  the digit size, which is enormous. */}
-              {/* Just the readout here — its two settings live up in the
-                  top-right cluster (see clockControls above) */}
-              <div className="text-center">{renderClockReadout(CLOCK_FONT_SIZE)}</div>
+              {/* Wall clock at the top of this block, then the configured
+                  total sitting directly on the digits it's the total for.
+                  Every child here sets its own font-size: this block's own
+                  is the digit size, which is enormous.
+                  Stacked (time over date) like the fullscreen copy. */}
+              <div className="flex justify-center">{renderClockReadout(CLOCK_FONT_SIZE, true)}</div>
+              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
+                {configuredLabel}
+              </div>
               <div
                 className={`flex items-baseline justify-center gap-1 ${digitWaveClass}`}
                 style={digitColorStyle}
@@ -2292,12 +2300,6 @@ export default function Timer() {
                   <span className={flashTextClass(isSecondsFlashing, secondsFlash.direction)}>{remaining.seconds}</span>
                 </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
-              </div>
-              {/* The configured total, for reference — directly under the
-                  countdown it's the total for, rather than above it where
-                  the wall clock now sits */}
-              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
-                {configuredLabel}
               </div>
               {renderDrainBar('clamp(16rem, 40vw, 44rem)')}
             </div>
@@ -2336,7 +2338,6 @@ export default function Timer() {
           speakerButton={speakerButton}
           ringerButton={ringerButton}
           clockReadout={renderClockReadout(COMPACT_CLOCK_FONT_SIZE, true)}
-          clockControls={renderClockControls(COMPACT_CLOCK_FONT_SIZE)}
           timerDigits={wordCounterTimerDigits}
           timerBar={renderDrainBar('clamp(3rem, 8vw, 8rem)', true)}
           timerControls={
