@@ -42,7 +42,13 @@
      off rather than displaying a color. Lifting it a few points keeps
      the same near-black look with the edges softened. */
   --app-surface: #141414;
-  --app-ink: #ffffff;
+  /* Not pure white either, for the mirror-image reason: this is a fill as
+     well as a text color — every hovered preset/history box, the dialogs'
+     action button — and a flat #fff filling a box glares against the
+     near-black around it. A hair off it reads as white in text and as
+     slightly grey where it covers real area. Same value the light theme
+     uses for its own surface, so the two themes are exact mirrors. */
+  --app-ink: #f4f4f4;
   --primary: var(--app-ink);
   --primary-foreground: var(--app-surface);
   --radius: 0;

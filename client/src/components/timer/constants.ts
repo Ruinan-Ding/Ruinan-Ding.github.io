@@ -7,6 +7,17 @@ import type { TimeParts, TimerEntry } from './types';
 export const HEADER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3.5), height: shrinkClamp(2, 5, 5, 3.5) };
 export const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkClamp(1.1, 3, 3, 1.375) };
 
+// One size for every square-with-a-dot checkbox (see DotCheckbox) and
+// for the word counter's own toggle labels, which is where that box's
+// proportions were set. It's the checkbox's own font size, not the
+// label's it sits beside: sizing it in em off each label meant the
+// CONFIRMATIONS one (a notch down from RESET's font, to save width in
+// that corner) came out 6% smaller than the word counter's, and 6% of
+// 11px is the entire gap between the dot and the border — so that one
+// box rendered with the dot crowded against one side while the others
+// looked centered.
+export const TOGGLE_FONT_SIZE = shrinkClamp(0.65, 1.35, 1.5, 0.85);
+
 // Shared by the preset and history list-row buttons, so they read as the
 // same kind of control.
 // Every box in this sidebar is one size — each preset, each history

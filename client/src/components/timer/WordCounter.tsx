@@ -2,7 +2,7 @@ import { ChevronsDown, ChevronsUp, Maximize2, Minimize2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { readBoolean, readRaw, writeJSON, writeRaw } from '@/lib/storage';
 import ConfirmDialog from './ConfirmDialog';
-import { HEADER_ICON_SIZE, STORAGE_KEYS } from './constants';
+import { HEADER_ICON_SIZE, STORAGE_KEYS, TOGGLE_FONT_SIZE } from './constants';
 import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
@@ -54,10 +54,10 @@ const COUNTER_GAP = '0.5rem';
 const COUNTER_LINE_HEIGHT = 1.6;
 const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
-// the checkbox squares are sized in em, so this scales both the label
-// text and the box together — shrunk a bit to leave the bigger textarea
-// above (COUNTER_FONT_SIZE) more room to grow into
-const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.65, 1.35, 1.5, 0.85);
+// These labels and the checkbox squares beside them (DotCheckbox, which
+// carries the same size itself) shrink together — a notch below the
+// bigger textarea above (COUNTER_FONT_SIZE) to leave it room to grow
+const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
 
 function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
