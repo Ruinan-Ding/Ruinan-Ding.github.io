@@ -28,8 +28,13 @@ interface WordCounterProps {
   // alongside the ringer normally is dropped here, see the row below)
   speakerButton: ReactNode;
   ringerButton: ReactNode;
+  // wall clock (time + date), pre-rendered by Timer — it normally sits
+  // above the digits this view covers, so it relocates into this row's
+  // centered group, at the far end from the timer controls
+  clockReadout: ReactNode;
   // "remaining / total", pre-rendered by Timer — fullscreen covers the
-  // real digits entirely, so this is the only clock visible while typing
+  // real digits entirely, so this is the only countdown visible while
+  // typing
   timerDigits: ReactNode;
   // compact copy of the drain/progress bar, pre-rendered by Timer —
   // sits between the digits and the controls, same as the main page
@@ -59,7 +64,7 @@ const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // bigger textarea above (COUNTER_FONT_SIZE) to leave it room to grow
 const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
 
-function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockReadout, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing wipes everything typed with no undo, so it gets its own
   // confirm dialog — reusing the same ConfirmDialog/DialogState the
@@ -385,21 +390,24 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               {ringerButton}
               {speakerButton}
             </div>
-            {/* the bar itself — not the digits+bar+controls cluster as a
-                whole — is what should land on the row's true midpoint.
-                digits and controls are rarely the same width (the
-                digits/label text is usually wider than the button row),
-                so treating the three as one flex group centers that
-                group's bounding box while leaving the bar itself off to
-                whichever side is narrower. A grid with equal 1fr columns
-                flanking the bar's own auto column forces both sides to
-                match the wider one's width (the narrower side just gets
-                empty space on its outer edge), so the bar sits exactly
-                between them no matter how digits/controls compare. */}
-            <div className="grid items-center gap-3 flex-shrink-0" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
-              <div className="flex items-center justify-end min-w-0">{timerDigits}</div>
+            {/* The whole run — clock, countdown, bar, buttons — centered as
+                one block between the two flex-1 sides.
+                This used to be a grid with equal 1fr columns either side
+                of the bar, so that the BAR rather than the group landed on
+                the row's true midpoint. That bought its symmetry with
+                empty space: the narrower of digits/controls got padded out
+                to match the wider one. Adding the clock to this row made
+                that padding more than the row had left — 310px reserved
+                each side plus a group that no longer fit between them, so
+                the whole thing overflowed and was clipped, dragging what
+                was left visibly off-centre. A plain flex group costs no
+                padding, and centring the run is what's wanted now that it
+                starts with the clock. */}
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {clockReadout}
+              {timerDigits}
               {timerBar}
-              <div className="flex items-center justify-start min-w-0">{timerControls}</div>
+              {timerControls}
             </div>
             <div className="flex-1" aria-hidden style={{ minWidth: 'clamp(10rem, 21vw, 21rem)' }} />
           </>

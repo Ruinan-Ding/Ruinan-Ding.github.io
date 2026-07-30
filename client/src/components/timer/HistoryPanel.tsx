@@ -84,7 +84,14 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded }
           </button>
         )}
       </div>
-      <div className="flex flex-col overflow-y-auto flex-1" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
+      {/* overflow-x-hidden, not just overflow-y-auto: setting one axis to
+          auto makes the other compute to auto too, so a row a fraction of
+          a pixel wider than this column — a rounded em width, the y
+          scrollbar's own gutter — gave the list a horizontal scrollbar and
+          let it slide sideways. The rows are a fixed width the sidebar is
+          already sized to hold, so there's never anything out there worth
+          scrolling to. */}
+      <div className="flex flex-col overflow-y-auto overflow-x-hidden flex-1" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
         {history.length === 0 ? (
           <p className="text-white opacity-50" style={{ fontSize: shrinkClamp(0.75, 1, 1.05, 0.875) }}>No history yet</p>
         ) : (

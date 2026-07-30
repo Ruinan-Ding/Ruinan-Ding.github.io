@@ -1640,6 +1640,19 @@ export default function Timer() {
   // digits, which is what ruled it out.
   const clockControls = (
     <div className="flex items-center gap-2" style={{ fontSize: CLOCK_FONT_SIZE }}>
+      {/* Labelled with the format it switches TO, not the one showing —
+          the clock itself already says which that is */}
+      <button
+        onClick={() => setIs24Hour((prev) => !prev)}
+        aria-pressed={is24Hour}
+        className="flex items-center gap-1 text-white font-bold whitespace-nowrap flex-shrink-0 transition-opacity duration-200 hover:opacity-80"
+        style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit' }}
+        title={is24Hour ? 'Clock shows 24-hour time — click for 12-hour with AM/PM' : 'Clock shows 12-hour time — click for 24-hour'}
+        aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
+      >
+        <DotCheckbox checked={is24Hour} fontSize="inherit" />
+        {is24Hour ? '12H' : '24H'}
+      </button>
       {/* Native select, so the zone list is the browser's own (TIME_ZONES)
           and the picker is whatever the platform already does well —
           400-odd options, type-to-find included, for free.
@@ -1667,20 +1680,15 @@ export default function Timer() {
           </optgroup>
         ))}
       </select>
-      {/* Labelled with the format it switches TO, not the one showing —
-          the clock itself already says which that is */}
-      <button
-        onClick={() => setIs24Hour((prev) => !prev)}
-        aria-pressed={is24Hour}
-        className="flex items-center gap-1 text-white font-bold whitespace-nowrap flex-shrink-0 transition-opacity duration-200 hover:opacity-80"
-        style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit' }}
-        title={is24Hour ? 'Clock shows 24-hour time — click for 12-hour with AM/PM' : 'Clock shows 12-hour time — click for 24-hour'}
-        aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
-      >
-        <DotCheckbox checked={is24Hour} fontSize="inherit" />
-        {is24Hour ? '12H' : '24H'}
-      </button>
     </div>
+  );
+  // The readout those two drive. Lives above the digits normally; the word
+  // counter's fullscreen view covers those entirely, so it gets a copy in
+  // that view's own header row instead (see the props passed below).
+  const clockReadout = (
+    <span className="opacity-80 whitespace-nowrap" style={{ fontSize: CLOCK_FONT_SIZE, letterSpacing: '0.05em' }}>
+      {clock.time.format(nowMs)} · {clock.date.format(nowMs)}
+    </span>
   );
   // Website link, shared between its normal spot (centered above the
   // digits, hidden during word counter fullscreen) and that fullscreen
@@ -1981,7 +1989,12 @@ export default function Timer() {
         )}
 
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
-          {clockControls}
+          {/* Dropped during word counter fullscreen, like the mute/repeat
+              pair opposite: this corner is the one thing that still floats
+              over that view, and the room these two take is room its own
+              header row needs for the STOP button underneath them. The
+              readout they drive relocates into that row (clockReadout). */}
+          {!isWordCounterFullscreen && clockControls}
 
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
@@ -2225,16 +2238,9 @@ export default function Timer() {
                   have (that's moved below the digits it describes). Every
                   child here sets its own font-size: this block's own is
                   the digit size, which is enormous. */}
-              {/* Just the readout here — its two settings live in the
-                  top-left header row with the other controls (see
-                  clockControls above). One line, and nothing left in it
-                  that could push a second one. */}
-              <div
-                className="text-center opacity-80 whitespace-nowrap"
-                style={{ fontSize: CLOCK_FONT_SIZE, letterSpacing: '0.05em' }}
-              >
-                {clock.time.format(nowMs)} · {clock.date.format(nowMs)}
-              </div>
+              {/* Just the readout here — its two settings live up in the
+                  top-right cluster (see clockControls above) */}
+              <div className="text-center">{clockReadout}</div>
               <div
                 className={`flex items-baseline justify-center gap-1 ${digitWaveClass}`}
                 style={digitColorStyle}
@@ -2303,6 +2309,7 @@ export default function Timer() {
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={speakerButton}
           ringerButton={ringerButton}
+          clockReadout={clockReadout}
           timerDigits={wordCounterTimerDigits}
           timerBar={renderDrainBar('clamp(3rem, 8vw, 8rem)', true)}
           timerControls={
