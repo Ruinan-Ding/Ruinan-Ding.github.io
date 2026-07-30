@@ -1633,8 +1633,11 @@ export default function Timer() {
     </div>
   );
   // The wall clock's two settings — zone and 12/24 — riding in the
-  // top-left header cluster rather than beside the readout they drive
-  // (that stays above the digits).
+  // top-right cluster (leftmost, next to the theme toggle) rather than
+  // beside the readout they drive, which stays above the digits. That
+  // corner is where the app's other display settings already live; the
+  // left one grows rightwards into the website link centered above the
+  // digits, which is what ruled it out.
   const clockControls = (
     <div className="flex items-center gap-2" style={{ fontSize: CLOCK_FONT_SIZE }}>
       {/* Native select, so the zone list is the browser's own (TIME_ZONES)
@@ -1961,30 +1964,25 @@ export default function Timer() {
             ever overlaps the right-hand strip, so out-stacking it costs
             nothing. */}
         {!isWordCounterFullscreen && (
-        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[80] flex flex-col items-start gap-1">
-          <div className="flex items-start gap-2">
-            {/* below sm the sidebar itself is force-hidden (see its own
-                hidden sm:flex above) regardless of isSidebarHidden — so
-                this toggle would sit there doing nothing below that
-                width. Matching its breakpoint here means it only shows
-                once there's an actual panel for it to control. */}
-            <HeaderToggleButton
-              onClick={() => setIsSidebarHidden((prev) => !prev)}
-              icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
-              label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
-              className="hidden sm:flex"
-            />
-            {ringerAndSpeakerCluster}
-          </div>
-          {/* Under that row rather than alongside it: this strip grows
-              rightwards from the corner, and the row is already as wide as
-              it can get before it runs into the website link centered above
-              the digits. */}
-          {clockControls}
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[80] flex items-start gap-2">
+          {/* below sm the sidebar itself is force-hidden (see its own
+              hidden sm:flex above) regardless of isSidebarHidden — so
+              this toggle would sit there doing nothing below that
+              width. Matching its breakpoint here means it only shows
+              once there's an actual panel for it to control. */}
+          <HeaderToggleButton
+            onClick={() => setIsSidebarHidden((prev) => !prev)}
+            icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
+            label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
+            className="hidden sm:flex"
+          />
+          {ringerAndSpeakerCluster}
         </div>
         )}
 
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
+          {clockControls}
+
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
           {/* Turning confirmations OFF asks first, and spells out what
