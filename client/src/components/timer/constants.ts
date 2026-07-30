@@ -25,6 +25,12 @@ export const TOGGLE_FONT_SIZE = shrinkClamp(0.65, 1.35, 1.5, 0.85);
 // and the floor stops just above where a 0.9em checkbox would have no
 // room left inside its own 2px border for a dot.
 export const CLOCK_FONT_SIZE = shrinkClamp(0.56, 1.05, 1.15, 0.9);
+// The same clock, smaller, for the word counter's fullscreen header —
+// that row already carries the countdown, the bar and the control buttons
+// between two reserved corners, and the clock has to fit in what's left.
+// Everything in both pieces is em-based (the zone box's width cap
+// included), so this one number scales all of it.
+export const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.5, 0.85, 0.95, 0.72);
 
 // Shared by the preset and history list-row buttons, so they read as the
 // same kind of control.
@@ -71,12 +77,14 @@ export const LIST_ROW_BUTTON_STYLE = {
 // of its (smaller) font size. The 18px is every pixel in that row an em
 // width can't carry: LIST_ROW_BOX_WIDTH's own 10px (border-4 plus its
 // rounding slack), the − button's border-2 (4px), and the sidebar's own
-// border-r-4 (4px). Miss any of it and the rows are clipped by the
-// sidebar's overflow-hidden.
+// border-r-4 (4px), and 16px for the scrollbar gutter both lists hold
+// open (scrollbar-gutter: stable — see either panel). Miss any of it and
+// the rows are clipped by the sidebar's overflow-hidden, or the bar ends
+// up sitting on top of the labels rather than beside them.
 export const SIDEBAR_PADDING = shrinkClamp(0.5, 1, 1.1, 1);
 export const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
 export const LIST_ROW_REMOVE_FONT_SIZE = shrinkClamp(0.7, 1.4, 1.6, 1.1);
-export const SIDEBAR_WIDTH = `calc(${LIST_ROW_LABEL_EM} * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 18px)`;
+export const SIDEBAR_WIDTH = `calc(${LIST_ROW_LABEL_EM} * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 34px)`;
 
 // Shared by every − / + button beside those boxes. alignSelf stretch
 // rather than a height of its own: the row's height is whatever the box

@@ -65,7 +65,12 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded }: {
 
 function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded }: HistoryPanelProps) {
   return (
-    <div className="flex flex-col min-h-0 flex-1">
+    // flex-auto, not flex-1: flex-1's zero basis means this panel counts
+    // for nothing when the sidebar has to take height back, so every
+    // pixel came out of the presets list above (which can now scroll, and
+    // would have been the only one squeezed). Sized from content instead,
+    // both lists give up room in proportion to what they're using.
+    <div className="flex flex-col min-h-0 flex-auto">
       {/* margin/padding below on shrinkClamp rather than fixed
           mb-4/pb-2/px-2/py-1 — same rigidity fix as PresetsPanel's own
           spacing. */}
@@ -90,8 +95,15 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded }
           scrollbar's own gutter — gave the list a horizontal scrollbar and
           let it slide sideways. The rows are a fixed width the sidebar is
           already sized to hold, so there's never anything out there worth
-          scrolling to. */}
-      <div className="flex flex-col overflow-y-auto overflow-x-hidden flex-1" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
+          scrolling to.
+          scrollbar-gutter: stable holds that gutter open whether the list
+          is scrolling or not, so the bar appears beside the rows rather
+          than on top of them, and adding one entry never shifts the
+          column. SIDEBAR_WIDTH budgets for it. */}
+      <div
+        className="flex flex-col overflow-y-auto overflow-x-hidden flex-1"
+        style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), scrollbarGutter: 'stable' }}
+      >
         {history.length === 0 ? (
           <p className="text-white opacity-50" style={{ fontSize: shrinkClamp(0.75, 1, 1.05, 0.875) }}>No history yet</p>
         ) : (

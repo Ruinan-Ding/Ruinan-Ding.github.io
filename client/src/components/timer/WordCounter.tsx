@@ -28,10 +28,12 @@ interface WordCounterProps {
   // alongside the ringer normally is dropped here, see the row below)
   speakerButton: ReactNode;
   ringerButton: ReactNode;
-  // wall clock (time + date), pre-rendered by Timer — it normally sits
-  // above the digits this view covers, so it relocates into this row's
-  // centered group, at the far end from the timer controls
+  // wall clock (time + date) and its zone/12-24 settings, pre-rendered by
+  // Timer — they normally sit above the digits and in the top-right
+  // corner, both of which this view takes over, so they relocate to the
+  // end of this row's centered group
   clockReadout: ReactNode;
+  clockControls: ReactNode;
   // "remaining / total", pre-rendered by Timer — fullscreen covers the
   // real digits entirely, so this is the only countdown visible while
   // typing
@@ -64,7 +66,7 @@ const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // bigger textarea above (COUNTER_FONT_SIZE) to leave it room to grow
 const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
 
-function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockReadout, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockReadout, clockControls, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing wipes everything typed with no undo, so it gets its own
   // confirm dialog — reusing the same ConfirmDialog/DialogState the
@@ -390,24 +392,26 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               {ringerButton}
               {speakerButton}
             </div>
-            {/* The whole run — clock, countdown, bar, buttons — centered as
-                one block between the two flex-1 sides.
+            {/* The whole run — countdown, bar, buttons, then the clock and
+                its two settings — centered as one block between the two
+                flex-1 sides.
                 This used to be a grid with equal 1fr columns either side
                 of the bar, so that the BAR rather than the group landed on
                 the row's true midpoint. That bought its symmetry with
                 empty space: the narrower of digits/controls got padded out
-                to match the wider one. Adding the clock to this row made
-                that padding more than the row had left — 310px reserved
-                each side plus a group that no longer fit between them, so
-                the whole thing overflowed and was clipped, dragging what
-                was left visibly off-centre. A plain flex group costs no
-                padding, and centring the run is what's wanted now that it
-                starts with the clock. */}
-            <div className="flex items-center gap-3 flex-shrink-0">
-              {clockReadout}
+                to match the wider one. Adding the clock made that padding
+                more than the row had left — 310px reserved each side plus
+                a group that no longer fit between them, so the whole thing
+                overflowed and was clipped, dragging what was left visibly
+                off-centre. A plain flex group costs no padding.
+                gap-2 rather than the row's gap-3: this group carries seven
+                things now, and the 4px a gap gives back is 24px across it. */}
+            <div className="flex items-center gap-2 flex-shrink-0">
               {timerDigits}
               {timerBar}
               {timerControls}
+              {clockReadout}
+              {clockControls}
             </div>
             <div className="flex-1" aria-hidden style={{ minWidth: 'clamp(10rem, 21vw, 21rem)' }} />
           </>

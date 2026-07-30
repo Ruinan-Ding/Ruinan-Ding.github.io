@@ -11,7 +11,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, COMPACT_CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
@@ -1638,8 +1638,13 @@ export default function Timer() {
   // corner is where the app's other display settings already live; the
   // left one grows rightwards into the website link centered above the
   // digits, which is what ruled it out.
-  const clockControls = (
-    <div className="flex items-center gap-2" style={{ fontSize: CLOCK_FONT_SIZE }}>
+  //
+  // Takes its size from the caller (same as renderControlButtons and the
+  // drain bar) because the word counter's fullscreen row needs a smaller
+  // copy than this corner does — everything inside is em-based, the zone
+  // box's own width cap included, so one number scales the lot.
+  const renderClockControls = (fontSize: string) => (
+    <div className="flex items-center gap-2" style={{ fontSize }}>
       {/* Labelled with the format it switches TO, not the one showing —
           the clock itself already says which that is */}
       <button
@@ -1664,30 +1669,52 @@ export default function Timer() {
           which region that's in, so Asia/Nicosia and Europe/Nicosia stay
           tellable apart. The value is the full id either way, so what's
           stored and validated doesn't change. */}
-      <select
-        value={timeZone}
-        onChange={(e) => setTimeZone(e.target.value)}
-        className="border-2 border-white bg-black text-white font-bold min-w-0 self-center"
-        style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit', maxWidth: '10em' }}
-        title="Time zone the clock reads in"
-        aria-label="Clock time zone"
-      >
-        {ZONES_BY_REGION.map(([region, zones]) => (
-          <optgroup key={region} label={region}>
-            {zones.map(({ zone, label }) => (
-              <option key={zone} value={zone}>{label}</option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+      {/* Own caret rather than the browser's. The box is capped at 10em,
+          and a zone whose label is longer than that ("Argentina/Buenos
+          Aires", "Indiana/Indianapolis") spends the width on its text and
+          leaves the native arrow clipped off the end — so the control
+          stops looking like a dropdown at all. Drawn here instead: the
+          select gives up its own appearance and keeps a padding-right the
+          caret sits in, and the label ellipsises into what's left. */}
+      <span className="relative inline-flex items-center self-center min-w-0" style={{ maxWidth: '10em' }}>
+        <select
+          value={timeZone}
+          // same check the saved value gets, for the same reason: a select
+          // reports "" when its value matches no option, and "" reaching
+          // the formatter is a RangeError on every render from then on —
+          // the whole page, not just the clock
+          onChange={(e) => { if (TIME_ZONES.includes(e.target.value)) setTimeZone(e.target.value); }}
+          className="appearance-none w-full border-2 border-white bg-black text-white font-bold"
+          style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit', paddingLeft: '0.25em', paddingRight: '1.4em', textOverflow: 'ellipsis' }}
+          title="Time zone the clock reads in"
+          aria-label="Clock time zone"
+        >
+          {ZONES_BY_REGION.map(([region, zones]) => (
+            <optgroup key={region} label={region}>
+              {zones.map(({ zone, label }) => (
+                <option key={zone} value={zone}>{label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <span aria-hidden className="pointer-events-none absolute" style={{ right: '0.4em', lineHeight: 1 }}>▾</span>
+      </span>
     </div>
   );
   // The readout those two drive. Lives above the digits normally; the word
   // counter's fullscreen view covers those entirely, so it gets a copy in
   // that view's own header row instead (see the props passed below).
-  const clockReadout = (
-    <span className="opacity-80 whitespace-nowrap" style={{ fontSize: CLOCK_FONT_SIZE, letterSpacing: '0.05em' }}>
-      {clock.time.format(nowMs)} · {clock.date.format(nowMs)}
+  // Stacked there — time over date rather than side by side — because that
+  // row has to hold this, the countdown, the bar, the buttons and the two
+  // settings between two reserved corners, and a second line costs it
+  // height it already has while halving what it costs in width.
+  const renderClockReadout = (fontSize: string, stacked = false) => (
+    <span
+      className={`opacity-80 ${stacked ? 'flex flex-col items-center leading-tight' : 'whitespace-nowrap'}`}
+      style={{ fontSize, letterSpacing: '0.05em' }}
+    >
+      <span className="whitespace-nowrap">{clock.time.format(nowMs)}</span>
+      <span className="whitespace-nowrap">{stacked ? '' : ' · '}{clock.date.format(nowMs)}</span>
     </span>
   );
   // Website link, shared between its normal spot (centered above the
@@ -1989,12 +2016,11 @@ export default function Timer() {
         )}
 
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
-          {/* Dropped during word counter fullscreen, like the mute/repeat
-              pair opposite: this corner is the one thing that still floats
-              over that view, and the room these two take is room its own
-              header row needs for the STOP button underneath them. The
-              readout they drive relocates into that row (clockReadout). */}
-          {!isWordCounterFullscreen && clockControls}
+          {/* Relocated during word counter fullscreen, like the mute/repeat
+              pair opposite: these sat directly over that view's own header
+              row — the STOP button, specifically — so they move into it
+              instead, alongside the readout they drive. */}
+          {!isWordCounterFullscreen && renderClockControls(CLOCK_FONT_SIZE)}
 
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
@@ -2240,7 +2266,7 @@ export default function Timer() {
                   the digit size, which is enormous. */}
               {/* Just the readout here — its two settings live up in the
                   top-right cluster (see clockControls above) */}
-              <div className="text-center">{clockReadout}</div>
+              <div className="text-center">{renderClockReadout(CLOCK_FONT_SIZE)}</div>
               <div
                 className={`flex items-baseline justify-center gap-1 ${digitWaveClass}`}
                 style={digitColorStyle}
@@ -2309,7 +2335,8 @@ export default function Timer() {
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={speakerButton}
           ringerButton={ringerButton}
-          clockReadout={clockReadout}
+          clockReadout={renderClockReadout(COMPACT_CLOCK_FONT_SIZE, true)}
+          clockControls={renderClockControls(COMPACT_CLOCK_FONT_SIZE)}
           timerDigits={wordCounterTimerDigits}
           timerBar={renderDrainBar('clamp(3rem, 8vw, 8rem)', true)}
           timerControls={

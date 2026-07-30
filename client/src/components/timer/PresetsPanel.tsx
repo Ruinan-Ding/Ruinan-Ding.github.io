@@ -46,8 +46,11 @@ function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, in
 
   return (
     // items-stretch, so the − button takes its height from the box
-    // beside it rather than from its own smaller font
-    <div className="flex items-stretch" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
+    // beside it rather than from its own smaller font. flex-shrink-0
+    // (like a history row) now that the list around it scrolls: without
+    // it a full list squashed every row flat instead of overflowing into
+    // that scroll.
+    <div className="flex items-stretch flex-shrink-0" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
       <button
         onClick={() => onRequestRemove(preset.id)}
         disabled={fizz.isRemoving}
@@ -181,18 +184,31 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   }, [correction, digits, onAdd, onCorrectionApplied]);
 
   return (
-    <div>
+    // min-h-0 so this column can be shrunk below its content when the
+    // list outgrows the sidebar — without it a full list (MAX_PRESETS
+    // rows is taller than most windows) simply ran off the bottom, with
+    // the sidebar's own overflow-hidden clipping it and nothing to
+    // scroll. Shrinks in proportion to the history panel below, which
+    // does the same, so a long list on either side costs both of them.
+    <div className="flex flex-col min-h-0">
       {/* margin/padding/gap below all sized on shrinkClamp rather than
           fixed mb-4/pb-2/gap-2/mt-2 — those never moved at all regardless
           of window size, same rigidity as the font sizes above before
           their own fix. */}
       <h2
-        className="text-white font-bold border-b-2 border-white"
+        className="text-white font-bold border-b-2 border-white flex-shrink-0"
         style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25), marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
       >
         PRESETS
       </h2>
-      <div className="flex flex-col" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
+      {/* the list scrolls; the add row below it doesn't, so the box you
+          type a new preset into is still there at the bottom with a full
+          list scrolled to the top. overflow-x-hidden and a stable gutter
+          for the same reasons as the history list — see its own comment. */}
+      <div
+        className="flex flex-col overflow-y-auto overflow-x-hidden min-h-0"
+        style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), scrollbarGutter: 'stable' }}
+      >
         {presets.map((preset) => (
           <PresetRow
             key={preset.id}
@@ -205,6 +221,8 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
             loaded={loaded}
           />
         ))}
+      </div>
+      <div className="flex-shrink-0">
         <div className="flex items-stretch" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), marginTop: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
           <button
             onClick={handleAdd}
