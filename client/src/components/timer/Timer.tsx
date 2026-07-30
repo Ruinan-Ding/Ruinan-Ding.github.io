@@ -11,7 +11,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TOGGLE_FONT_SIZE, TONES, ZONES_BY_REGION } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
@@ -2174,12 +2174,15 @@ export default function Timer() {
                   have (that's moved below the digits it describes). Every
                   child here sets its own font-size: this block's own is
                   the digit size, which is enormous. */}
-              {/* One row: readout, zone, 12/24 switch. flex-wrap is the
-                  narrow-window fallback only — below about 900px the three
-                  together are wider than this column, and wrapping beats
-                  overflowing a row that clips. */}
-              <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1" style={{ fontSize: TOGGLE_FONT_SIZE }}>
-                <span className="opacity-80 whitespace-nowrap" style={{ fontSize: shrinkClamp(0.7, 1.1, 1.2, 0.9), letterSpacing: '0.05em' }}>
+              {/* One line, always: nothing here wraps, and all three parts
+                  share one font size (CLOCK_FONT_SIZE) so the row shrinks
+                  as a unit instead of one part growing until it shoves
+                  another onto a second line. The zone select is the only
+                  part allowed to shrink past its own content (min-w-0) —
+                  on a genuinely narrow window something has to give, and a
+                  clipped zone name costs less than a clipped clock. */}
+              <div className="flex items-center justify-center gap-2 max-w-full" style={{ fontSize: CLOCK_FONT_SIZE }}>
+                <span className="opacity-80 whitespace-nowrap flex-shrink-0" style={{ letterSpacing: '0.05em' }}>
                   {clock.time.format(nowMs)} · {clock.date.format(nowMs)}
                 </span>
                 {/* Native select, so the zone list is the browser's own
@@ -2199,8 +2202,8 @@ export default function Timer() {
                 <select
                   value={timeZone}
                   onChange={(e) => setTimeZone(e.target.value)}
-                  className="border-2 border-white bg-black text-white font-bold min-w-0 max-w-full"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: TOGGLE_FONT_SIZE, maxWidth: '10.5em' }}
+                  className="border-2 border-white bg-black text-white font-bold min-w-0"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit', maxWidth: '10em' }}
                   title="Time zone this clock reads in"
                   aria-label="Clock time zone"
                 >
@@ -2212,16 +2215,20 @@ export default function Timer() {
                     </optgroup>
                   ))}
                 </select>
+                {/* Labelled with the format it switches TO, not the one
+                    showing — the clock right beside it already says which
+                    that is, and two characters here is width the row can
+                    spend on the readout instead. */}
                 <button
                   onClick={() => setIs24Hour((prev) => !prev)}
                   aria-pressed={is24Hour}
-                  className="flex items-center gap-1.5 text-white font-bold whitespace-nowrap flex-shrink-0 transition-opacity duration-200 hover:opacity-80"
-                  style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: TOGGLE_FONT_SIZE }}
+                  className="flex items-center gap-1 text-white font-bold whitespace-nowrap flex-shrink-0 transition-opacity duration-200 hover:opacity-80"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit' }}
                   title={is24Hour ? 'Clock shows 24-hour time — click for 12-hour with AM/PM' : 'Clock shows 12-hour time — click for 24-hour'}
                   aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
                 >
-                  <DotCheckbox checked={is24Hour} />
-                  24-HOUR
+                  <DotCheckbox checked={is24Hour} fontSize="inherit" />
+                  {is24Hour ? '12H' : '24H'}
                 </button>
               </div>
               <div
