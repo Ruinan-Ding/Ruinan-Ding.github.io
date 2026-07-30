@@ -120,6 +120,12 @@ const getCopy = (dialog: DialogState) => {
     // kept deliberately, and nothing puts it back. A history entry is
     // just a record the app wrote for you, and running that time again
     // writes another one.
+    case 'clearPresets':
+      return {
+        title: 'CLEAR PRESETS',
+        description: "Delete every preset? This can't be undone — you'd have to add them again. Resetting the website to defaults brings back the three it ships with.",
+        action: 'CLEAR',
+      };
     case 'removePreset':
       return {
         title: 'DELETE PRESET',

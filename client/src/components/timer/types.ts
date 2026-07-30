@@ -40,6 +40,7 @@ export type DialogState =
   | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number; state: TimerStateKind } }
   | { type: 'hideWebsiteLink' }
   | { type: 'clearHistory' }
+  | { type: 'clearPresets' }
   | { type: 'removePreset'; data: { id: string; label: string } }
   // an out-of-range preset entry (99:99:99), asked about at commit time
   // rather than corrected while it's still being typed. `add` is whether

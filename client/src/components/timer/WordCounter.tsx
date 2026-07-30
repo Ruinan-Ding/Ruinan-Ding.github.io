@@ -60,6 +60,45 @@ const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // bigger textarea above (COUNTER_FONT_SIZE) to leave it room to grow
 const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
 
+// Ceiling for lines, words and chars alike. Four digits is what an L/W/C
+// box holds (COUNTER_COLUMN_WIDTH is three of them across the counter
+// column), so a fifth would be a number you can't read.
+const COUNTER_MAX = 9999;
+
+// The L/W/C numbers for a given text. A plain function rather than
+// inline in the memo below, because the typing guard needs the same
+// counts for text that hasn't been accepted yet — and "what the counters
+// would say" has to be measured exactly the way the counters say it.
+function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly: boolean) {
+  const lines = text.split('\n');
+  const stats = lines.map((line) => {
+    const trimmed = line.trim();
+    const tokens = trimmed === '' ? [] : trimmed.split(/\s+/);
+    // alnumWordsOnly requires at least one letter/digit for a token to
+    // count as a word (so "$#" alone doesn't); off counts every
+    // whitespace-separated token. alnumCharsOnly restricts C to
+    // a-z/A-Z/0-9; off counts every character in the line, including
+    // spaces. The two are intentionally independent — with words-only
+    // off and chars-only on, a punctuation-only line like "$# @!" will
+    // show words > 0 with chars === 0. That's correct, not a bug.
+    const words = alnumWordsOnly ? tokens.filter((word) => /[a-zA-Z0-9]/.test(word)) : tokens;
+    const charCount = alnumCharsOnly ? (line.match(/[a-zA-Z0-9]/g) || []).length : line.length;
+    return { wordCount: words.length, charCount };
+  });
+
+  return {
+    lineStats: stats,
+    totalLines: lines.length,
+    totalWords: stats.reduce((sum, stat) => sum + stat.wordCount, 0),
+    // summed from the same per-line numbers shown in the C column
+    // (rather than an independent scan over the raw text) so TOTAL
+    // always matches "add up the C column" — an independent scan
+    // would also pick up the '\n' line separators once chars-only is
+    // off and every character in a line counts
+    totalChars: stats.reduce((sum, stat) => sum + stat.charCount, 0),
+  };
+}
+
 function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing wipes everything typed with no undo, so it gets its own
@@ -256,35 +295,25 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     writeJSON(STORAGE_KEYS.wordCounterAlnumCharsOnly, alnumCharsOnly);
   }, [alnumCharsOnly]);
 
-  const { lineStats, totalLines, totalWords, totalChars } = useMemo(() => {
-    const lines = text.split('\n');
-    const stats = lines.map((line) => {
-      const trimmed = line.trim();
-      const tokens = trimmed === '' ? [] : trimmed.split(/\s+/);
-      // alnumWordsOnly requires at least one letter/digit for a token to
-      // count as a word (so "$#" alone doesn't); off counts every
-      // whitespace-separated token. alnumCharsOnly restricts C to
-      // a-z/A-Z/0-9; off counts every character in the line, including
-      // spaces. The two are intentionally independent — with words-only
-      // off and chars-only on, a punctuation-only line like "$# @!" will
-      // show words > 0 with chars === 0. That's correct, not a bug.
-      const words = alnumWordsOnly ? tokens.filter((word) => /[a-zA-Z0-9]/.test(word)) : tokens;
-      const charCount = alnumCharsOnly ? (line.match(/[a-zA-Z0-9]/g) || []).length : line.length;
-      return { wordCount: words.length, charCount };
-    });
+  const { lineStats, totalLines, totalWords, totalChars } = useMemo(
+    () => countStats(text, alnumWordsOnly, alnumCharsOnly),
+    [text, alnumWordsOnly, alnumCharsOnly],
+  );
 
-    return {
-      lineStats: stats,
-      totalLines: lines.length,
-      totalWords: stats.reduce((sum, stat) => sum + stat.wordCount, 0),
-      // summed from the same per-line numbers shown in the C column
-      // (rather than an independent scan over the raw text) so TOTAL
-      // always matches "add up the C column" — an independent scan
-      // would also pick up the '\n' line separators once chars-only is
-      // off and every character in a line counts
-      totalChars: stats.reduce((sum, stat) => sum + stat.charCount, 0),
-    };
-  }, [text, alnumWordsOnly, alnumCharsOnly]);
+  // Typing stops at the cap rather than the counters rolling past it: the
+  // L/W/C boxes are four characters wide (see COUNTER_COLUMN_WIDTH), so a
+  // fifth digit is a number you can't read anyway. Deletions always go
+  // through — otherwise text pasted in over the cap, or left over from
+  // before it existed, would be stuck there.
+  const handleTextChange = (next: string) => {
+    if (next.length <= text.length) {
+      setText(next);
+      return;
+    }
+    const { totalLines: lines, totalWords: words, totalChars: chars } = countStats(next, alnumWordsOnly, alnumCharsOnly);
+    if (lines > COUNTER_MAX || words > COUNTER_MAX || chars > COUNTER_MAX) return;
+    setText(next);
+  };
 
   // navigator.clipboard is the whole implementation on purpose: it needs
   // a secure context, which this has everywhere it actually runs (https
@@ -559,7 +588,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             <textarea
               ref={textareaRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => handleTextChange(e.target.value)}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
               onScroll={() => {
@@ -584,10 +613,20 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         <div className="flex justify-between items-start px-3 pb-1 gap-4" style={{ fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}>
           <div className="text-white font-bold flex flex-col gap-0">
             <div className="text-white mb-0.5" style={{ fontSize: shrinkClamp(0.35, 0.8, 0.9, 0.55) }}>TOTAL</div>
+            {/* whichever total is at the cap turns red — that's the one
+                refusing further typing, and red is what this app uses for
+                a stop everywhere else (STOP, the overrun countdown) */}
             <div className="grid grid-cols-3 text-center" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
-              <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalLines}</div>
-              <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalWords}</div>
-              <div className="border border-white px-1 py-0.5 bg-black overflow-hidden">{totalChars}</div>
+              {[totalLines, totalWords, totalChars].map((total, idx) => (
+                <div
+                  key={idx}
+                  className="border border-white px-1 py-0.5 bg-black overflow-hidden"
+                  style={total >= COUNTER_MAX ? { color: '#ef4444' } : undefined}
+                  title={total >= COUNTER_MAX ? `${COUNTER_MAX} is the limit — delete some text to keep typing` : undefined}
+                >
+                  {total}
+                </div>
+              ))}
             </div>
           </div>
           <div className={`text-xs flex flex-wrap justify-center items-baseline gap-x-2 text-center ${isActive ? 'text-green-500' : 'text-gray-400'}`}>

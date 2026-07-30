@@ -1053,6 +1053,14 @@ export default function Timer() {
     setInsertedHistory(null);
   }, []);
 
+  // Empties the list outright rather than fizzing each row out like a
+  // single − does: twenty rows playing that animation at once is a mess,
+  // and the dialog this comes through has already made the point.
+  const handleClearPresets = useCallback(() => {
+    setPresets([]);
+    setInsertedPreset(null);
+  }, []);
+
   const handleRemoveHistoryEntry = useCallback((id: string) => {
     setHistory((prev) => prev.filter((entry) => entry.id !== id));
   }, []);
@@ -1219,6 +1227,10 @@ export default function Timer() {
         break;
       case 'clearHistory':
         handleClearHistory();
+        closeDialog();
+        break;
+      case 'clearPresets':
+        handleClearPresets();
         closeDialog();
         break;
       case 'removePreset':
@@ -1729,15 +1741,14 @@ export default function Timer() {
     // sits centered on the row while those float at its ends, so as the
     // window narrows the gap between them closes from both sides — and
     // the corners stop shrinking before this does, since every control in
-    // them bottoms out on a rem floor. Capping this at the row minus a
-    // corner's worth at each end lets the label wrap instead (hence no
-    // whitespace-nowrap below), which is why the cap is generous: it's
-    // sized to the right-hand corner, the wider of the two, on both
-    // sides.
-    <div
-      className="relative z-[70] flex items-center justify-center flex-wrap gap-1.5 flex-shrink-0"
-      style={{ maxWidth: `calc(100vw - 2 * ${HEADER_CORNER_RESERVE})` }}
-    >
+    // them bottoms out on a rem floor.
+    // It stays on one line and on the same row throughout: it gets
+    // narrower instead (see the font-size below), and once that would
+    // make it unreadable it drops out altogether rather than wrapping or
+    // moving down. md: is where that happens — the gap left between two
+    // HEADER_CORNER_RESERVEs at their floors is about 7rem there, which
+    // is this label at the smallest size it's worth drawing.
+    <div className="relative z-[70] hidden md:flex items-center gap-1.5 flex-shrink-0">
       <button
         onClick={handleHideWebsiteLinkClick}
         className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
@@ -1751,13 +1762,20 @@ export default function Timer() {
         href="https://ruinanding.com/"
         target="_blank"
         rel="noopener noreferrer"
-        className={`flex items-center justify-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 text-center hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
-        style={{ fontSize: shrinkClamp(0.7, 1.6, 2.2, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
+        className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
+        // Whichever is smaller: the size it wants, or the size that fits
+        // between the two header corners. The label plus its icon and
+        // padding runs about 15 characters of this monospace font, i.e.
+        // ~9em, so that's what the gap has to divide by.
+        style={{
+          fontSize: `min(${shrinkClamp(0.7, 1.6, 2.2, 1.1)}, calc((100vw - 2 * ${HEADER_CORNER_RESERVE}) / 9))`,
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}
       >
-        {/* shrinks at the same min(vw, vh) rate as this link's own
-            text (not the header icons' rate), so it never grows
-            disproportionate to the label it sits beside */}
-        <ExternalLink style={{ width: shrinkClamp(0.9, 1.6, 2.2, 1.25), height: shrinkClamp(0.9, 1.6, 2.2, 1.25) }} />
+        {/* sized in em now that this link's own font-size can be the
+            thing that gives way — its own clamp would have kept the icon
+            full size while the label shrank around it */}
+        <ExternalLink style={{ width: '1em', height: '1em' }} />
         Check Out My Website!
       </a>
     </div>
@@ -1980,6 +1998,7 @@ export default function Timer() {
             onRemove={handleRemovePreset}
             removingId={removingPresetId}
             onRequestCorrect={handleRequestPresetCorrection}
+            onClear={() => askThenRun({ type: 'clearPresets' }, handleClearPresets)}
             correction={presetCorrection}
             onCorrectionApplied={handlePresetCorrectionApplied}
             onSelect={handleSelectEntry}

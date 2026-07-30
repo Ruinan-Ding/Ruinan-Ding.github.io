@@ -90,6 +90,9 @@ interface PresetsPanelProps {
   // asks whether to correct an out-of-range entry; the answer comes back
   // as `correction`, which is applied and then acknowledged
   onRequestCorrect: (digits: string, add: boolean) => void;
+  // empties the whole list; always asks first (see the clearPresets
+  // dialog), unlike history's own Clear
+  onClear: () => void;
   correction: { digits: string; add: boolean } | null;
   onCorrectionApplied: () => void;
   onSelect: (entry: TimerEntry) => void;
@@ -101,7 +104,7 @@ interface PresetsPanelProps {
 // onChange alone can't tell a partial entry from a complete one. Track the
 // raw typed digits instead, and render them unpadded (same style used
 // everywhere else in the app: "1:30", not "00:01:30").
-function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onRequestCorrect, correction, onCorrectionApplied, onSelect, inserted, loaded }: PresetsPanelProps) {
+function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onRequestCorrect, onClear, correction, onCorrectionApplied, onSelect, inserted, loaded }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
@@ -195,12 +198,24 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
           fixed mb-4/pb-2/gap-2/mt-2 — those never moved at all regardless
           of window size, same rigidity as the font sizes above before
           their own fix. */}
-      <h2
-        className="text-white font-bold border-b-2 border-white flex-shrink-0"
-        style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25), marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
+      {/* Clear sits in the heading rule like history's does, and only
+          while there's something to clear */}
+      <div
+        className="flex justify-between items-center border-b-2 border-white flex-shrink-0"
+        style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
       >
-        PRESETS
-      </h2>
+        <h2 className="text-white font-bold" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>PRESETS</h2>
+        {presets.length > 0 && (
+          <button
+            onClick={onClear}
+            title="Delete every preset — asks first"
+            className="text-white border border-white hover:bg-white hover:text-black transition-colors flex-shrink-0"
+            style={{ fontSize: shrinkClamp(0.65, 0.85, 0.92, 0.75), padding: shrinkClamp(0.25, 0.4, 0.45, 0.375) }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
       {/* the list scrolls; the add row below it doesn't, so the box you
           type a new preset into is still there at the bottom with a full
           list scrolled to the top. overflow-x-hidden and a stable gutter
