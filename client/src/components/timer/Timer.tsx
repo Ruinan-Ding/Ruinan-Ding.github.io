@@ -11,7 +11,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TOGGLE_FONT_SIZE, TONES, ZONES_BY_REGION } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
@@ -187,6 +187,42 @@ export default function Timer() {
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = isLightTheme ? 'light' : 'dark';
   }, [isLightTheme]);
+  // Wall clock above the digits (see its own row in the render): which
+  // zone it reads in, and 12- or 24-hour, both persisted like the display
+  // toggles above. A saved zone is checked against the list the browser
+  // actually knows before it's trusted — Intl throws on an unknown zone,
+  // and it throws on every format call, so a hand-edited value or one
+  // renamed between browser versions would take the whole page down
+  // rather than just showing the wrong time.
+  const [timeZone, setTimeZone] = useState(() => {
+    const saved = readJSON<unknown>(STORAGE_KEYS.clockTimeZone, null);
+    return typeof saved === 'string' && TIME_ZONES.includes(saved) ? saved : DEFAULT_TIME_ZONE;
+  });
+  const [is24Hour, setIs24Hour] = useState(() => readBoolean(STORAGE_KEYS.clock24Hour, false));
+  // One tick a second is all a clock showing seconds needs — the
+  // countdown's own 10ms loop is separate and unaffected either way.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  // Two formatters rather than one so the time leads and the date
+  // follows; a single dateStyle/timeStyle formatter puts them the other
+  // way round. Rebuilt only when the zone or the 12/24 switch changes,
+  // not on every one of those ticks.
+  const clock = useMemo(() => ({
+    time: new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: !is24Hour,
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      // "EST"/"EDT" — the whole point of a zone picker is knowing which
+      // zone you're looking at
+      timeZoneName: 'short',
+    }),
+    date: new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+  }), [timeZone, is24Hour]);
   // Mirrors Tailwind's own sm breakpoint — at and above it the timer row
   // is horizontal, so the HOURS/MINUTES/SECONDS panel sits beside the
   // digits (rather than stacked under them) and the digits column gets
@@ -500,6 +536,8 @@ export default function Timer() {
     writeJSON(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
     writeJSON(STORAGE_KEYS.sidebarHidden, isSidebarHidden);
     writeJSON(STORAGE_KEYS.lightTheme, isLightTheme);
+    writeJSON(STORAGE_KEYS.clockTimeZone, timeZone);
+    writeJSON(STORAGE_KEYS.clock24Hour, is24Hour);
     // only a MANUAL hide persists. An auto-tuck is a reaction to the
     // window it happened in, and the check that reverses it needs the
     // panel's own tuckedNeedsRef (in-memory, gone on reload) to know
@@ -507,7 +545,7 @@ export default function Timer() {
     // cramped layout hid the panel for good, reopenable only by finding
     // its arrow, on every later visit at any window size.
     writeJSON(STORAGE_KEYS.timeFieldsHidden, isTimeFieldsHidden && !isTimeFieldsAutoTucked);
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden, isSidebarHidden, isLightTheme, isTimeFieldsHidden, isTimeFieldsAutoTucked]);
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden, isSidebarHidden, isLightTheme, isTimeFieldsHidden, isTimeFieldsAutoTucked, timeZone, is24Hour]);
 
   // The regular persist effect above only fires on whole-second changes
   // (re-running it every 10ms tick to catch milliseconds would hammer
@@ -2097,9 +2135,16 @@ export default function Timer() {
               // digits to fit instead of overflowing past it. Below sm
               // there's no queryable container at all (see isRowLayout
               // above), so this falls back to the original vw-only clamp.
+              // The wall clock row added above the digits is one more line
+              // this block has to fit, so both solves below reserve its
+              // height too — as a clamp of the same shape as that row's
+              // own contents (its text, or the zone select's box,
+              // whichever ends up taller), so the reserve tracks it
+              // through a shrinking window rather than being a constant
+              // that's only right at one size.
               style={{
                 fontSize: isRowLayout
-                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh)) / 1.75)), 7.5rem)'
+                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh) - max(1.6rem, min(2.2vw, 2.4vh))) / 1.75)), 7.5rem)'
                   // Below lg there's no queryable container (see
                   // isRowLayout above), so the exact cqh solve isn't
                   // available — but a plain vw-only clamp let the digits
@@ -2120,14 +2165,64 @@ export default function Timer() {
                   // On a tall narrow window (a phone) the vw term is far
                   // smaller and wins, so this never costs anything where
                   // height isn't the scarce thing.
-                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem) / 1.75)), 7.5rem)',
+                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem - max(1.6rem, min(2.2vw, 2.4vh))) / 1.75)), 7.5rem)',
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}
             >
-              {/* configured time, for reference */}
-              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
-                {configuredLabel}
+              {/* Wall clock, in the slot the configured total used to
+                  have (that's moved below the digits it describes). Every
+                  child here sets its own font-size: this block's own is
+                  the digit size, which is enormous. */}
+              {/* One row: readout, zone, 12/24 switch. flex-wrap is the
+                  narrow-window fallback only — below about 900px the three
+                  together are wider than this column, and wrapping beats
+                  overflowing a row that clips. */}
+              <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1" style={{ fontSize: TOGGLE_FONT_SIZE }}>
+                <span className="opacity-80 whitespace-nowrap" style={{ fontSize: shrinkClamp(0.7, 1.1, 1.2, 0.9), letterSpacing: '0.05em' }}>
+                  {clock.time.format(nowMs)} · {clock.date.format(nowMs)}
+                </span>
+                {/* Native select, so the zone list is the browser's own
+                    (TIME_ZONES) and the picker is whatever the platform
+                    already does well — 400-odd options, type-to-find
+                    included, for free.
+                    Grouped by region, with each option labelled by just
+                    the part after it, because a select is as wide as its
+                    widest option and the full ids run to
+                    "America/Argentina/Buenos_Aires" — 435px of this row,
+                    which is what stopped everything fitting on one line.
+                    The closed box now shows "New York" while the open list
+                    still says which region that's in, so Asia/Nicosia and
+                    Europe/Nicosia are still tellable apart. The value is
+                    the full id either way, so what's stored and validated
+                    doesn't change. */}
+                <select
+                  value={timeZone}
+                  onChange={(e) => setTimeZone(e.target.value)}
+                  className="border-2 border-white bg-black text-white font-bold min-w-0 max-w-full"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: TOGGLE_FONT_SIZE, maxWidth: '10.5em' }}
+                  title="Time zone this clock reads in"
+                  aria-label="Clock time zone"
+                >
+                  {ZONES_BY_REGION.map(([region, zones]) => (
+                    <optgroup key={region} label={region}>
+                      {zones.map(({ zone, label }) => (
+                        <option key={zone} value={zone}>{label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setIs24Hour((prev) => !prev)}
+                  aria-pressed={is24Hour}
+                  className="flex items-center gap-1.5 text-white font-bold whitespace-nowrap flex-shrink-0 transition-opacity duration-200 hover:opacity-80"
+                  style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: TOGGLE_FONT_SIZE }}
+                  title={is24Hour ? 'Clock shows 24-hour time — click for 12-hour with AM/PM' : 'Clock shows 12-hour time — click for 24-hour'}
+                  aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
+                >
+                  <DotCheckbox checked={is24Hour} />
+                  24-HOUR
+                </button>
               </div>
               <div
                 className={`flex items-baseline justify-center gap-1 ${digitWaveClass}`}
@@ -2154,6 +2249,12 @@ export default function Timer() {
                   <span className={flashTextClass(isSecondsFlashing, secondsFlash.direction)}>{remaining.seconds}</span>
                 </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
+              </div>
+              {/* The configured total, for reference — directly under the
+                  countdown it's the total for, rather than above it where
+                  the wall clock now sits */}
+              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
+                {configuredLabel}
               </div>
               {renderDrainBar('clamp(16rem, 40vw, 44rem)')}
             </div>

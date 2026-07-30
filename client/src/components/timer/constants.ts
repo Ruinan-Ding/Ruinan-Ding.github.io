@@ -103,7 +103,39 @@ export const STORAGE_KEYS = {
   wordCounterCollapsed: 'wordCounterCollapsed',
   lightTheme: 'timerLightTheme',
   dontAskAgain: 'timerDontAskAgain',
+  clockTimeZone: 'timerClockTimeZone',
+  clock24Hour: 'timerClock24Hour',
 } as const;
+
+// The wall clock above the digits. Eastern by default (asked for as
+// "EST", but the zone id rather than the abbreviation, so the clock
+// follows the EST/EDT changeover on its own).
+export const DEFAULT_TIME_ZONE = 'America/New_York';
+// Every zone the browser itself knows, so there's no bundled list here to
+// drift out of date. The typeof check is for an engine old enough not to
+// have it (pre-2022): the select is then just the default, which is all
+// such a browser can honestly offer, rather than a crash on load.
+export const TIME_ZONES: readonly string[] =
+  typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [DEFAULT_TIME_ZONE];
+
+// The same list as the zone picker takes it: grouped by region, each entry
+// labelled with only the part after that region ("America/New_York" under
+// "America", labelled "New York"). See that select's own comment for why —
+// short version, a select is as wide as its widest option. Built once at
+// module load; the list it comes from never changes.
+export const ZONES_BY_REGION: [string, { zone: string; label: string }[]][] = (() => {
+  const groups = new Map<string, { zone: string; label: string }[]>();
+  for (const zone of TIME_ZONES) {
+    const slash = zone.indexOf('/');
+    // a handful of ids (UTC) have no region part at all
+    const region = slash === -1 ? 'Other' : zone.slice(0, slash);
+    const label = (slash === -1 ? zone : zone.slice(slash + 1)).replace(/_/g, ' ');
+    const group = groups.get(region);
+    if (group) group.push({ zone, label });
+    else groups.set(region, [{ zone, label }]);
+  }
+  return Array.from(groups);
+})();
 
 // countdown floor: -99:59:59
 export const MIN_TOTAL_SECONDS = -359999;
