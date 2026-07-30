@@ -32,6 +32,17 @@ export const CLOCK_FONT_SIZE = shrinkClamp(0.56, 1.05, 1.15, 0.9);
 // included), so this one number scales all of it.
 export const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.5, 0.85, 0.95, 0.72);
 
+// Room the floating top-right header corner takes — theme toggle,
+// CONFIRMATIONS, RESET, and the clock's zone and 12/24 settings. Anything
+// centered in the same band has to stay out of it (the website link) or
+// stop before it (the word counter's fullscreen row).
+// The rem floor is the point every control in that corner has bottomed
+// out on its own floor and it stops shrinking, which a plain vw term
+// can't see: below that width a vw reserve keeps shrinking while the
+// thing it's reserving for doesn't, and whatever it was protecting slides
+// underneath.
+export const HEADER_CORNER_RESERVE = 'clamp(20rem, 33vw, 33rem)';
+
 // Shared by the preset and history list-row buttons, so they read as the
 // same kind of control.
 // Every box in this sidebar is one size — each preset, each history

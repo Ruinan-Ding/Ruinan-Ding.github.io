@@ -2,7 +2,7 @@ import { ChevronsDown, ChevronsUp, Maximize2, Minimize2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { readBoolean, readRaw, writeJSON, writeRaw } from '@/lib/storage';
 import ConfirmDialog from './ConfirmDialog';
-import { HEADER_ICON_SIZE, STORAGE_KEYS, TOGGLE_FONT_SIZE } from './constants';
+import { HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, STORAGE_KEYS, TOGGLE_FONT_SIZE } from './constants';
 import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
@@ -28,12 +28,6 @@ interface WordCounterProps {
   // alongside the ringer normally is dropped here, see the row below)
   speakerButton: ReactNode;
   ringerButton: ReactNode;
-  // wall clock (time + date), pre-rendered by Timer — it normally sits
-  // above the digits, which this view covers, so it relocates to the end
-  // of this row's centered group, past the timer controls. Its zone and
-  // 12/24 settings don't move: they stay in the top-right corner, which
-  // floats over this view anyway
-  clockReadout: ReactNode;
   // "remaining / total", pre-rendered by Timer — fullscreen covers the
   // real digits entirely, so this is the only countdown visible while
   // typing
@@ -66,7 +60,7 @@ const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // bigger textarea above (COUNTER_FONT_SIZE) to leave it room to grow
 const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
 
-function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockReadout, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing wipes everything typed with no undo, so it gets its own
   // confirm dialog — reusing the same ConfirmDialog/DialogState the
@@ -406,20 +400,22 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 a group that no longer fit between them, so the whole thing
                 overflowed and was clipped, dragging what was left visibly
                 off-centre. A plain flex group costs no padding.
-                gap-2 rather than the row's gap-3: this group carries plenty
-                now, and the 4px a gap gives back is 20px across it.
-                The clock's own settings are deliberately NOT in here —
-                they stay in the top-right corner beside the theme toggle,
-                where they are in every other view. */}
+                gap-2 rather than the row's gap-3: this group is the
+                densest thing in the app, and the 4px a gap gives back is
+                12px across it.
+                The clock is deliberately NOT in here — readout and
+                settings both live in the top-right corner while this view
+                is up. That corner is painted above this one (z-[70] over
+                z-[60]), so anything of ours it reaches, it covers. */}
             <div className="flex items-center gap-2 flex-shrink-0">
               {timerDigits}
               {timerBar}
               {timerControls}
-              {clockReadout}
             </div>
             {/* sized to the top-right corner this row has to stay clear
-                of — see the cluster comment above */}
-            <div className="flex-1" aria-hidden style={{ minWidth: 'clamp(15rem, 33vw, 33rem)' }} />
+                of — see the cluster comment above, and HEADER_CORNER_RESERVE
+                for why it has the rem floor it has */}
+            <div className="flex-1" aria-hidden style={{ minWidth: HEADER_CORNER_RESERVE }} />
           </>
         ) : (
           <>

@@ -11,7 +11,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, COMPACT_CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, COMPACT_CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
@@ -1725,7 +1725,19 @@ export default function Timer() {
   // view's own header row, which gets a copy inline instead — see that
   // row's own comment.
   const websiteLinkButton = (
-    <div className="relative z-[70] flex items-center gap-1.5 flex-shrink-0">
+    // Held clear of the two header corners it shares a band with. This
+    // sits centered on the row while those float at its ends, so as the
+    // window narrows the gap between them closes from both sides — and
+    // the corners stop shrinking before this does, since every control in
+    // them bottoms out on a rem floor. Capping this at the row minus a
+    // corner's worth at each end lets the label wrap instead (hence no
+    // whitespace-nowrap below), which is why the cap is generous: it's
+    // sized to the right-hand corner, the wider of the two, on both
+    // sides.
+    <div
+      className="relative z-[70] flex items-center justify-center flex-wrap gap-1.5 flex-shrink-0"
+      style={{ maxWidth: `calc(100vw - 2 * ${HEADER_CORNER_RESERVE})` }}
+    >
       <button
         onClick={handleHideWebsiteLinkClick}
         className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
@@ -1739,7 +1751,7 @@ export default function Timer() {
         href="https://ruinanding.com/"
         target="_blank"
         rel="noopener noreferrer"
-        className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
+        className={`flex items-center justify-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 text-center hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}
         style={{ fontSize: shrinkClamp(0.7, 1.6, 2.2, 1.1), fontFamily: "'IBM Plex Mono', monospace" }}
       >
         {/* shrinks at the same min(vw, vh) rate as this link's own
@@ -2023,9 +2035,22 @@ export default function Timer() {
               — this corner floats over that view, so these are reachable
               there without moving. Compact there, though: the row
               underneath has to fit its own contents between this corner
-              and the mirror of it on the left, and this corner at full
-              size left them nothing to fit in. */}
-          {renderClockControls(isWordCounterFullscreen ? COMPACT_CLOCK_FONT_SIZE : CLOCK_FONT_SIZE)}
+              and the space reserved for this one.
+              The readout joins them there, sitting directly on top of the
+              two settings that drive it. It can't be in that row and be
+              readable: this corner is painted above the fullscreen view
+              (z-[70] over z-[60]), so wherever the two meet, this wins —
+              in its own column here it never has to. Stacking rather than
+              sitting beside them also costs the corner no width at all,
+              which is width the row underneath gets to keep. */}
+          {isWordCounterFullscreen ? (
+            <div className="flex flex-col items-end gap-0.5">
+              {renderClockReadout(COMPACT_CLOCK_FONT_SIZE)}
+              {renderClockControls(COMPACT_CLOCK_FONT_SIZE)}
+            </div>
+          ) : (
+            renderClockControls(CLOCK_FONT_SIZE)
+          )}
 
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
@@ -2337,7 +2362,6 @@ export default function Timer() {
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={speakerButton}
           ringerButton={ringerButton}
-          clockReadout={renderClockReadout(COMPACT_CLOCK_FONT_SIZE, true)}
           timerDigits={wordCounterTimerDigits}
           timerBar={renderDrainBar('clamp(3rem, 8vw, 8rem)', true)}
           timerControls={
