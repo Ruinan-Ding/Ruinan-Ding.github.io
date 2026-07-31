@@ -16,7 +16,7 @@ import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, pres
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
-import { useFlashOnToken } from './useFlashOnToken';
+import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 
 // The zone picker's own text is transparent (see that select), so its
 // options have to say what color they are themselves — the popup is the
@@ -238,6 +238,26 @@ export default function Timer() {
     () => clock.zone.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? '',
     [clock, nowMs],
   );
+  // Clicking the time is what switches 12/24 — there's no separate switch
+  // any more, which is a whole control's worth of width and a line of
+  // height back. What makes it discoverable rather than a hidden gesture:
+  // the click answers, showing "24H" or "12H" where the time was for a
+  // beat before the time comes back in that format. Same one-shot
+  // duration as every other cue in the app.
+  // Set straight from the click rather than through useFlashOnToken like
+  // the CSS flashes: that helper turns on a tick later (so an animation
+  // can replay), which here would show one frame of the new time before
+  // the label that's meant to announce it. The timeout is restarted per
+  // click so a second one gets its own full beat.
+  const [isHourFormatFlashing, setIsHourFormatFlashing] = useState(false);
+  const hourFormatFlashRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(hourFormatFlashRef.current), []);
+  const handleHourFormatClick = () => {
+    setIs24Hour((prev) => !prev);
+    setIsHourFormatFlashing(true);
+    window.clearTimeout(hourFormatFlashRef.current);
+    hourFormatFlashRef.current = window.setTimeout(() => setIsHourFormatFlashing(false), FLASH_DURATION_MS);
+  };
   // The same for every OTHER zone, so the picker can read "New York (EDT)"
   // rather than leaving you to know which of the twelve Americas that all
   // say EST is yours. This one needs an Intl.DateTimeFormat per zone and
@@ -1706,31 +1726,14 @@ export default function Timer() {
       </p>
     </div>
   );
-  // The wall clock's two settings — zone and 12/24 — which sit directly
-  // under the readout they drive (see renderClockCluster).
+  // The zone box: what the clock is on, and the picker that changes it.
   //
   // Takes its size from the caller (same as renderControlButtons and the
   // drain bar) because the word counter's fullscreen row needs a smaller
-  // copy than the main view does — everything inside is em-based, the
-  // zone box's own width cap included, so one number scales the lot.
-  const renderClockControls = (fontSize: string) => (
-    <div className="flex items-center gap-2" style={{ fontSize }}>
-      {/* Reads as the state it's in, not the one clicking would get: the
-          label is whichever format the clock is showing right now, and the
-          box is ticked while that's 12-hour. Ticked "12H" therefore means
-          the clock IS in 12-hour — the other way round (label as the
-          target) put a ticked "12H" next to a clock reading 13:52. */}
-      <button
-        onClick={() => setIs24Hour((prev) => !prev)}
-        aria-pressed={!is24Hour}
-        className="flex items-center gap-1 text-white font-bold whitespace-nowrap flex-shrink-0 transition-opacity duration-200 hover:opacity-80"
-        style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit' }}
-        title={is24Hour ? 'Clock is on 24-hour time — click for 12-hour with AM/PM' : 'Clock is on 12-hour time — click for 24-hour'}
-        aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
-      >
-        <DotCheckbox checked={!is24Hour} fontSize="inherit" />
-        {is24Hour ? '24H' : '12H'}
-      </button>
+  // copy than the main view does — everything inside is em-based, so one
+  // number scales the lot.
+  const renderZoneBox = (fontSize: string) => (
+    <span className="inline-flex items-center flex-shrink-0" style={{ fontSize }}>
       {/* Native select, so the zone list is the browser's own (TIME_ZONES)
           and the picker is whatever the platform already does well —
           400-odd options, type-to-find included, for free — but with its
@@ -1777,36 +1780,37 @@ export default function Timer() {
           ))}
         </select>
       </span>
-    </div>
-  );
-  // The readout those two drive. Stacked — time over date — since it's
-  // read as two facts, and stacking is also what lets the whole cluster
-  // fit the word counter's fullscreen row, where width is the scarce
-  // thing and height isn't.
-  const renderClockReadout = (fontSize: string, stacked = false) => (
-    <span
-      className={`opacity-80 ${stacked ? 'flex flex-col items-center leading-tight' : 'whitespace-nowrap'}`}
-      style={{ fontSize, letterSpacing: '0.05em' }}
-    >
-      <span className="whitespace-nowrap">{clock.time.format(nowMs)}</span>
-      <span className="whitespace-nowrap">{stacked ? '' : ' · '}{clock.date.format(nowMs)}</span>
     </span>
   );
-  // Readout with its own two settings directly underneath, as one block:
-  // above the digits in the normal view, and at the far end of the word
-  // counter's fullscreen header row past the timer controls. Same shape
-  // in both, just a size smaller in that row.
-  // The settings under it run well below the readout's own size — the
-  // time and date are what you look at, the zone box and the switch are
-  // what you set once and forget. That row is also the widest of the
-  // three, so 0.7 of it is width the whole cluster stops asking for.
+  // The clock: time and zone on one line, date under them. Two lines
+  // rather than three because the 12/24 switch is gone — the time itself
+  // is the switch now (see handleHourFormatClick), which is a control
+  // this cluster no longer has to find room for.
+  //
+  // The time keeps a minimum width of its own so that swapping a
+  // ten-character "3:56:55 PM" for a three-character "24H", or for an
+  // eight-character "15:56:55", doesn't drag the zone box beside it back
+  // and forth.
   const renderClockCluster = (fontSize: string) => (
-    <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
-      {renderClockReadout(fontSize, true)}
-      {/* the max() is a floor, not a nicety: a 0.9em checkbox spends 4px
-          on its border and 2px on the gap inside it, so much below half a
-          rem there's nothing left in the middle to draw a dot with */}
-      {renderClockControls(`max(0.5rem, calc(${fontSize} * 0.7))`)}
+    <div className="flex flex-col items-center gap-0.5 flex-shrink-0" style={{ fontSize }}>
+      <span className="flex items-center gap-1 leading-tight">
+        <button
+          onClick={handleHourFormatClick}
+          aria-pressed={is24Hour}
+          className="opacity-80 whitespace-nowrap text-center transition-opacity duration-200 hover:opacity-100"
+          style={{ letterSpacing: '0.05em', minWidth: '6.4em' }}
+          title={is24Hour ? 'Clock is on 24-hour time — click for 12-hour with AM/PM' : 'Clock is on 12-hour time — click for 24-hour'}
+          aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
+        >
+          {isHourFormatFlashing ? (is24Hour ? '24H' : '12H') : clock.time.format(nowMs)}
+        </button>
+        {/* half a rem is the floor for anything in this cluster: below it
+            the caret and three capitals stop being shapes at all */}
+        {renderZoneBox(`max(0.5rem, calc(${fontSize} * 0.7))`)}
+      </span>
+      <span className="opacity-80 whitespace-nowrap leading-tight" style={{ letterSpacing: '0.05em' }}>
+        {clock.date.format(nowMs)}
+      </span>
     </div>
   );
   // Website link, shared between its normal spot (centered above the
