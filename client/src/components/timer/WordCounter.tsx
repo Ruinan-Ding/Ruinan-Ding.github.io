@@ -7,6 +7,7 @@ import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
+import { capInsertion, countStats, COUNTER_MAX, COUNTER_WARN } from './wordCount';
 import type { DialogState } from './types';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
 
@@ -69,47 +70,6 @@ const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // bigger textarea above (COUNTER_FONT_SIZE) to leave it room to grow
 const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
 
-// Ceiling for lines, words and chars alike. Four digits is what an L/W/C
-// box holds (COUNTER_COLUMN_WIDTH is three of them across the counter
-// column), so a fifth would be a number you can't read. The warn mark is
-// where a total turns yellow, far enough out to be a heads-up rather than
-// a surprise.
-const COUNTER_MAX = 9999;
-const COUNTER_WARN = 9500;
-
-// The L/W/C numbers for a given text. A plain function rather than
-// inline in the memo below, because the typing guard needs the same
-// counts for text that hasn't been accepted yet — and "what the counters
-// would say" has to be measured exactly the way the counters say it.
-function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly: boolean) {
-  const lines = text.split('\n');
-  const stats = lines.map((line) => {
-    const trimmed = line.trim();
-    const tokens = trimmed === '' ? [] : trimmed.split(/\s+/);
-    // alnumWordsOnly requires at least one letter/digit for a token to
-    // count as a word (so "$#" alone doesn't); off counts every
-    // whitespace-separated token. alnumCharsOnly restricts C to
-    // a-z/A-Z/0-9; off counts every character in the line, including
-    // spaces. The two are intentionally independent — with words-only
-    // off and chars-only on, a punctuation-only line like "$# @!" will
-    // show words > 0 with chars === 0. That's correct, not a bug.
-    const words = alnumWordsOnly ? tokens.filter((word) => /[a-zA-Z0-9]/.test(word)) : tokens;
-    const charCount = alnumCharsOnly ? (line.match(/[a-zA-Z0-9]/g) || []).length : line.length;
-    return { wordCount: words.length, charCount };
-  });
-
-  return {
-    lineStats: stats,
-    totalLines: lines.length,
-    totalWords: stats.reduce((sum, stat) => sum + stat.wordCount, 0),
-    // summed from the same per-line numbers shown in the C column
-    // (rather than an independent scan over the raw text) so TOTAL
-    // always matches "add up the C column" — an independent scan
-    // would also pick up the '\n' line separators once chars-only is
-    // off and every character in a line counts
-    totalChars: stats.reduce((sum, stat) => sum + stat.charCount, 0),
-  };
-}
 
 function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, headerCornerWidth, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
@@ -317,25 +277,27 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     () => countStats(text, alnumWordsOnly, alnumCharsOnly),
     [text, alnumWordsOnly, alnumCharsOnly],
   );
+  // The same text counted with nothing filtered out, which is what the
+  // cap goes by (see isWithinCap). Only worth a second pass while a
+  // filter is actually on — with both off these are the same numbers.
+  const rawTotals = useMemo(
+    () => (alnumWordsOnly || alnumCharsOnly ? countStats(text, false, false) : { totalWords, totalChars }),
+    [text, alnumWordsOnly, alnumCharsOnly, totalWords, totalChars],
+  );
+  // A filter is hiding a full count when the unfiltered number is at the
+  // ceiling and the one on screen isn't — the state where typing has
+  // stopped and the counter you're looking at doesn't say why. That's
+  // what turns the switch responsible red; turning it off shows the real
+  // number, which is over the line and red on its own, and the switch
+  // goes back to normal because it's no longer hiding anything.
+  const wordsCapHidden = alnumWordsOnly && rawTotals.totalWords >= COUNTER_MAX && totalWords < COUNTER_MAX;
+  const charsCapHidden = alnumCharsOnly && rawTotals.totalChars >= COUNTER_MAX && totalChars < COUNTER_MAX;
 
-  // Once any total is at the cap, nothing more goes in at all — not a
-  // space, not a newline, not a character that wouldn't count toward the
-  // total that's full. Counting only the keystrokes that move a number
-  // would let you keep typing forever in whatever the current mode
-  // doesn't count (spaces, with chars-only on), which is a stuck counter
-  // rather than a full one.
-  const atCap = totalLines >= COUNTER_MAX || totalWords >= COUNTER_MAX || totalChars >= COUNTER_MAX;
   // Deletions always go through — otherwise text pasted in over the cap,
-  // or left over from before it existed, would be stuck there.
+  // or left over from before it existed, would be stuck there. Everything
+  // else is cut to fit rather than refused (capInsertion).
   const handleTextChange = (next: string) => {
-    if (next.length <= text.length) {
-      setText(next);
-      return;
-    }
-    if (atCap) return;
-    const { totalLines: lines, totalWords: words, totalChars: chars } = countStats(next, alnumWordsOnly, alnumCharsOnly);
-    if (lines > COUNTER_MAX || words > COUNTER_MAX || chars > COUNTER_MAX) return;
-    setText(next);
+    setText(next.length <= text.length ? next : capInsertion(text, next));
   };
 
   // navigator.clipboard is the whole implementation on purpose: it needs
@@ -508,8 +470,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
               aria-pressed={alnumWordsOnly}
               className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-              style={{ color: alnumWordsOnly ? 'var(--app-ink)' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
-              title="When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included."
+              // red while it's the reason W reads under the limit that
+              // typing has actually hit — see wordsCapHidden
+              style={{ color: wordsCapHidden ? '#ef4444' : alnumWordsOnly ? 'var(--app-ink)' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              title={wordsCapHidden
+                ? `Every token counted, this is at the ${COUNTER_MAX} limit — click to count them all and see it`
+                : 'When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included.'}
               aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
             >
               <DotCheckbox checked={alnumWordsOnly} />
@@ -520,8 +486,13 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               onClick={() => setAlnumCharsOnly((prev) => !prev)}
               aria-pressed={alnumCharsOnly}
               className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-              style={{ color: alnumCharsOnly ? 'var(--app-ink)' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
-              title="When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces."
+              // red for the same reason as the switch beside it: a line of
+              // "$$$$$" counts as no characters here, so C can read far
+              // under a limit the text is already sitting on
+              style={{ color: charsCapHidden ? '#ef4444' : alnumCharsOnly ? 'var(--app-ink)' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              title={charsCapHidden
+                ? `Every character counted, this is at the ${COUNTER_MAX} limit — click to count them all and see it`
+                : 'When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces.'}
               aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
             >
               <DotCheckbox checked={alnumCharsOnly} />
