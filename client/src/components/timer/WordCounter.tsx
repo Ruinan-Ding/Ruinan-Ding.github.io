@@ -170,6 +170,58 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   useEffect(() => {
     writeJSON(STORAGE_KEYS.wordCounterFullscreen, isFullscreen);
   }, [isFullscreen]);
+
+  // The fullscreen header row never wraps and never moves anything down,
+  // so the only thing narrowing the window can do to it is take the clock
+  // away — same call as the website link, which shrinks until it can't and
+  // then goes. Everything else in that row (arrow, mute, repeat,
+  // countdown, bar, buttons) is the timer itself and stays.
+  //
+  // Measured against the row's own content edge, which the corner's
+  // padding already pulls in (see the row below), rather than against a
+  // window width: the row's contents and that corner shrink on different
+  // clamps with different floors, so the width where they stop fitting
+  // isn't a number that can be written down. Tucking is remembered with
+  // the clock's last measured width so the check for "there's room again"
+  // can be made without it on screen — it isn't in the DOM to measure
+  // while it's gone, the same problem (and the same answer) as the
+  // auto-collapse above.
+  const fullscreenRowRef = useRef<HTMLDivElement>(null);
+  const timerBlockRef = useRef<HTMLDivElement>(null);
+  const clockRef = useRef<HTMLDivElement>(null);
+  const clockWidthRef = useRef(0);
+  const [isClockTucked, setIsClockTucked] = useState(false);
+  const isClockTuckedRef = useRef(isClockTucked);
+  isClockTuckedRef.current = isClockTucked;
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const check = () => {
+      const row = fullscreenRowRef.current;
+      if (!row) return;
+      const contentRight = row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight);
+      if (!isClockTuckedRef.current) {
+        const clock = clockRef.current;
+        if (!clock) return;
+        const rect = clock.getBoundingClientRect();
+        clockWidthRef.current = rect.width;
+        if (rect.right > contentRight + 1) setIsClockTucked(true);
+        return;
+      }
+      const block = timerBlockRef.current;
+      if (!block) return;
+      // the gap this row would put back between the two
+      if (contentRight - block.getBoundingClientRect().right >= clockWidthRef.current + 12) setIsClockTucked(false);
+    };
+    check();
+    const row = fullscreenRowRef.current;
+    const observer = new ResizeObserver(check);
+    if (row) observer.observe(row);
+    window.addEventListener('resize', check);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', check);
+    };
+  }, [isFullscreen, headerCornerWidth]);
   // hiding while fullscreen has to drop out of fullscreen too (there's no
   // such thing as a hidden-but-fullscreen view) — remembered here so
   // un-hiding restores exactly the view that was showing, fullscreen or
@@ -407,19 +459,18 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           below), so the warning has nothing left to warn about. Only
           the CONFIRMATIONS/RESET cluster (top-right, z-[70]) still
           floats separately.
-          The fullscreen version reserves that corner as padding on this
-          row rather than as a spacer element inside it, and wraps. Both
-          matter, and both are why the corner kept ending up on top of
-          something: padding shrinks the line box itself, so nothing on
-          this row can be laid out under the corner no matter how little
-          room is left — a spacer only reserves while the row still fits,
-          and stops protecting anything the moment it doesn't. Wrapping is
-          then what "doesn't fit" does: the last item drops to a second
-          line, below the corner entirely, instead of overflowing under
-          it. The windowed version keeps nowrap, where none of this
-          applies — nothing floats over it. */}
+          flex-nowrap on purpose, in both versions: nothing on this row
+          ever moves to a second line, however narrow the window gets.
+          The fullscreen version also reserves the floating top-right
+          corner as padding on this row rather than as a spacer element
+          inside it — padding shrinks the line box itself, where a spacer
+          only reserves while the row still fits and stops protecting
+          anything the moment it doesn't, which is exactly when the corner
+          lands on top of something. What "doesn't fit" does here is drop
+          the clock (see isClockTucked), not wrap it. */}
       <div
-        className={`flex items-center gap-3 w-full ${isFullscreen ? 'flex-wrap' : 'flex-nowrap'}`}
+        ref={fullscreenRowRef}
+        className="flex items-center gap-3 flex-nowrap w-full"
         style={isFullscreen ? { paddingRight: headerCornerWidth ? headerCornerWidth + 24 : HEADER_CORNER_RESERVE } : undefined}
       >
         {isFullscreen ? (
@@ -452,21 +503,20 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             {/* countdown, bar and buttons as one block that never splits.
                 gap-2 rather than the row's gap-3: this is the densest run
                 in the app, and the 4px a gap gives back is 12px across it. */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div ref={timerBlockRef} className="flex items-center gap-2 flex-shrink-0">
               {timerDigits}
               {timerBar}
               {timerControls}
             </div>
             {/* The clock is the row's own item rather than part of that
-                block, which is what lets it be the thing that drops to a
-                second line when the row runs out — the block above can't
-                split, so if the two were one item the whole timer would go
-                down with it, or nothing would.
+                block so it can be dropped on its own — the block can't
+                split, so if the two were one item it would be the whole
+                timer that went or nothing.
                 It sits past the buttons, and it has to be on this row at
                 all rather than in the top-right corner: that corner is
                 painted above this view (z-[70] over z-[60]), so anything
                 of ours it reaches, it covers. */}
-            {clockCluster}
+            {!isClockTucked && <div ref={clockRef} className="flex-shrink-0">{clockCluster}</div>}
             <div className="flex-1" aria-hidden />
           </>
         ) : (
