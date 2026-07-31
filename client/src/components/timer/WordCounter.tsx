@@ -315,18 +315,38 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // value and then the caret is two separate ways for the view to jump to
   // somewhere you weren't looking. Nothing about a refused keystroke
   // should move the page under you.
+  //
+  // One restore per burst, keeping the position the burst started at. Two
+  // details make that necessary. It's queued rather than done here,
+  // because React puts the value back after this handler returns and
+  // that's what moves the view — a microtask is the first moment after it.
+  // And a second keystroke can land before that microtask runs, at which
+  // point the view HAS already jumped, so reading the scroll position
+  // again would save the bottom of the text as the place to return to.
+  // Which is exactly what spamming keys at the cap did: each key pinned
+  // the jump the last one caused.
+  const pendingRestoreRef = useRef<{ caret: number; top: number; left: number } | null>(null);
   const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const el = event.target;
     const typed = el.value;
     const accepted = typed.length <= text.length ? typed : capInsertion(text, typed);
     setText(accepted);
     if (accepted === typed) return;
+
     const caret = Math.max(0, (el.selectionStart ?? typed.length) + accepted.length - typed.length);
-    const { scrollTop, scrollLeft } = el;
-    requestAnimationFrame(() => {
-      el.setSelectionRange(caret, caret);
-      el.scrollTop = scrollTop;
-      el.scrollLeft = scrollLeft;
+    const pending = pendingRestoreRef.current;
+    if (pending) {
+      pending.caret = caret;
+      return;
+    }
+    pendingRestoreRef.current = { caret, top: el.scrollTop, left: el.scrollLeft };
+    queueMicrotask(() => {
+      const restore = pendingRestoreRef.current;
+      pendingRestoreRef.current = null;
+      if (!restore) return;
+      el.setSelectionRange(restore.caret, restore.caret);
+      el.scrollTop = restore.top;
+      el.scrollLeft = restore.left;
     });
   };
 
