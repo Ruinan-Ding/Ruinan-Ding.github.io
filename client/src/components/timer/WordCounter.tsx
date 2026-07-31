@@ -407,28 +407,38 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           below), so the warning has nothing left to warn about. Only
           the CONFIRMATIONS/RESET cluster (top-right, z-[70]) still
           floats separately.
-          flex-nowrap on purpose: every item here already shrinks on its
-          own (shrinkClamp-sized icons/text, same as the rest of the
-          app's header controls) as the window narrows, so wrapping to a
-          second line was never necessary — it just meant a control
-          hadn't shrunk enough yet. */}
-      <div className="flex items-center gap-3 flex-nowrap w-full">
+          The fullscreen version reserves that corner as padding on this
+          row rather than as a spacer element inside it, and wraps. Both
+          matter, and both are why the corner kept ending up on top of
+          something: padding shrinks the line box itself, so nothing on
+          this row can be laid out under the corner no matter how little
+          room is left — a spacer only reserves while the row still fits,
+          and stops protecting anything the moment it doesn't. Wrapping is
+          then what "doesn't fit" does: the last item drops to a second
+          line, below the corner entirely, instead of overflowing under
+          it. The windowed version keeps nowrap, where none of this
+          applies — nothing floats over it. */}
+      <div
+        className={`flex items-center gap-3 w-full ${isFullscreen ? 'flex-wrap' : 'flex-nowrap'}`}
+        style={isFullscreen ? { paddingRight: headerCornerWidth ? headerCornerWidth + 24 : HEADER_CORNER_RESERVE } : undefined}
+      >
         {isFullscreen ? (
           <>
-            {/* arrow/ringer/speaker on the left; the group beside it
-                centers in what's left between this cluster and the
-                floating top-right corner, which the spacer at the end of
-                this row reserves for.
-                Those two used to carry the SAME minWidth, forcing them
-                symmetric so the group landed on the row's true midpoint.
-                That corner now carries the clock's zone and 12/24 setting
-                as well as CONFIRMATIONS/RESET — 467px of a 1444px row —
-                and mirroring that on the left leaves less room than the
-                group needs, so it overflowed and slid under the corner.
-                Reserving the real width on the right only is what fits;
-                the group reads as centered in the space it actually has,
-                rather than centered on a midpoint and clipped. */}
-            <div className="flex items-center gap-3 flex-1 min-w-0" style={{ minWidth: 'clamp(10rem, 21vw, 21rem)' }}>
+            {/* arrow/ringer/speaker on the left, then the timer, then the
+                clock; the two flex-1 ends center the middle of that in
+                what the row's padding leaves.
+                No minWidth on this cluster any more. It used to carry the
+                same one as the spacer opposite, forcing the two symmetric
+                so the timer landed on the row's true midpoint — but that
+                spacer is gone (the corner is padding now), and reserving
+                21vw here for content that measures a third of it was
+                simply taking room off the only items that need it.
+                No min-w-0 either, deliberately: that would let this
+                cluster be squeezed to nothing while its own buttons (each
+                flex-shrink-0) spilled out over the timer beside them. Left
+                on min-width auto it can't go below its content, and its
+                content is what the row counts when deciding what wraps. */}
+            <div className="flex items-center gap-3 flex-1">
               {!isAutoCollapsed && (
                 <HeaderToggleButton
                   onClick={toggleCollapsed}
@@ -439,42 +449,25 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               {ringerButton}
               {speakerButton}
             </div>
-            {/* The whole run — countdown, bar, buttons, then the clock and
-                its two settings — centered as one block between the two
-                flex-1 sides.
-                This used to be a grid with equal 1fr columns either side
-                of the bar, so that the BAR rather than the group landed on
-                the row's true midpoint. That bought its symmetry with
-                empty space: the narrower of digits/controls got padded out
-                to match the wider one. Adding the clock made that padding
-                more than the row had left — 310px reserved each side plus
-                a group that no longer fit between them, so the whole thing
-                overflowed and was clipped, dragging what was left visibly
-                off-centre. A plain flex group costs no padding.
-                gap-2 rather than the row's gap-3: this group is the
-                densest thing in the app, and the 4px a gap gives back is
-                16px across it.
-                The clock rides at the far end, past the buttons — the
-                same block it is above the digits in the normal view, just
-                smaller. It has to be in here rather than in the top-right
-                corner: that corner is painted above this view (z-[70]
-                over z-[60]), so anything of ours it reaches, it covers. */}
+            {/* countdown, bar and buttons as one block that never splits.
+                gap-2 rather than the row's gap-3: this is the densest run
+                in the app, and the 4px a gap gives back is 12px across it. */}
             <div className="flex items-center gap-2 flex-shrink-0">
               {timerDigits}
               {timerBar}
               {timerControls}
-              {clockCluster}
             </div>
-            {/* the top-right corner's own measured width, plus a gap the
-                size of this row's own — no formula to be wrong at some
-                window size (headerCornerWidth's comment in Timer has the
-                history). Falls back to the CSS estimate for the one frame
-                before the first measurement lands. */}
-            <div
-              className="flex-1"
-              aria-hidden
-              style={{ minWidth: headerCornerWidth ? headerCornerWidth + 24 : HEADER_CORNER_RESERVE }}
-            />
+            {/* The clock is the row's own item rather than part of that
+                block, which is what lets it be the thing that drops to a
+                second line when the row runs out — the block above can't
+                split, so if the two were one item the whole timer would go
+                down with it, or nothing would.
+                It sits past the buttons, and it has to be on this row at
+                all rather than in the top-right corner: that corner is
+                painted above this view (z-[70] over z-[60]), so anything
+                of ours it reaches, it covers. */}
+            {clockCluster}
+            <div className="flex-1" aria-hidden />
           </>
         ) : (
           <>
