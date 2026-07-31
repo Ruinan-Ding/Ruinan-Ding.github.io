@@ -211,10 +211,15 @@ export default function Timer() {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  // Two formatters rather than one so the time leads and the date
+  // Separate formatters rather than one so the time leads and the date
   // follows; a single dateStyle/timeStyle formatter puts them the other
   // way round. Rebuilt only when the zone or the 12/24 switch changes,
   // not on every one of those ticks.
+  //
+  // The time carries no zone name — the box that picks the zone is right
+  // underneath it saying "EDT", and saying it twice on one line is width
+  // this clock doesn't have to spend. The third formatter here is what
+  // that box reads: same job, just not printed alongside the time.
   const clock = useMemo(() => ({
     time: new Intl.DateTimeFormat('en-US', {
       timeZone,
@@ -222,19 +227,15 @@ export default function Timer() {
       hour: 'numeric',
       minute: '2-digit',
       second: '2-digit',
-      // "EST"/"EDT" — the whole point of a zone picker is knowing which
-      // zone you're looking at
-      timeZoneName: 'short',
     }),
     date: new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+    zone: new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' }),
   }), [timeZone, is24Hour]);
   // What the browser calls the selected zone right now — "EDT", "GMT+9" —
-  // pulled out of the same formatter that's already printing it on the
-  // clock, so it costs one formatToParts rather than a formatter of its
-  // own, and it follows the daylight-saving changeover for free. It's what
-  // the zone box displays; see that select.
+  // which follows the daylight-saving changeover on its own because it's
+  // formatted live rather than looked up.
   const zoneAbbr = useMemo(
-    () => clock.time.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? '',
+    () => clock.zone.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? '',
     [clock, nowMs],
   );
   // The same for every OTHER zone, so the picker can read "New York (EDT)"
