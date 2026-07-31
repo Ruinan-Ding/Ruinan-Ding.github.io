@@ -241,9 +241,10 @@ export default function Timer() {
   // Clicking the time is what switches 12/24 — there's no separate switch
   // any more, which is a whole control's worth of width and a line of
   // height back. What makes it discoverable rather than a hidden gesture:
-  // the click answers, showing "24H" or "12H" where the time was for a
-  // beat before the time comes back in that format. Same one-shot
-  // duration as every other cue in the app.
+  // the click answers, with "24H" or "12H" sitting over the time for a
+  // beat and then fading off it (hourFormatFizz in index.css). Held here
+  // for the same 1.2s the animation runs, so the element goes away only
+  // once it has finished fading.
   // Set straight from the click rather than through useFlashOnToken like
   // the CSS flashes: that helper turns on a tick later (so an animation
   // can replay), which here would show one frame of the new time before
@@ -1787,22 +1788,36 @@ export default function Timer() {
   // is the switch now (see handleHourFormatClick), which is a control
   // this cluster no longer has to find room for.
   //
-  // The time keeps a minimum width of its own so that swapping a
-  // ten-character "3:56:55 PM" for a three-character "24H", or for an
-  // eight-character "15:56:55", doesn't drag the zone box beside it back
-  // and forth.
+  // The time keeps a minimum width of its own so that dropping from a
+  // ten-character "3:56:55 PM" to an eight-character "15:56:55" doesn't
+  // drag the zone box beside it back and forth.
   const renderClockCluster = (fontSize: string) => (
     <div className="flex flex-col items-center gap-0.5 flex-shrink-0" style={{ fontSize }}>
       <span className="flex items-center gap-1 leading-tight">
+        {/* Boxed like the zone beside it, because it does the same kind of
+            thing: the two read as a pair of controls rather than a label
+            that happens to be clickable. */}
         <button
           onClick={handleHourFormatClick}
           aria-pressed={is24Hour}
-          className="opacity-80 whitespace-nowrap text-center transition-opacity duration-200 hover:opacity-100"
-          style={{ letterSpacing: '0.05em', minWidth: '6.4em' }}
+          className="relative border-2 whitespace-nowrap text-center transition-opacity duration-200 hover:opacity-80"
+          style={{ borderColor: 'currentColor', backgroundColor: 'var(--app-surface)', letterSpacing: '0.05em', padding: '0 0.25em', minWidth: '6.9em' }}
           title={is24Hour ? 'Clock is on 24-hour time — click for 12-hour with AM/PM' : 'Clock is on 12-hour time — click for 24-hour'}
           aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
         >
-          {isHourFormatFlashing ? (is24Hour ? '24H' : '12H') : clock.time.format(nowMs)}
+          {clock.time.format(nowMs)}
+          {/* over the time rather than instead of it, on the same surface
+              colour, so fading this away is the time coming back — see
+              hourFormatFizz in index.css */}
+          {isHourFormatFlashing && (
+            <span
+              aria-hidden
+              className="absolute inset-0 flex items-center justify-center animate-hourFormatFizz"
+              style={{ backgroundColor: 'var(--app-surface)' }}
+            >
+              {is24Hour ? '24H' : '12H'}
+            </span>
+          )}
         </button>
         {/* half a rem is the floor for anything in this cluster: below it
             the caret and three capitals stop being shapes at all */}

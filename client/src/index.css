@@ -282,6 +282,25 @@
   animation: removeFizz 0.5s ease-in forwards;
 }
 
+/* The wall clock's answer to being clicked: "24H" or "12H" sits over the
+   time it just changed, holds long enough to read, then fades off it. It
+   covers the time rather than replacing it (see the clock in Timer.tsx),
+   so fading this out IS the time coming back — one animation for both
+   halves of the swap. Same 1.2s the rest of the app's one-shot cues run
+   at, and the hold is most of it: the fade is the tail, not the point. */
+@keyframes hourFormatFizz {
+  0%, 55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-hourFormatFizz {
+  animation: hourFormatFizz 1.2s ease-in forwards;
+}
+
 /* Same "this just happened" cue for bare text sitting on the window
    rather than inside a boxed card — the HH/MM/SS segments of the
    countdown itself: green for an increase, red for a decrease, both
