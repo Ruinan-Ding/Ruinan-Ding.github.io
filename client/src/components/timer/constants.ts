@@ -35,12 +35,18 @@ export const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.5, 0.85, 0.95, 0.72);
 // CONFIRMATIONS and RESET. Anything centered in the same band has to stay
 // out of it (the website link) or stop before it (the word counter's
 // fullscreen row).
-// The rem floor is the point every control in that corner has bottomed
-// out on its own floor and it stops shrinking, which a plain vw term
-// can't see: below that width a vw reserve keeps shrinking while the
-// thing it's reserving for doesn't, and whatever it was protecting slides
-// underneath.
-export const HEADER_CORNER_RESERVE = 'clamp(15rem, 22vw, 22rem)';
+// Added up from the same clamps those three controls are built from
+// rather than being its own vw guess: theme button, RESET's icon, the
+// CONFIRMATIONS checkbox, and the two labels at 0.6em per character of
+// their own fonts (13 for CONFIRMATIONS, 5 for RESET), plus the fixed
+// px — borders, paddings, gaps and the corner's offset — that no em can
+// carry. A single vw term can't do this job: every one of those controls
+// bottoms out on its own rem floor as the window narrows, so a vw reserve
+// keeps shrinking while the thing it reserves for doesn't, and whatever
+// it was protecting ends up underneath.
+export const HEADER_CONFIRM_FONT_SIZE = shrinkClamp(0.55, 1.2, 1.3, 0.8);
+export const HEADER_RESET_FONT_SIZE = shrinkClamp(0.65, 1.5, 1.6, 1);
+export const HEADER_CORNER_RESERVE = `calc(${HEADER_BUTTON_SIZE.width} + ${HEADER_ICON_SIZE.width} + 0.9 * ${TOGGLE_FONT_SIZE} + 7.8 * ${HEADER_CONFIRM_FONT_SIZE} + 3 * ${HEADER_RESET_FONT_SIZE} + 110px)`;
 
 // Shared by the preset and history list-row buttons, so they read as the
 // same kind of control.

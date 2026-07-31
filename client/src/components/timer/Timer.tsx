@@ -11,7 +11,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, COMPACT_CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, COMPACT_CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_CONFIRM_FONT_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HEADER_RESET_FONT_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
@@ -1680,14 +1680,14 @@ export default function Timer() {
           which region that's in, so Asia/Nicosia and Europe/Nicosia stay
           tellable apart. The value is the full id either way, so what's
           stored and validated doesn't change. */}
-      {/* Own caret rather than the browser's. The box is capped at 10em,
+      {/* Own caret rather than the browser's. The box is capped at 8em,
           and a zone whose label is longer than that ("Argentina/Buenos
           Aires", "Indiana/Indianapolis") spends the width on its text and
           leaves the native arrow clipped off the end — so the control
           stops looking like a dropdown at all. Drawn here instead: the
           select gives up its own appearance and keeps a padding-right the
           caret sits in, and the label ellipsises into what's left. */}
-      <span className="relative inline-flex items-center self-center min-w-0" style={{ maxWidth: '10em' }}>
+      <span className="relative inline-flex items-center self-center min-w-0" style={{ maxWidth: '8em' }}>
         <select
           value={timeZone}
           // same check the saved value gets, for the same reason: a select
@@ -1729,10 +1729,14 @@ export default function Timer() {
   // above the digits in the normal view, and at the far end of the word
   // counter's fullscreen header row past the timer controls. Same shape
   // in both, just a size smaller in that row.
+  // The settings under it run a notch smaller than the readout itself —
+  // the time and date are what you look at, the zone box and the switch
+  // are what you set once and forget. It's also the widest line of the
+  // three, so 0.85 of it is width the cluster doesn't ask for.
   const renderClockCluster = (fontSize: string) => (
     <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
       {renderClockReadout(fontSize, true)}
-      {renderClockControls(fontSize)}
+      {renderClockControls(`calc(${fontSize} * 0.85)`)}
     </div>
   );
   // Website link, shared between its normal spot (centered above the
@@ -2096,7 +2100,7 @@ export default function Timer() {
               color: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
               backgroundColor: 'var(--app-surface)',
               fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: shrinkClamp(0.55, 1.2, 1.3, 0.8),
+              fontSize: HEADER_CONFIRM_FONT_SIZE,
             }}
             title={skipConfirmations
               ? 'Confirmation dialogs are off — actions apply immediately (the RESET button still always asks). Click to turn confirmations back on'
@@ -2115,7 +2119,7 @@ export default function Timer() {
               height: HEADER_BUTTON_SIZE.height,
               backgroundColor: 'var(--app-surface)',
               fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: shrinkClamp(0.65, 1.5, 1.6, 1),
+              fontSize: HEADER_RESET_FONT_SIZE,
             }}
             title="Reset the website to defaults"
             aria-label="Reset the website to defaults"
