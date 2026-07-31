@@ -292,6 +292,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // goes back to normal because it's no longer hiding anything.
   const wordsCapHidden = alnumWordsOnly && rawTotals.totalWords >= COUNTER_MAX && totalWords < COUNTER_MAX;
   const charsCapHidden = alnumCharsOnly && rawTotals.totalChars >= COUNTER_MAX && totalChars < COUNTER_MAX;
+  // A switch is colored by the number the cap actually goes by, not the
+  // one it's showing — yellow on the approach, red at the ceiling, the
+  // same pair as the totals below. Filtered or not, the switch and its
+  // column then agree about how close this is to stopping.
+  const capColor = (raw: number, on: boolean) =>
+    raw >= COUNTER_MAX ? '#ef4444' : raw >= COUNTER_WARN ? '#eab308' : on ? 'var(--app-ink)' : '#6b7280';
 
   // Deletions always go through — otherwise text pasted in over the cap,
   // or left over from before it existed, would be stuck there. Everything
@@ -303,6 +309,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // where the typing left it, less whatever didn't make it in. In a frame,
   // because the value has to be restored before the caret can be placed
   // in it.
+  //
+  // Then the scroll position goes back too, and after the caret rather
+  // than before: placing a caret scrolls it into view, so restoring the
+  // value and then the caret is two separate ways for the view to jump to
+  // somewhere you weren't looking. Nothing about a refused keystroke
+  // should move the page under you.
   const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const el = event.target;
     const typed = el.value;
@@ -310,7 +322,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     setText(accepted);
     if (accepted === typed) return;
     const caret = Math.max(0, (el.selectionStart ?? typed.length) + accepted.length - typed.length);
-    requestAnimationFrame(() => el.setSelectionRange(caret, caret));
+    const { scrollTop, scrollLeft } = el;
+    requestAnimationFrame(() => {
+      el.setSelectionRange(caret, caret);
+      el.scrollTop = scrollTop;
+      el.scrollLeft = scrollLeft;
+    });
   };
 
   // navigator.clipboard is the whole implementation on purpose: it needs
@@ -483,9 +500,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
               aria-pressed={alnumWordsOnly}
               className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-              // red while it's the reason W reads under the limit that
-              // typing has actually hit — see wordsCapHidden
-              style={{ color: wordsCapHidden ? '#ef4444' : alnumWordsOnly ? 'var(--app-ink)' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              style={{ color: capColor(rawTotals.totalWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
               title={wordsCapHidden
                 ? `Every token counted, this is at the ${COUNTER_MAX} limit — click to count them all and see it`
                 : 'When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included.'}
@@ -499,10 +514,11 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               onClick={() => setAlnumCharsOnly((prev) => !prev)}
               aria-pressed={alnumCharsOnly}
               className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-              // red for the same reason as the switch beside it: a line of
-              // "$$$$$" counts as no characters here, so C can read far
-              // under a limit the text is already sitting on
-              style={{ color: charsCapHidden ? '#ef4444' : alnumCharsOnly ? 'var(--app-ink)' : '#6b7280', fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              // colored like the switch beside it, and for the sharper
+              // version of the same reason: a line of "$$$$$" counts as no
+              // characters here, so C can read far under a limit the text
+              // is already sitting on
+              style={{ color: capColor(rawTotals.totalChars, alnumCharsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
               title={charsCapHidden
                 ? `Every character counted, this is at the ${COUNTER_MAX} limit — click to count them all and see it`
                 : 'When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces.'}
