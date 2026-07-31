@@ -45,31 +45,28 @@ const getCopy = (dialog: DialogState) => {
       const label = formatEntryLabel(dialog.data);
       switch (dialog.mode) {
         // never run yet — nothing to lose, so this skips the "progress
-        // will be lost" warning switchRunning below needs, and it only
-        // loads: picking a time isn't asking to start counting it
+        // will be lost" warning the other two need
         case 'startFromIdle':
           return {
-            title: 'LOAD TIMER',
-            description: `Load ${label}? Press START when you want to run it.`,
-            action: 'LOAD',
+            title: 'START TIMER',
+            description: `Start ${label}?`,
+            action: 'START',
           };
-        // the only mode that starts the new time, because a timer was
-        // already counting when it was asked for. "Progress" covers both
-        // directions: time left on a countdown, or time counted past
-        // zero by an alarm that's still running
+        // a timer was already counting when this was asked for.
+        // "Progress" covers both directions: time left on a countdown, or
+        // time counted past zero by an alarm that's still running
         case 'switchRunning':
           return {
             title: 'SWITCH TIMER',
             description: `Switch to ${label}? It will start immediately, and current progress will be lost.`,
             action: 'SWITCH',
           };
-        // replaces a paused or stopped-mid-progress timer; confirming
-        // only loads it
+        // replaces a paused or stopped-mid-progress timer
         case 'loadOnly':
           return {
-            title: 'LOAD TIMER',
-            description: `Load ${label}? The current remaining time will be discarded. Press START to run it.`,
-            action: 'LOAD',
+            title: 'SWITCH TIMER',
+            description: `Switch to ${label}? It will start immediately, and the current remaining time will be discarded.`,
+            action: 'SWITCH',
           };
       }
     }

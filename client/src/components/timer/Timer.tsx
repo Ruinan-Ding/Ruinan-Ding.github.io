@@ -1039,15 +1039,12 @@ export default function Timer() {
     // entry shows green immediately instead of staying yellow until the
     // insert flash's own timing runs out.
     setLoadedEntry((prev) => bumpFlash(prev, entry.id));
-    // Already loaded, and the timer is sitting at it unstarted: there is
-    // nothing to load and nothing to lose, so asking "load 30:35?" of a
-    // timer reading 30:35 is a dialog whose yes and no do the same
-    // thing. Clicking it stays a no-op — the row still flashes, so the
-    // click visibly registered, but nothing is confirmed or restarted.
-    // Only from the unstarted state: mid-run or after a stop, the same
-    // value is a real request to go back to the top, which the branches
-    // below handle.
+    // Already loaded, and the timer is sitting at it unstarted: nothing
+    // to load and nothing to lose, so this doesn't ask — it just runs.
+    // Picking a time out of the list is a request to run that time, and
+    // this row is no exception for already being the one showing.
     if (!isRunning && timeRef.current.seconds === configuredTotalSeconds && toTotalSeconds(parts) === configuredTotalSeconds) {
+      applySwitch(parts, true);
       return;
     }
     // actively counting down (not paused): confirm, then start the new
@@ -1059,10 +1056,9 @@ export default function Timer() {
     // paused (even paused in overtime), or a stopped timer showing
     // anything other than its configured time — mid-run or overtime
     // after a reload — still has progress on screen; confirm before
-    // discarding it, but confirming only loads the preset without
-    // starting it
+    // discarding it, then run the one that was picked
     if (isPaused || (!isRunning && timeRef.current.seconds !== configuredTotalSeconds)) {
-      askThenRun({ type: 'switch', data: parts, mode: 'loadOnly' }, () => applySwitch(parts, false));
+      askThenRun({ type: 'switch', data: parts, mode: 'loadOnly' }, () => applySwitch(parts, true));
       return;
     }
     // A ringing timer used to hand off to the new preset and keep
@@ -1075,11 +1071,13 @@ export default function Timer() {
       askThenRun({ type: 'switch', data: parts, mode: 'switchRunning' }, () => applySwitch(parts, true));
       return;
     }
-    // Never run (idle at its configured time): nothing to lose, so this
-    // only loads — picking a time out of a list isn't a request to start
-    // counting it, and START is right there. Every other branch already
-    // worked this way except the two that were already running.
-    askThenRun({ type: 'switch', data: parts, mode: 'startFromIdle' }, () => applySwitch(parts, false));
+    // Never run (idle at its configured time): nothing to lose, so the
+    // question is only "this one?" — and answering it starts the run.
+    // Every branch above ends the same way now. Picking a time out of the
+    // list is a request to run that time, whatever the timer was doing
+    // when you picked it; the ones with something to lose ask first, and
+    // that's the only difference between them.
+    askThenRun({ type: 'switch', data: parts, mode: 'startFromIdle' }, () => applySwitch(parts, true));
   }, [isRunning, isPaused, configuredTotalSeconds, loadEntry, isSilentMode, beep, askThenRun]);
 
   const handleConfirmSwitch = (parts: TimeParts, start: boolean) => {
@@ -1294,10 +1292,12 @@ export default function Timer() {
         handleConfirmReset();
         break;
       case 'switch':
-        // switchRunning is now the only mode that starts the new time:
-        // it's the one where a timer was already counting, so carrying
-        // on counting is continuity rather than a new decision
-        handleConfirmSwitch(dialog.data, dialog.mode === 'switchRunning');
+        // every mode starts the new time — the modes differ only in what
+        // they had to warn about first (see handleSelectEntry). This is
+        // the path where the dialog was actually shown; the one where it
+        // was skipped or silenced runs the same applySwitch through
+        // askThenRun, and the two have to agree.
+        handleConfirmSwitch(dialog.data, true);
         break;
       case 'seek':
         applySeek(dialog.data.targetSeconds);

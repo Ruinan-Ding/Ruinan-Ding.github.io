@@ -32,6 +32,11 @@ export type DialogState =
   | { type: 'reset' }
   | { type: 'clearCache' }
   | { type: 'mute' }
+  // every mode runs the picked time; they differ in what's being given up
+  // to do it, which is what the question has to say. It's also the "don't
+  // ask again" scope, so silencing the harmless one (startFromIdle, with
+  // nothing on the clock to lose) doesn't silence the two that discard a
+  // run in progress.
   | { type: 'switch'; data: TimeParts; mode: 'startFromIdle' | 'switchRunning' | 'loadOnly' }
   | { type: 'seek'; data: { targetSeconds: number; mode: 'idle' | 'paused' | 'running' } }
   // state: which timer state the adjustment was asked in. Doubles as the
