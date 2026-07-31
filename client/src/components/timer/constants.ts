@@ -30,6 +30,15 @@ export const CLOCK_FONT_SIZE = shrinkClamp(0.6, 1.2, 1.3, 1.05);
 // Everything in both pieces is em-based (the zone box's width cap
 // included), so this one number scales all of it.
 export const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.5, 0.85, 0.95, 0.72);
+// ...and in that row it's capped again by the room actually left over.
+// The clock's widest line is its date, 17 monospace characters at 0.6em
+// each, so it needs about 10.2 times its own font size; 9cqi of the box
+// holding it keeps it inside that box with a little to spare. cqi is the
+// point: it's a percentage of the leftover, so unlike every vw clamp in
+// this app it has no rem floor to stop shrinking at — and the floor here
+// is only the size below which a 0.9em checkbox has no room for its dot,
+// far past where it stops being readable anyway.
+export const FULLSCREEN_CLOCK_FONT_SIZE = `max(0.5rem, min(${COMPACT_CLOCK_FONT_SIZE}, 9cqi))`;
 
 // Room the floating top-right header corner takes — theme toggle,
 // CONFIRMATIONS and RESET. Anything centered in the same band has to stay

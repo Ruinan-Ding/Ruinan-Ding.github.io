@@ -11,7 +11,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, COMPACT_CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, HEADER_BUTTON_SIZE, HEADER_CONFIRM_FONT_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HEADER_RESET_FONT_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CONFIRM_FONT_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HEADER_RESET_FONT_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
@@ -1754,9 +1754,9 @@ export default function Timer() {
     <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
       {renderClockReadout(fontSize, true)}
       {/* the max() is a floor, not a nicety: a 0.9em checkbox spends 4px
-          on its border and 2px on the gap inside it, so below about
-          0.62rem there's nothing left in the middle to draw a dot with */}
-      {renderClockControls(`max(0.62rem, calc(${fontSize} * 0.7))`)}
+          on its border and 2px on the gap inside it, so much below half a
+          rem there's nothing left in the middle to draw a dot with */}
+      {renderClockControls(`max(0.5rem, calc(${fontSize} * 0.7))`)}
     </div>
   );
   // Website link, shared between its normal spot (centered above the
@@ -2391,7 +2391,7 @@ export default function Timer() {
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={speakerButton}
           ringerButton={ringerButton}
-          clockCluster={renderClockCluster(COMPACT_CLOCK_FONT_SIZE)}
+          clockCluster={renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE)}
           headerCornerWidth={headerCornerWidth}
           timerDigits={wordCounterTimerDigits}
           timerBar={renderDrainBar('clamp(3rem, 8vw, 8rem)', true)}

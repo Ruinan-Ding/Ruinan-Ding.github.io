@@ -171,57 +171,6 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     writeJSON(STORAGE_KEYS.wordCounterFullscreen, isFullscreen);
   }, [isFullscreen]);
 
-  // The fullscreen header row never wraps and never moves anything down,
-  // so the only thing narrowing the window can do to it is take the clock
-  // away — same call as the website link, which shrinks until it can't and
-  // then goes. Everything else in that row (arrow, mute, repeat,
-  // countdown, bar, buttons) is the timer itself and stays.
-  //
-  // Measured against the row's own content edge, which the corner's
-  // padding already pulls in (see the row below), rather than against a
-  // window width: the row's contents and that corner shrink on different
-  // clamps with different floors, so the width where they stop fitting
-  // isn't a number that can be written down. Tucking is remembered with
-  // the clock's last measured width so the check for "there's room again"
-  // can be made without it on screen — it isn't in the DOM to measure
-  // while it's gone, the same problem (and the same answer) as the
-  // auto-collapse above.
-  const fullscreenRowRef = useRef<HTMLDivElement>(null);
-  const timerBlockRef = useRef<HTMLDivElement>(null);
-  const clockRef = useRef<HTMLDivElement>(null);
-  const clockWidthRef = useRef(0);
-  const [isClockTucked, setIsClockTucked] = useState(false);
-  const isClockTuckedRef = useRef(isClockTucked);
-  isClockTuckedRef.current = isClockTucked;
-  useEffect(() => {
-    if (!isFullscreen) return;
-    const check = () => {
-      const row = fullscreenRowRef.current;
-      if (!row) return;
-      const contentRight = row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight);
-      if (!isClockTuckedRef.current) {
-        const clock = clockRef.current;
-        if (!clock) return;
-        const rect = clock.getBoundingClientRect();
-        clockWidthRef.current = rect.width;
-        if (rect.right > contentRight + 1) setIsClockTucked(true);
-        return;
-      }
-      const block = timerBlockRef.current;
-      if (!block) return;
-      // the gap this row would put back between the two
-      if (contentRight - block.getBoundingClientRect().right >= clockWidthRef.current + 12) setIsClockTucked(false);
-    };
-    check();
-    const row = fullscreenRowRef.current;
-    const observer = new ResizeObserver(check);
-    if (row) observer.observe(row);
-    window.addEventListener('resize', check);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', check);
-    };
-  }, [isFullscreen, headerCornerWidth]);
   // hiding while fullscreen has to drop out of fullscreen too (there's no
   // such thing as a hidden-but-fullscreen view) — remembered here so
   // un-hiding restores exactly the view that was showing, fullscreen or
@@ -466,10 +415,10 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           inside it — padding shrinks the line box itself, where a spacer
           only reserves while the row still fits and stops protecting
           anything the moment it doesn't, which is exactly when the corner
-          lands on top of something. What "doesn't fit" does here is drop
-          the clock (see isClockTucked), not wrap it. */}
+          lands on top of something. What running out of width does here
+          is shrink the clock (see its own box below), not wrap it, move
+          it, or take it away. */}
       <div
-        ref={fullscreenRowRef}
         className="flex items-center gap-3 flex-nowrap w-full"
         style={isFullscreen ? { paddingRight: headerCornerWidth ? headerCornerWidth + 24 : HEADER_CORNER_RESERVE } : undefined}
       >
@@ -503,21 +452,29 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             {/* countdown, bar and buttons as one block that never splits.
                 gap-2 rather than the row's gap-3: this is the densest run
                 in the app, and the 4px a gap gives back is 12px across it. */}
-            <div ref={timerBlockRef} className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {timerDigits}
               {timerBar}
               {timerControls}
             </div>
-            {/* The clock is the row's own item rather than part of that
-                block so it can be dropped on its own — the block can't
-                split, so if the two were one item it would be the whole
-                timer that went or nothing.
-                It sits past the buttons, and it has to be on this row at
-                all rather than in the top-right corner: that corner is
-                painted above this view (z-[70] over z-[60]), so anything
-                of ours it reaches, it covers. */}
-            {!isClockTucked && <div ref={clockRef} className="flex-shrink-0">{clockCluster}</div>}
-            <div className="flex-1" aria-hidden />
+            {/* The clock gets whatever room is left after the timer, and
+                is sized from it: this box is flex-1 (so it IS the leftover,
+                between the buttons and the padding held for the corner)
+                and an inline-size container, so the clock inside can be
+                measured in cqi — percent of that leftover — rather than in
+                vw. That's the difference that matters. Every vw clamp in
+                the app bottoms out on a rem floor somewhere, and past that
+                point the window keeps narrowing while the clock doesn't,
+                which is what put it under the corner. A cqi size has
+                nothing to bottom out against: less room means a smaller
+                clock, at every width, without wrapping, moving down, or
+                disappearing.
+                It has to be on this row at all rather than in that corner
+                because the corner is painted above this view (z-[70] over
+                z-[60]) — anything of ours it reaches, it covers. */}
+            <div className="flex-1 min-w-0 flex items-center" style={{ containerType: 'inline-size' }}>
+              {clockCluster}
+            </div>
           </>
         ) : (
           <>
