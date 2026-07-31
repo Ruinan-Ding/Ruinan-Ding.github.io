@@ -3,24 +3,52 @@
 // implementation — "what the counters would say" about text that hasn't
 // been accepted yet has to be measured exactly the way they say it.
 
-// Ceiling for lines, words and chars alike. Four digits is what an L/W/C
-// box holds (COUNTER_COLUMN_WIDTH is three of them across the counter
-// column), so a fifth would be a number you can't read. The warn mark is
-// where a total turns yellow, far enough out to be a heads-up rather than
-// a surprise.
-export const COUNTER_MAX = 9999;
-export const COUNTER_WARN = 9500;
+// Ceiling for lines, words and chars alike, and the mark where a total
+// turns yellow on the way to it — far enough out to be a heads-up rather
+// than a surprise. Six digits is more than an L/W/C box can hold at its
+// usual size, so the numbers shrink to fit past ten thousand rather than
+// the boxes growing (see countScale).
+export const COUNTER_MAX = 999999;
+export const COUNTER_WARN = 999000;
+
+// Grouped in threes, always the same way regardless of where the browser
+// thinks it is — this app writes its dates and times in en-US too.
+export function countLabel(value: number): string {
+  return value.toLocaleString('en-US');
+}
+
+// A counter box is three characters of room at the font it's set in, and
+// these numbers can run to seven ("999,999"). Two steps down covers the
+// difference: the first once a comma appears and a fifth digit with it,
+// the second at six digits. Given in em, so it stays relative to whatever
+// COUNTER_FONT_SIZE works out to at the current window size.
+export function countScale(value: number): string | undefined {
+  if (value >= 100000) return '0.68em';
+  if (value >= 10000) return '0.8em';
+  return undefined;
+}
 
 export interface CountStats {
   lineStats: { wordCount: number; charCount: number }[];
   totalLines: number;
   totalWords: number;
   totalChars: number;
+  // the same two totals with nothing filtered out, which is what the cap
+  // goes by. Returned from this one pass rather than asked for in a
+  // second one: both are wanted on every keystroke, the parts they share
+  // are most of the work, and this text is allowed to be a million
+  // characters long.
+  rawWords: number;
+  rawChars: number;
 }
 
 export function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly: boolean): CountStats {
   const lines = text.split('\n');
-  const stats = lines.map((line) => {
+  let totalWords = 0;
+  let totalChars = 0;
+  let rawWords = 0;
+  let rawChars = 0;
+  const lineStats = lines.map((line) => {
     const trimmed = line.trim();
     const tokens = trimmed === '' ? [] : trimmed.split(/\s+/);
     // alnumWordsOnly requires at least one letter/digit for a token to
@@ -30,21 +58,27 @@ export function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly
     // spaces. The two are intentionally independent — with words-only
     // off and chars-only on, a punctuation-only line like "$# @!" will
     // show words > 0 with chars === 0. That's correct, not a bug.
-    const words = alnumWordsOnly ? tokens.filter((word) => /[a-zA-Z0-9]/.test(word)) : tokens;
-    const charCount = alnumCharsOnly ? (line.match(/[a-zA-Z0-9]/g) || []).length : line.length;
-    return { wordCount: words.length, charCount };
+    const alnumWords = alnumWordsOnly ? tokens.filter((word) => /[a-zA-Z0-9]/.test(word)).length : tokens.length;
+    const alnumChars = alnumCharsOnly ? (line.match(/[a-zA-Z0-9]/g) || []).length : line.length;
+    totalWords += alnumWords;
+    totalChars += alnumChars;
+    rawWords += tokens.length;
+    rawChars += line.length;
+    return { wordCount: alnumWords, charCount: alnumChars };
   });
 
   return {
-    lineStats: stats,
+    lineStats,
     totalLines: lines.length,
-    totalWords: stats.reduce((sum, stat) => sum + stat.wordCount, 0),
-    // summed from the same per-line numbers shown in the C column
-    // (rather than an independent scan over the raw text) so TOTAL
-    // always matches "add up the C column" — an independent scan
-    // would also pick up the '\n' line separators once chars-only is
-    // off and every character in a line counts
-    totalChars: stats.reduce((sum, stat) => sum + stat.charCount, 0),
+    // summed from the same per-line numbers shown in the columns (rather
+    // than an independent scan over the whole text) so TOTAL always
+    // matches "add up the column" — an independent scan would also pick
+    // up the '\n' line separators once chars-only is off and every
+    // character in a line counts
+    totalWords,
+    totalChars,
+    rawWords,
+    rawChars,
   };
 }
 
@@ -56,8 +90,8 @@ export function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly
 // could grow without limit. What the switches change is what you're
 // shown, not how much there is.
 export function isWithinCap(text: string): boolean {
-  const { totalLines, totalWords, totalChars } = countStats(text, false, false);
-  return totalLines <= COUNTER_MAX && totalWords <= COUNTER_MAX && totalChars <= COUNTER_MAX;
+  const { totalLines, rawWords, rawChars } = countStats(text, false, false);
+  return totalLines <= COUNTER_MAX && rawWords <= COUNTER_MAX && rawChars <= COUNTER_MAX;
 }
 
 // Full: one of the three has reached the ceiling, and nothing more goes
@@ -68,8 +102,8 @@ export function isWithinCap(text: string): boolean {
 // countStats — the split eats it), so the character count didn't move and
 // every Enter was legal, forever.
 export function isAtCap(text: string): boolean {
-  const { totalLines, totalWords, totalChars } = countStats(text, false, false);
-  return totalLines >= COUNTER_MAX || totalWords >= COUNTER_MAX || totalChars >= COUNTER_MAX;
+  const { totalLines, rawWords, rawChars } = countStats(text, false, false);
+  return totalLines >= COUNTER_MAX || rawWords >= COUNTER_MAX || rawChars >= COUNTER_MAX;
 }
 
 // What `next` should actually become, given the text it's replacing.
@@ -85,7 +119,20 @@ export function isAtCap(text: string): boolean {
 // strings — a textarea's change event doesn't say.
 export function capInsertion(prev: string, next: string): string {
   if (next.length <= prev.length) return next;
-  if (isAtCap(prev)) return prev;
+
+  const { totalLines, rawWords, rawChars } = countStats(prev, false, false);
+  if (totalLines >= COUNTER_MAX || rawWords >= COUNTER_MAX || rawChars >= COUNTER_MAX) return prev;
+  // What n inserted characters can add at most: n characters (a newline
+  // isn't one), n lines (if every one of them is a newline), and n + 1
+  // words (n new ones, plus splitting the word it landed in). If even the
+  // worst case fits, this is a keystroke that can't have crossed anything
+  // and there's nothing to work out — which matters because the check it
+  // skips is a pass over the whole text, on every keypress, and this text
+  // is allowed to be a million characters long.
+  const added = next.length - prev.length;
+  if (rawChars + added <= COUNTER_MAX && totalLines + added <= COUNTER_MAX && rawWords + added + 1 <= COUNTER_MAX) {
+    return next;
+  }
   if (isWithinCap(next)) return next;
 
   let start = 0;

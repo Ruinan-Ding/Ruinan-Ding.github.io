@@ -7,7 +7,17 @@
 // It imports the .ts beside it directly — node strips the types itself —
 // so it checks the shipped source rather than a copy of it.
 import assert from 'node:assert/strict';
-import { countStats, capInsertion, isWithinCap, isAtCap, COUNTER_MAX } from './wordCount.ts';
+import { countStats, capInsertion, isWithinCap, isAtCap, countLabel, countScale, COUNTER_MAX, COUNTER_WARN } from './wordCount.ts';
+
+// the numbers as the boxes print them: grouped in threes, and stepping
+// down a size each time they outgrow the column
+assert.equal(countLabel(999), '999');
+assert.equal(countLabel(1000), '1,000');
+assert.equal(countLabel(COUNTER_MAX), '999,999');
+assert.equal(countScale(9999), undefined, 'four digits fit as they are');
+assert.equal(countScale(10000), '0.8em', 'a fifth digit steps down');
+assert.equal(countScale(100000), '0.68em', 'a sixth steps down again');
+assert.ok(COUNTER_WARN < COUNTER_MAX, 'the warning comes before the ceiling');
 
 // counting: the two filters are independent, and TOTAL is the columns summed
 const mixed = countStats('ab $# cd\n$$', true, true);
@@ -60,5 +70,15 @@ assert.equal(capInsertion(full, `${full.slice(0, 10)}x${full.slice(10)}`), full,
 const fullWords = Array.from({ length: COUNTER_MAX }, () => 'a').join(' ');
 assert.ok(isAtCap(fullWords), 'words can be the one that is full');
 assert.equal(capInsertion(fullWords, `${fullWords}\n`), fullWords, 'and it stops newlines too');
+
+// the fast path for an ordinary keystroke has to agree with the slow one
+// it skips — including the cases its bounds are drawn from: a newline
+// (adds a line, no characters) and a space in the middle of a word (adds
+// no characters that count, but splits one word into two)
+const nearWords = `${Array.from({ length: COUNTER_MAX - 1 }, () => 'a').join(' ')} bb`;
+assert.equal(capInsertion(nearWords, `${nearWords.slice(0, -1)} b`), nearWords, 'splitting a word would be one word too many');
+const nearLines = '\n'.repeat(COUNTER_MAX - 2);
+assert.equal(capInsertion(nearLines, `${nearLines}\n`).length, nearLines.length + 1, 'one more line still fits');
+assert.equal(capInsertion(`${nearLines}\n`, `${nearLines}\n\n`), `${nearLines}\n`, 'the one after it does not');
 
 console.log('wordCount: all checks passed');

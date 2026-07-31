@@ -7,7 +7,7 @@ import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
-import { capInsertion, countStats, COUNTER_MAX, COUNTER_WARN } from './wordCount';
+import { capInsertion, countLabel, countScale, countStats, COUNTER_MAX, COUNTER_WARN } from './wordCount';
 import type { DialogState } from './types';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
 
@@ -273,16 +273,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     writeJSON(STORAGE_KEYS.wordCounterAlnumCharsOnly, alnumCharsOnly);
   }, [alnumCharsOnly]);
 
-  const { lineStats, totalLines, totalWords, totalChars } = useMemo(
+  // rawWords/rawChars are the same text with nothing filtered out, which
+  // is what the cap goes by (see isWithinCap) — counted in the same pass
+  // rather than a second one. Lines have no filtered form.
+  const { lineStats, totalLines, totalWords, totalChars, rawWords, rawChars } = useMemo(
     () => countStats(text, alnumWordsOnly, alnumCharsOnly),
     [text, alnumWordsOnly, alnumCharsOnly],
-  );
-  // The same text counted with nothing filtered out, which is what the
-  // cap goes by (see isWithinCap). Only worth a second pass while a
-  // filter is actually on — with both off these are the same numbers.
-  const rawTotals = useMemo(
-    () => (alnumWordsOnly || alnumCharsOnly ? countStats(text, false, false) : { totalLines, totalWords, totalChars }),
-    [text, alnumWordsOnly, alnumCharsOnly, totalLines, totalWords, totalChars],
   );
   // A filter is hiding a full count when the unfiltered number is at the
   // ceiling and the one on screen isn't — the state where typing has
@@ -290,8 +286,8 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // what turns the switch responsible red; turning it off shows the real
   // number, which is over the line and red on its own, and the switch
   // goes back to normal because it's no longer hiding anything.
-  const wordsCapHidden = alnumWordsOnly && rawTotals.totalWords >= COUNTER_MAX && totalWords < COUNTER_MAX;
-  const charsCapHidden = alnumCharsOnly && rawTotals.totalChars >= COUNTER_MAX && totalChars < COUNTER_MAX;
+  const wordsCapHidden = alnumWordsOnly && rawWords >= COUNTER_MAX && totalWords < COUNTER_MAX;
+  const charsCapHidden = alnumCharsOnly && rawChars >= COUNTER_MAX && totalChars < COUNTER_MAX;
   // A switch is colored by the number the cap actually goes by, not the
   // one it's showing — yellow on the approach, red at the ceiling, the
   // same pair as the totals below. Filtered or not, the switch and its
@@ -520,9 +516,9 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
               aria-pressed={alnumWordsOnly}
               className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
-              style={{ color: capColor(rawTotals.totalWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              style={{ color: capColor(rawWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
               title={wordsCapHidden
-                ? `Every token counted, this is at the ${COUNTER_MAX} limit — click to count them all and see it`
+                ? `Every token counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
                 : 'When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included.'}
               aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
             >
@@ -538,9 +534,9 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               // version of the same reason: a line of "$$$$$" counts as no
               // characters here, so C can read far under a limit the text
               // is already sitting on
-              style={{ color: capColor(rawTotals.totalChars, alnumCharsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              style={{ color: capColor(rawChars, alnumCharsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
               title={charsCapHidden
-                ? `Every character counted, this is at the ${COUNTER_MAX} limit — click to count them all and see it`
+                ? `Every character counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
                 : 'When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces.'}
               aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
             >
@@ -626,10 +622,19 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               <div style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: COUNTER_LINE_HEIGHT, paddingTop: COUNTER_PADDING, paddingBottom: COUNTER_PADDING }}>
                 {lineStats.map((stat, idx) => (
                   <div key={idx} className="flex items-stretch" style={{ height: `${COUNTER_LINE_HEIGHT}em`, borderBottom: rowDivider(idx) }}>
+                    {/* the row's own height is a text line exactly (see
+                        above), so a number that shrinks to fit its column
+                        can't be allowed to change it — hence a font-size
+                        on the number and not on the row */}
                     <div className="grid grid-cols-3 text-center text-white font-bold flex-shrink-0" style={{ width: COUNTER_COLUMN_WIDTH }}>
-                      <div className="overflow-hidden">{idx + 1}</div>
-                      <div className={`overflow-hidden border-l-2 border-r-2 ${isActive ? 'border-green-500' : 'border-white'}`}>{stat.wordCount}</div>
-                      <div className="overflow-hidden">{stat.charCount}</div>
+                      <div className="overflow-hidden" style={{ fontSize: countScale(idx + 1) }}>{countLabel(idx + 1)}</div>
+                      <div
+                        className={`overflow-hidden border-l-2 border-r-2 ${isActive ? 'border-green-500' : 'border-white'}`}
+                        style={{ fontSize: countScale(stat.wordCount) }}
+                      >
+                        {countLabel(stat.wordCount)}
+                      </div>
+                      <div className="overflow-hidden" style={{ fontSize: countScale(stat.charCount) }}>{countLabel(stat.charCount)}</div>
                     </div>
                     <div className="flex-1" />
                   </div>
@@ -671,31 +676,34 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 "stop". A red one is the reason typing has stopped.
                 A total that's full shows the number that's full, even
                 when a switch above is filtering that column down to
-                something smaller: 9999 is why typing stopped, so 9999 is
-                what it has to say. The switch responsible goes red too
-                (see wordsCapHidden), so it's clear which one to turn off
-                to make the column agree with the number. */}
+                something smaller: the limit is why typing stopped, so the
+                limit is what it has to say. The switch responsible goes
+                red too (see wordsCapHidden), so it's clear which one to
+                turn off to make the column agree with the number. */}
             <div className="grid grid-cols-3 text-center" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
               {[
-                [totalLines, rawTotals.totalLines],
-                [totalWords, rawTotals.totalWords],
-                [totalChars, rawTotals.totalChars],
+                [totalLines, totalLines],
+                [totalWords, rawWords],
+                [totalChars, rawChars],
               ].map(([shown, raw], idx) => {
                 const total = raw >= COUNTER_MAX ? raw : shown;
                 return (
                   <div
                     key={idx}
                     className="border border-white px-1 py-0.5 bg-black overflow-hidden"
-                    style={total >= COUNTER_MAX ? { color: '#ef4444' } : total >= COUNTER_WARN ? { color: '#eab308' } : undefined}
+                    style={{
+                      fontSize: countScale(total),
+                      color: total >= COUNTER_MAX ? '#ef4444' : total >= COUNTER_WARN ? '#eab308' : undefined,
+                    }}
                     title={
                       total >= COUNTER_MAX
-                        ? `${COUNTER_MAX} is the limit — delete some text to keep typing`
+                        ? `${countLabel(COUNTER_MAX)} is the limit — delete some text to keep typing`
                         : total >= COUNTER_WARN
-                          ? `${COUNTER_MAX - total} to go before typing stops`
+                          ? `${countLabel(COUNTER_MAX - total)} to go before typing stops`
                           : undefined
                     }
                   >
-                    {total}
+                    {countLabel(total)}
                   </div>
                 );
               })}
