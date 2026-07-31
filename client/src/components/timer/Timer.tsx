@@ -11,7 +11,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CONFIRM_FONT_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HEADER_RESET_FONT_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
@@ -299,11 +299,13 @@ export default function Timer() {
   // How much room the floating top-right corner actually takes, measured
   // rather than derived. The word counter's fullscreen row has to stop
   // before that corner, and every attempt to express its width as a
-  // formula has been wrong somewhere: the controls in it are a mix of
-  // clamps that bottom out at different widths, and one of them (the
-  // CONFIRMATIONS label) drops out entirely below sm. A ResizeObserver on
-  // the corner itself is right at every size, and it's the same tool this
-  // file already uses to decide whether the time-fields panel fits.
+  // formula was wrong somewhere — back when those three buttons carried
+  // labels they were a mix of clamps bottoming out at different widths,
+  // with one label dropping out entirely below sm. They're three plain
+  // squares now, so the formula (HEADER_CORNER_RESERVE) is finally simple
+  // enough to trust, but measuring can't be wrong at all, and it's the
+  // same tool this file already uses to decide whether the time-fields
+  // panel fits.
   const headerCornerRef = useRef<HTMLDivElement>(null);
   const [headerCornerWidth, setHeaderCornerWidth] = useState(0);
   useEffect(() => {
@@ -2177,45 +2179,40 @@ export default function Timer() {
               }
             }}
             aria-pressed={!skipConfirmations}
-            // Narrower than the RESET button beside it: px-1.5/gap-1.5
-            // and a font a notch down from RESET's own. It's the widest
-            // control in this corner by a distance — 13 characters
-            // against RESET's 5 — and it's a setting you flip rarely,
-            // so it's the one that gives up width rather than crowding
-            // the digits underneath on a narrow window.
-            className="flex items-center gap-1.5 border-3 font-bold px-1.5 transition-all duration-200 hover:opacity-80"
+            // The same square box as the arrows and the theme toggle, its
+            // checkbox sized like their icons. It used to carry the word
+            // CONFIRMATIONS, which made it the widest control in this
+            // corner by a distance — thirteen characters — and this corner
+            // is what the website link and the word counter's fullscreen
+            // row both have to keep clear of. The tooltip says what the
+            // box means; the box says whether it's on.
+            className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80 flex-shrink-0"
             style={{
-              height: HEADER_BUTTON_SIZE.height,
+              ...HEADER_BUTTON_SIZE,
               borderColor: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
               color: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
               backgroundColor: 'var(--app-surface)',
-              fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: HEADER_CONFIRM_FONT_SIZE,
             }}
             title={skipConfirmations
               ? 'Confirmation dialogs are off — actions apply immediately (the RESET button still always asks). Click to turn confirmations back on'
               : 'Confirmation dialogs are on — actions ask before applying (the RESET button always asks either way). Click to skip them'}
             aria-label={skipConfirmations ? 'Turn confirmation dialogs back on' : 'Turn confirmation dialogs off'}
           >
-            <DotCheckbox checked={!skipConfirmations} />
-            <span className="hidden sm:inline">CONFIRMATIONS</span>
+            <DotCheckbox checked={!skipConfirmations} fontSize={HEADER_ICON_SIZE.width} />
           </button>
 
-          {/* Reset the whole site to defaults */}
+          {/* Reset the whole site to defaults. Square and wordless like
+              the rest of this corner now — the bin says it, and red says
+              which kind of it. Nothing here is reachable by accident
+              anyway: this one asks even with confirmations turned off. */}
           <button
             onClick={() => setDialog({ type: 'clearCache' })}
-            className="flex items-center gap-2 border-3 border-red-500 text-red-500 font-bold px-3 transition-all duration-200 hover:opacity-80"
-            style={{
-              height: HEADER_BUTTON_SIZE.height,
-              backgroundColor: 'var(--app-surface)',
-              fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: HEADER_RESET_FONT_SIZE,
-            }}
+            className="flex items-center justify-center border-3 border-red-500 text-red-500 transition-all duration-200 hover:opacity-80 flex-shrink-0"
+            style={{ ...HEADER_BUTTON_SIZE, backgroundColor: 'var(--app-surface)' }}
             title="Reset the website to defaults"
             aria-label="Reset the website to defaults"
           >
             <Trash2 style={HEADER_ICON_SIZE} />
-            RESET
           </button>
         </div>
 
