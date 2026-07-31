@@ -223,6 +223,15 @@ export default function Timer() {
     }),
     date: new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
   }), [timeZone, is24Hour]);
+  // What the browser calls the selected zone right now — "EDT", "GMT+9" —
+  // pulled out of the same formatter that's already printing it on the
+  // clock, so it costs one formatToParts rather than a formatter of its
+  // own, and it follows the daylight-saving changeover for free. It's what
+  // the zone box displays; see that select.
+  const zoneAbbr = useMemo(
+    () => clock.time.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? '',
+    [clock, nowMs],
+  );
   // Mirrors Tailwind's own sm breakpoint — at and above it the timer row
   // is horizontal, so the HOURS/MINUTES/SECONDS panel sits beside the
   // digits (rather than stacked under them) and the digits column gets
@@ -1689,22 +1698,24 @@ export default function Timer() {
       {/* Native select, so the zone list is the browser's own (TIME_ZONES)
           and the picker is whatever the platform already does well —
           400-odd options, type-to-find included, for free.
-          Grouped by region, with each option labelled by just the part
-          after it, because a select is as wide as its widest option and
-          the full ids run to "America/Argentina/Buenos_Aires" — 435px,
-          which is wider than everything else in this row put together.
-          The closed box shows "New York" while the open list still says
-          which region that's in, so Asia/Nicosia and Europe/Nicosia stay
-          tellable apart. The value is the full id either way, so what's
-          stored and validated doesn't change. */}
-      {/* Own caret rather than the browser's. The box is capped at 8em,
-          and a zone whose label is longer than that ("Argentina/Buenos
-          Aires", "Indiana/Indianapolis") spends the width on its text and
+          The box reads as the zone's abbreviation — "EDT", "GMT+9" —
+          rather than its city, which is four characters where
+          "Argentina/Buenos Aires" was twenty-two. Only the selected
+          option carries it, because a closed select displays exactly one
+          option and that's the one: the other 417 keep their city names,
+          so the open list is still something you can find a zone in, and
+          twelve zones that all say EST stay tellable apart. (Abbreviating
+          the whole list would also mean an Intl.DateTimeFormat per zone —
+          123ms at startup, measured — for a list most sessions never
+          open.) The value is the full zone id throughout, so nothing
+          about what's stored or validated changes. */}
+      {/* Own caret rather than the browser's: the box is capped, and a
+          label longer than the cap spends the width on its text and
           leaves the native arrow clipped off the end — so the control
           stops looking like a dropdown at all. Drawn here instead: the
           select gives up its own appearance and keeps a padding-right the
           caret sits in, and the label ellipsises into what's left. */}
-      <span className="relative inline-flex items-center self-center min-w-0" style={{ maxWidth: '8em' }}>
+      <span className="relative inline-flex items-center self-center min-w-0" style={{ maxWidth: '6.5em' }}>
         <select
           value={timeZone}
           // same check the saved value gets, for the same reason: a select
@@ -1714,13 +1725,15 @@ export default function Timer() {
           onChange={(e) => { if (TIME_ZONES.includes(e.target.value)) setTimeZone(e.target.value); }}
           className="appearance-none w-full border-2 border-white bg-black text-white font-bold"
           style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit', paddingLeft: '0.25em', paddingRight: '1.4em', textOverflow: 'ellipsis' }}
-          title="Time zone the clock reads in"
+          title={`Time zone the clock reads in — ${timeZone.replace(/_/g, ' ')}`}
           aria-label="Clock time zone"
         >
           {ZONES_BY_REGION.map(([region, zones]) => (
             <optgroup key={region} label={region}>
               {zones.map(({ zone, label }) => (
-                <option key={zone} value={zone}>{label}</option>
+                <option key={zone} value={zone} title={label}>
+                  {zone === timeZone ? zoneAbbr || label : label}
+                </option>
               ))}
             </optgroup>
           ))}

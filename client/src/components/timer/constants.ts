@@ -33,7 +33,9 @@ export const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.5, 0.85, 0.95, 0.72);
 // ...and in that row it's capped again by the room actually left over.
 // The clock's widest line is its date, 17 monospace characters at 0.6em
 // each, so it needs about 10.2 times its own font size; 9cqi of the box
-// holding it keeps it inside that box with a little to spare. cqi is the
+// holding it keeps it inside that box with a little to spare. (Its
+// settings row is the shorter of the two now that the zone box shows an
+// abbreviation rather than a city name — see that select in Timer.) cqi is the
 // point: it's a percentage of the leftover, so unlike every vw clamp in
 // this app it has no rem floor to stop shrinking at — and the floor here
 // is only the size below which a 0.9em checkbox has no room for its dot,
@@ -162,9 +164,15 @@ export const TIME_ZONES: readonly string[] =
 
 // The same list as the zone picker takes it: grouped by region, each entry
 // labelled with only the part after that region ("America/New_York" under
-// "America", labelled "New York"). See that select's own comment for why —
-// short version, a select is as wide as its widest option. Built once at
-// module load; the list it comes from never changes.
+// "America", labelled "New York"). Built once at module load; the list it
+// comes from never changes.
+//
+// Deliberately no abbreviations in here. Working out what the browser
+// calls each of these zones takes an Intl.DateTimeFormat per zone, and
+// 418 of them measured 123ms — real money at startup for a list most
+// sessions never open. The box only ever displays the selected zone
+// anyway, and that one abbreviation comes free off the clock's own
+// formatter (see the select).
 export const ZONES_BY_REGION: [string, { zone: string; label: string }[]][] = (() => {
   const groups = new Map<string, { zone: string; label: string }[]>();
   for (const zone of TIME_ZONES) {
