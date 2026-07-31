@@ -281,8 +281,8 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // cap goes by (see isWithinCap). Only worth a second pass while a
   // filter is actually on — with both off these are the same numbers.
   const rawTotals = useMemo(
-    () => (alnumWordsOnly || alnumCharsOnly ? countStats(text, false, false) : { totalWords, totalChars }),
-    [text, alnumWordsOnly, alnumCharsOnly, totalWords, totalChars],
+    () => (alnumWordsOnly || alnumCharsOnly ? countStats(text, false, false) : { totalLines, totalWords, totalChars }),
+    [text, alnumWordsOnly, alnumCharsOnly, totalLines, totalWords, totalChars],
   );
   // A filter is hiding a full count when the unfiltered number is at the
   // ceiling and the one on screen isn't — the state where typing has
@@ -296,8 +296,21 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // Deletions always go through — otherwise text pasted in over the cap,
   // or left over from before it existed, would be stuck there. Everything
   // else is cut to fit rather than refused (capInsertion).
-  const handleTextChange = (next: string) => {
-    setText(next.length <= text.length ? next : capInsertion(text, next));
+  //
+  // Keeping anything back means the textarea's own value is no longer
+  // what the DOM has, and putting it back — React does that for us —
+  // drops the caret at the end of the text. So it goes back where it was:
+  // where the typing left it, less whatever didn't make it in. In a frame,
+  // because the value has to be restored before the caret can be placed
+  // in it.
+  const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const el = event.target;
+    const typed = el.value;
+    const accepted = typed.length <= text.length ? typed : capInsertion(text, typed);
+    setText(accepted);
+    if (accepted === typed) return;
+    const caret = Math.max(0, (el.selectionStart ?? typed.length) + accepted.length - typed.length);
+    requestAnimationFrame(() => el.setSelectionRange(caret, caret));
   };
 
   // navigator.clipboard is the whole implementation on purpose: it needs
@@ -592,7 +605,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             <textarea
               ref={textareaRef}
               value={text}
-              onChange={(e) => handleTextChange(e.target.value)}
+              onChange={handleTextChange}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
               onScroll={() => {
@@ -619,24 +632,37 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             <div className="text-white mb-0.5" style={{ fontSize: shrinkClamp(0.35, 0.8, 0.9, 0.55) }}>TOTAL</div>
             {/* yellow on the way to the cap, red at it — the same pair of
                 warning colors the timer itself uses for "nearly" and
-                "stop". A red one is the reason typing has stopped. */}
+                "stop". A red one is the reason typing has stopped.
+                A total that's full shows the number that's full, even
+                when a switch above is filtering that column down to
+                something smaller: 9999 is why typing stopped, so 9999 is
+                what it has to say. The switch responsible goes red too
+                (see wordsCapHidden), so it's clear which one to turn off
+                to make the column agree with the number. */}
             <div className="grid grid-cols-3 text-center" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
-              {[totalLines, totalWords, totalChars].map((total, idx) => (
-                <div
-                  key={idx}
-                  className="border border-white px-1 py-0.5 bg-black overflow-hidden"
-                  style={total >= COUNTER_MAX ? { color: '#ef4444' } : total >= COUNTER_WARN ? { color: '#eab308' } : undefined}
-                  title={
-                    total >= COUNTER_MAX
-                      ? `${COUNTER_MAX} is the limit — delete some text to keep typing`
-                      : total >= COUNTER_WARN
-                        ? `${COUNTER_MAX - total} to go before typing stops`
-                        : undefined
-                  }
-                >
-                  {total}
-                </div>
-              ))}
+              {[
+                [totalLines, rawTotals.totalLines],
+                [totalWords, rawTotals.totalWords],
+                [totalChars, rawTotals.totalChars],
+              ].map(([shown, raw], idx) => {
+                const total = raw >= COUNTER_MAX ? raw : shown;
+                return (
+                  <div
+                    key={idx}
+                    className="border border-white px-1 py-0.5 bg-black overflow-hidden"
+                    style={total >= COUNTER_MAX ? { color: '#ef4444' } : total >= COUNTER_WARN ? { color: '#eab308' } : undefined}
+                    title={
+                      total >= COUNTER_MAX
+                        ? `${COUNTER_MAX} is the limit — delete some text to keep typing`
+                        : total >= COUNTER_WARN
+                          ? `${COUNTER_MAX - total} to go before typing stops`
+                          : undefined
+                    }
+                  >
+                    {total}
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div className={`text-xs flex flex-wrap justify-center items-baseline gap-x-2 text-center ${isActive ? 'text-green-500' : 'text-gray-400'}`}>

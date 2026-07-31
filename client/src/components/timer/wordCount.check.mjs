@@ -7,7 +7,7 @@
 // It imports the .ts beside it directly — node strips the types itself —
 // so it checks the shipped source rather than a copy of it.
 import assert from 'node:assert/strict';
-import { countStats, capInsertion, isWithinCap, COUNTER_MAX } from './wordCount.ts';
+import { countStats, capInsertion, isWithinCap, isAtCap, COUNTER_MAX } from './wordCount.ts';
 
 // counting: the two filters are independent, and TOTAL is the columns summed
 const mixed = countStats('ab $# cd\n$$', true, true);
@@ -47,5 +47,18 @@ assert.equal(capInsertion('abc', 'abcd'), 'abcd');
 const lines = '\n'.repeat(COUNTER_MAX - 1);
 assert.equal(countStats(lines, false, false).totalLines, COUNTER_MAX);
 assert.equal(capInsertion(lines, lines + '\n'), lines, 'no room for another line');
+
+// full means full: at the character limit, nothing goes in — including a
+// line break, which isn't a character and so kept passing the "would this
+// be legal?" test forever
+const full = 'a'.repeat(COUNTER_MAX);
+assert.ok(isAtCap(full), 'characters are at the ceiling');
+assert.ok(isWithinCap(full), 'and legal, which is a different question');
+assert.equal(capInsertion(full, full + '\n'), full, 'no newline at the character limit');
+assert.equal(capInsertion(full, full + ' '), full, 'no space either');
+assert.equal(capInsertion(full, `${full.slice(0, 10)}x${full.slice(10)}`), full, 'nor mid-text');
+const fullWords = Array.from({ length: COUNTER_MAX }, () => 'a').join(' ');
+assert.ok(isAtCap(fullWords), 'words can be the one that is full');
+assert.equal(capInsertion(fullWords, `${fullWords}\n`), fullWords, 'and it stops newlines too');
 
 console.log('wordCount: all checks passed');

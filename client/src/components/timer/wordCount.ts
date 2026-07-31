@@ -60,6 +60,18 @@ export function isWithinCap(text: string): boolean {
   return totalLines <= COUNTER_MAX && totalWords <= COUNTER_MAX && totalChars <= COUNTER_MAX;
 }
 
+// Full: one of the three has reached the ceiling, and nothing more goes
+// in at all. Not the same question as isWithinCap, which asks whether a
+// text is legal — a text sitting exactly on the limit is legal and full
+// at once. Asking only "would this be legal?" is what let newlines
+// through at 9999 characters: a line break isn't a character (see
+// countStats — the split eats it), so the character count didn't move and
+// every Enter was legal, forever.
+export function isAtCap(text: string): boolean {
+  const { totalLines, totalWords, totalChars } = countStats(text, false, false);
+  return totalLines >= COUNTER_MAX || totalWords >= COUNTER_MAX || totalChars >= COUNTER_MAX;
+}
+
 // What `next` should actually become, given the text it's replacing.
 // Anything that fits goes in whole; anything that doesn't gets cut where
 // it crosses the line rather than refused outright — paste a novel and
@@ -72,7 +84,9 @@ export function isWithinCap(text: string): boolean {
 // inserted is worked out from the common prefix and suffix of the two
 // strings — a textarea's change event doesn't say.
 export function capInsertion(prev: string, next: string): string {
-  if (next.length <= prev.length || isWithinCap(next)) return next;
+  if (next.length <= prev.length) return next;
+  if (isAtCap(prev)) return prev;
+  if (isWithinCap(next)) return next;
 
   let start = 0;
   while (start < prev.length && prev[start] === next[start]) start++;
