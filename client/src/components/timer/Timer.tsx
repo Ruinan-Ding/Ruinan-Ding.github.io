@@ -230,6 +230,23 @@ export default function Timer() {
   // (see its own comment further down) a real height to query. Below sm
   // the row is a column and the digits fall back to the plain vw-only
   // formula.
+  // How much room the floating top-right corner actually takes, measured
+  // rather than derived. The word counter's fullscreen row has to stop
+  // before that corner, and every attempt to express its width as a
+  // formula has been wrong somewhere: the controls in it are a mix of
+  // clamps that bottom out at different widths, and one of them (the
+  // CONFIRMATIONS label) drops out entirely below sm. A ResizeObserver on
+  // the corner itself is right at every size, and it's the same tool this
+  // file already uses to decide whether the time-fields panel fits.
+  const headerCornerRef = useRef<HTMLDivElement>(null);
+  const [headerCornerWidth, setHeaderCornerWidth] = useState(0);
+  useEffect(() => {
+    const el = headerCornerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setHeaderCornerWidth(entry.contentRect.width));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const [isRowLayout, setIsRowLayout] = useState(() => window.matchMedia('(min-width: 640px)').matches);
   // Mirrors Tailwind's lg. Not about whether the panel shows — about
   // which form it takes: inline (label beside the digit box) at lg+,
@@ -1729,14 +1746,17 @@ export default function Timer() {
   // above the digits in the normal view, and at the far end of the word
   // counter's fullscreen header row past the timer controls. Same shape
   // in both, just a size smaller in that row.
-  // The settings under it run a notch smaller than the readout itself —
-  // the time and date are what you look at, the zone box and the switch
-  // are what you set once and forget. It's also the widest line of the
-  // three, so 0.85 of it is width the cluster doesn't ask for.
+  // The settings under it run well below the readout's own size — the
+  // time and date are what you look at, the zone box and the switch are
+  // what you set once and forget. That row is also the widest of the
+  // three, so 0.7 of it is width the whole cluster stops asking for.
   const renderClockCluster = (fontSize: string) => (
     <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
       {renderClockReadout(fontSize, true)}
-      {renderClockControls(`calc(${fontSize} * 0.85)`)}
+      {/* the max() is a floor, not a nicety: a 0.9em checkbox spends 4px
+          on its border and 2px on the gap inside it, so below about
+          0.62rem there's nothing left in the middle to draw a dot with */}
+      {renderClockControls(`max(0.62rem, calc(${fontSize} * 0.7))`)}
     </div>
   );
   // Website link, shared between its normal spot (centered above the
@@ -2056,7 +2076,8 @@ export default function Timer() {
         </div>
         )}
 
-        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
+        {/* measured, not estimated — see headerCornerRef */}
+        <div ref={headerCornerRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
 
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
@@ -2371,6 +2392,7 @@ export default function Timer() {
           speakerButton={speakerButton}
           ringerButton={ringerButton}
           clockCluster={renderClockCluster(COMPACT_CLOCK_FONT_SIZE)}
+          headerCornerWidth={headerCornerWidth}
           timerDigits={wordCounterTimerDigits}
           timerBar={renderDrainBar('clamp(3rem, 8vw, 8rem)', true)}
           timerControls={

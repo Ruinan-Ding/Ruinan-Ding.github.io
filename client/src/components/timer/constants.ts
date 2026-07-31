@@ -133,6 +133,7 @@ export const STORAGE_KEYS = {
   sidebarHidden: 'timerSidebarHidden',
   timeFieldsHidden: 'timerTimeFieldsHidden',
   wordCounterCollapsed: 'wordCounterCollapsed',
+  wordCounterFullscreen: 'wordCounterFullscreen',
   lightTheme: 'timerLightTheme',
   dontAskAgain: 'timerDontAskAgain',
   clockTimeZone: 'timerClockTimeZone',

@@ -33,6 +33,10 @@ interface WordCounterProps {
   // above the digits, which this view covers, so it comes along to the far
   // end of the centered group, past the timer controls
   clockCluster: ReactNode;
+  // measured width of the floating top-right corner (theme, CONFIRMATIONS,
+  // RESET), which is painted above this view — the fullscreen row reserves
+  // exactly this much on its right so nothing of its own ends up under it
+  headerCornerWidth: number;
   // "remaining / total", pre-rendered by Timer — fullscreen covers the
   // real digits entirely, so this is the only countdown visible while
   // typing
@@ -107,7 +111,7 @@ function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly: boole
   };
 }
 
-function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, headerCornerWidth, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing wipes everything typed with no undo, so it gets its own
   // confirm dialog — reusing the same ConfirmDialog/DialogState the
@@ -126,11 +130,13 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     return () => clearTimeout(id);
   }, [copyState]);
   const [isFocused, setIsFocused] = useState(false);
-  // fullscreen is a transient view toggle — not persisted, so a reload
-  // always comes back out of fullscreen. Collapse, unlike fullscreen, IS
-  // persisted (like the timer's own sidebar/time-fields hide toggles) so
-  // a tucked-in word counter stays tucked in across a reload.
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Persisted, like collapse and the timer's own hide toggles: a reload
+  // comes back to the view you left. (It used to be deliberately
+  // transient, on the grounds that a view covering everything else is
+  // better escaped than restored — but that reasoning loses to reloading
+  // mid-sentence and landing somewhere else.) The site RESET clears it
+  // with every other key.
+  const [isFullscreen, setIsFullscreen] = useState(() => readBoolean(STORAGE_KEYS.wordCounterFullscreen, false));
   const [isCollapsed, setIsCollapsed] = useState(() => readBoolean(STORAGE_KEYS.wordCounterCollapsed, false));
   // true only while isCollapsed was forced by the auto-collapse check
   // below, never by the manual toggle — the collapse arrow hides itself
@@ -161,6 +167,9 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   useEffect(() => {
     writeJSON(STORAGE_KEYS.wordCounterCollapsed, isCollapsed);
   }, [isCollapsed]);
+  useEffect(() => {
+    writeJSON(STORAGE_KEYS.wordCounterFullscreen, isFullscreen);
+  }, [isFullscreen]);
   // hiding while fullscreen has to drop out of fullscreen too (there's no
   // such thing as a hidden-but-fullscreen view) — remembered here so
   // un-hiding restores exactly the view that was showing, fullscreen or
@@ -456,10 +465,16 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               {timerControls}
               {clockCluster}
             </div>
-            {/* sized to the top-right corner this row has to stay clear
-                of — see the cluster comment above, and HEADER_CORNER_RESERVE
-                for why it has the rem floor it has */}
-            <div className="flex-1" aria-hidden style={{ minWidth: HEADER_CORNER_RESERVE }} />
+            {/* the top-right corner's own measured width, plus a gap the
+                size of this row's own — no formula to be wrong at some
+                window size (headerCornerWidth's comment in Timer has the
+                history). Falls back to the CSS estimate for the one frame
+                before the first measurement lands. */}
+            <div
+              className="flex-1"
+              aria-hidden
+              style={{ minWidth: headerCornerWidth ? headerCornerWidth + 24 : HEADER_CORNER_RESERVE }}
+            />
           </>
         ) : (
           <>
@@ -551,9 +566,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 </button>
               </>
             )}
+            {/* filled red while fullscreen: it's the one way back out of a
+                view that covers everything else, so it reads as the exit
+                rather than as one more square in the row */}
             <button
               onClick={() => setIsFullscreen((prev) => !prev)}
-              className="text-white border border-white p-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
+              className={`border p-1 transition-colors flex-shrink-0 ${isFullscreen ? 'border-red-500 bg-red-500 text-black hover:opacity-80' : 'border-white text-white hover:bg-white hover:text-black'}`}
               title={isFullscreen ? 'Exit full screen' : 'Full screen'}
               aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
             >
