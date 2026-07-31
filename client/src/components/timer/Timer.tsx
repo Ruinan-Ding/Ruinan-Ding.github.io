@@ -18,6 +18,11 @@ import { isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { useFlashOnToken } from './useFlashOnToken';
 
+// The zone picker's own text is transparent (see that select), so its
+// options have to say what color they are themselves — the popup is the
+// browser's, drawn from these.
+const OPTION_STYLE = { color: 'var(--app-ink)', backgroundColor: 'var(--app-surface)' };
+
 // The alarm-repeat button's Bell is bigger than a normal header icon,
 // filling most of the button, since it's the button's whole identity
 // rather than one of several equal icons
@@ -232,6 +237,36 @@ export default function Timer() {
     () => clock.time.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? '',
     [clock, nowMs],
   );
+  // The same for every OTHER zone, so the picker can read "New York (EDT)"
+  // rather than leaving you to know which of the twelve Americas that all
+  // say EST is yours. This one needs an Intl.DateTimeFormat per zone and
+  // 418 of them measured 123ms, so it waits for an idle moment after the
+  // first paint rather than holding it up; until it lands the list shows
+  // plain city names, and the box beside it never depended on this at all.
+  const [zoneAbbrs, setZoneAbbrs] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const build = () => {
+      const at = Date.now();
+      const abbrs: Record<string, string> = {};
+      for (const zone of TIME_ZONES) {
+        try {
+          const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' }).formatToParts(at);
+          const abbr = parts.find((part) => part.type === 'timeZoneName')?.value;
+          if (abbr) abbrs[zone] = abbr;
+        } catch {
+          // a zone the engine lists but won't format: it just keeps its
+          // plain city name, same as before this ran
+        }
+      }
+      setZoneAbbrs(abbrs);
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(build);
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(build, 0);
+    return () => window.clearTimeout(id);
+  }, []);
   // Mirrors Tailwind's own sm breakpoint — at and above it the timer row
   // is horizontal, so the HOURS/MINUTES/SECONDS panel sits beside the
   // digits (rather than stacked under them) and the digits column gets
@@ -1697,25 +1732,24 @@ export default function Timer() {
       </button>
       {/* Native select, so the zone list is the browser's own (TIME_ZONES)
           and the picker is whatever the platform already does well —
-          400-odd options, type-to-find included, for free.
-          The box reads as the zone's abbreviation — "EDT", "GMT+9" —
-          rather than its city, which is four characters where
-          "Argentina/Buenos Aires" was twenty-two. Only the selected
-          option carries it, because a closed select displays exactly one
-          option and that's the one: the other 417 keep their city names,
-          so the open list is still something you can find a zone in, and
-          twelve zones that all say EST stay tellable apart. (Abbreviating
-          the whole list would also mean an Intl.DateTimeFormat per zone —
-          123ms at startup, measured — for a list most sessions never
-          open.) The value is the full zone id throughout, so nothing
-          about what's stored or validated changes. */}
-      {/* Own caret rather than the browser's: the box is capped, and a
-          label longer than the cap spends the width on its text and
-          leaves the native arrow clipped off the end — so the control
-          stops looking like a dropdown at all. Drawn here instead: the
-          select gives up its own appearance and keeps a padding-right the
-          caret sits in, and the label ellipsises into what's left. */}
-      <span className="relative inline-flex items-center self-center min-w-0" style={{ maxWidth: '6.5em' }}>
+          400-odd options, type-to-find included, for free — but with its
+          own text drawn transparent, and the abbreviation and caret beside
+          it drawn here instead.
+          That split is what lets the two ends disagree: the closed box
+          shows only what the clock is on ("EDT", "GMT+10:30") and is
+          exactly as wide as that, while the list keeps every zone's city
+          AND its abbreviation in brackets. A plain select can't do both —
+          it draws the selected option's own text, so short box and
+          informative list are the same string. Ellipsising that string
+          was the previous answer, and it's what cut "GMT+10:30" short.
+          The value is the full zone id throughout, so nothing about what's
+          stored or validated changes. */}
+      <span
+        className="relative inline-flex items-center gap-1 border-2 font-bold flex-shrink-0 self-center focus-within:ring-1"
+        style={{ borderColor: 'currentColor', backgroundColor: 'var(--app-surface)', fontFamily: "'IBM Plex Mono', monospace", padding: '0 0.25em' }}
+      >
+        <span className="whitespace-nowrap">{zoneAbbr || timeZone}</span>
+        <span aria-hidden style={{ lineHeight: 1 }}>▾</span>
         <select
           value={timeZone}
           // same check the saved value gets, for the same reason: a select
@@ -1723,22 +1757,24 @@ export default function Timer() {
           // the formatter is a RangeError on every render from then on —
           // the whole page, not just the clock
           onChange={(e) => { if (TIME_ZONES.includes(e.target.value)) setTimeZone(e.target.value); }}
-          className="appearance-none w-full border-2 border-white bg-black text-white font-bold"
-          style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit', paddingLeft: '0.25em', paddingRight: '1.4em', textOverflow: 'ellipsis' }}
+          className="absolute inset-0 w-full h-full cursor-pointer appearance-none border-0"
+          // transparent rather than hidden or opacity-0: the popup this
+          // opens is drawn by the browser from these same styles, and it
+          // has to stay readable. Colors go back on the options themselves.
+          style={{ color: 'transparent', backgroundColor: 'transparent', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit' }}
           title={`Time zone the clock reads in — ${timeZone.replace(/_/g, ' ')}`}
           aria-label="Clock time zone"
         >
           {ZONES_BY_REGION.map(([region, zones]) => (
-            <optgroup key={region} label={region}>
+            <optgroup key={region} label={region} style={OPTION_STYLE}>
               {zones.map(({ zone, label }) => (
-                <option key={zone} value={zone} title={label}>
-                  {zone === timeZone ? zoneAbbr || label : label}
+                <option key={zone} value={zone} style={OPTION_STYLE}>
+                  {zoneAbbrs[zone] ? `${label} (${zoneAbbrs[zone]})` : label}
                 </option>
               ))}
             </optgroup>
           ))}
         </select>
-        <span aria-hidden className="pointer-events-none absolute" style={{ right: '0.4em', lineHeight: 1 }}>▾</span>
       </span>
     </div>
   );
