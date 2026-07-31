@@ -28,6 +28,11 @@ interface WordCounterProps {
   // alongside the ringer normally is dropped here, see the row below)
   speakerButton: ReactNode;
   ringerButton: ReactNode;
+  // wall clock — time, date, and the zone and 12/24 settings under them —
+  // pre-rendered by Timer at a size that suits this row. It normally sits
+  // above the digits, which this view covers, so it comes along to the far
+  // end of the centered group, past the timer controls
+  clockCluster: ReactNode;
   // "remaining / total", pre-rendered by Timer — fullscreen covers the
   // real digits entirely, so this is the only countdown visible while
   // typing
@@ -62,8 +67,11 @@ const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
 
 // Ceiling for lines, words and chars alike. Four digits is what an L/W/C
 // box holds (COUNTER_COLUMN_WIDTH is three of them across the counter
-// column), so a fifth would be a number you can't read.
+// column), so a fifth would be a number you can't read. The warn mark is
+// where a total turns yellow, far enough out to be a heads-up rather than
+// a surprise.
 const COUNTER_MAX = 9999;
+const COUNTER_WARN = 9500;
 
 // The L/W/C numbers for a given text. A plain function rather than
 // inline in the memo below, because the typing guard needs the same
@@ -99,7 +107,7 @@ function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly: boole
   };
 }
 
-function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing wipes everything typed with no undo, so it gets its own
   // confirm dialog — reusing the same ConfirmDialog/DialogState the
@@ -300,16 +308,21 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     [text, alnumWordsOnly, alnumCharsOnly],
   );
 
-  // Typing stops at the cap rather than the counters rolling past it: the
-  // L/W/C boxes are four characters wide (see COUNTER_COLUMN_WIDTH), so a
-  // fifth digit is a number you can't read anyway. Deletions always go
-  // through — otherwise text pasted in over the cap, or left over from
-  // before it existed, would be stuck there.
+  // Once any total is at the cap, nothing more goes in at all — not a
+  // space, not a newline, not a character that wouldn't count toward the
+  // total that's full. Counting only the keystrokes that move a number
+  // would let you keep typing forever in whatever the current mode
+  // doesn't count (spaces, with chars-only on), which is a stuck counter
+  // rather than a full one.
+  const atCap = totalLines >= COUNTER_MAX || totalWords >= COUNTER_MAX || totalChars >= COUNTER_MAX;
+  // Deletions always go through — otherwise text pasted in over the cap,
+  // or left over from before it existed, would be stuck there.
   const handleTextChange = (next: string) => {
     if (next.length <= text.length) {
       setText(next);
       return;
     }
+    if (atCap) return;
     const { totalLines: lines, totalWords: words, totalChars: chars } = countStats(next, alnumWordsOnly, alnumCharsOnly);
     if (lines > COUNTER_MAX || words > COUNTER_MAX || chars > COUNTER_MAX) return;
     setText(next);
@@ -431,15 +444,17 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 off-centre. A plain flex group costs no padding.
                 gap-2 rather than the row's gap-3: this group is the
                 densest thing in the app, and the 4px a gap gives back is
-                12px across it.
-                The clock is deliberately NOT in here — readout and
-                settings both live in the top-right corner while this view
-                is up. That corner is painted above this one (z-[70] over
-                z-[60]), so anything of ours it reaches, it covers. */}
+                16px across it.
+                The clock rides at the far end, past the buttons — the
+                same block it is above the digits in the normal view, just
+                smaller. It has to be in here rather than in the top-right
+                corner: that corner is painted above this view (z-[70]
+                over z-[60]), so anything of ours it reaches, it covers. */}
             <div className="flex items-center gap-2 flex-shrink-0">
               {timerDigits}
               {timerBar}
               {timerControls}
+              {clockCluster}
             </div>
             {/* sized to the top-right corner this row has to stay clear
                 of — see the cluster comment above, and HEADER_CORNER_RESERVE
@@ -613,16 +628,22 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         <div className="flex justify-between items-start px-3 pb-1 gap-4" style={{ fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}>
           <div className="text-white font-bold flex flex-col gap-0">
             <div className="text-white mb-0.5" style={{ fontSize: shrinkClamp(0.35, 0.8, 0.9, 0.55) }}>TOTAL</div>
-            {/* whichever total is at the cap turns red — that's the one
-                refusing further typing, and red is what this app uses for
-                a stop everywhere else (STOP, the overrun countdown) */}
+            {/* yellow on the way to the cap, red at it — the same pair of
+                warning colors the timer itself uses for "nearly" and
+                "stop". A red one is the reason typing has stopped. */}
             <div className="grid grid-cols-3 text-center" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
               {[totalLines, totalWords, totalChars].map((total, idx) => (
                 <div
                   key={idx}
                   className="border border-white px-1 py-0.5 bg-black overflow-hidden"
-                  style={total >= COUNTER_MAX ? { color: '#ef4444' } : undefined}
-                  title={total >= COUNTER_MAX ? `${COUNTER_MAX} is the limit — delete some text to keep typing` : undefined}
+                  style={total >= COUNTER_MAX ? { color: '#ef4444' } : total >= COUNTER_WARN ? { color: '#eab308' } : undefined}
+                  title={
+                    total >= COUNTER_MAX
+                      ? `${COUNTER_MAX} is the limit — delete some text to keep typing`
+                      : total >= COUNTER_WARN
+                        ? `${COUNTER_MAX - total} to go before typing stops`
+                        : undefined
+                  }
                 >
                   {total}
                 </div>

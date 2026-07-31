@@ -1644,17 +1644,13 @@ export default function Timer() {
       </p>
     </div>
   );
-  // The wall clock's two settings — zone and 12/24 — riding in the
-  // top-right cluster (leftmost, next to the theme toggle) rather than
-  // beside the readout they drive, which stays above the digits. That
-  // corner is where the app's other display settings already live; the
-  // left one grows rightwards into the website link centered above the
-  // digits, which is what ruled it out.
+  // The wall clock's two settings — zone and 12/24 — which sit directly
+  // under the readout they drive (see renderClockCluster).
   //
   // Takes its size from the caller (same as renderControlButtons and the
   // drain bar) because the word counter's fullscreen row needs a smaller
-  // copy than this corner does — everything inside is em-based, the zone
-  // box's own width cap included, so one number scales the lot.
+  // copy than the main view does — everything inside is em-based, the
+  // zone box's own width cap included, so one number scales the lot.
   const renderClockControls = (fontSize: string) => (
     <div className="flex items-center gap-2" style={{ fontSize }}>
       {/* Reads as the state it's in, not the one clicking would get: the
@@ -1716,13 +1712,10 @@ export default function Timer() {
       </span>
     </div>
   );
-  // The readout those two drive. Lives above the digits normally; the word
-  // counter's fullscreen view covers those entirely, so it gets a copy in
-  // that view's own header row instead (see the props passed below).
-  // Stacked there — time over date rather than side by side — because that
-  // row has to hold this, the countdown, the bar, the buttons and the two
-  // settings between two reserved corners, and a second line costs it
-  // height it already has while halving what it costs in width.
+  // The readout those two drive. Stacked — time over date — since it's
+  // read as two facts, and stacking is also what lets the whole cluster
+  // fit the word counter's fullscreen row, where width is the scarce
+  // thing and height isn't.
   const renderClockReadout = (fontSize: string, stacked = false) => (
     <span
       className={`opacity-80 ${stacked ? 'flex flex-col items-center leading-tight' : 'whitespace-nowrap'}`}
@@ -1731,6 +1724,16 @@ export default function Timer() {
       <span className="whitespace-nowrap">{clock.time.format(nowMs)}</span>
       <span className="whitespace-nowrap">{stacked ? '' : ' · '}{clock.date.format(nowMs)}</span>
     </span>
+  );
+  // Readout with its own two settings directly underneath, as one block:
+  // above the digits in the normal view, and at the far end of the word
+  // counter's fullscreen header row past the timer controls. Same shape
+  // in both, just a size smaller in that row.
+  const renderClockCluster = (fontSize: string) => (
+    <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+      {renderClockReadout(fontSize, true)}
+      {renderClockControls(fontSize)}
+    </div>
   );
   // Website link, shared between its normal spot (centered above the
   // digits, hidden during word counter fullscreen) and that fullscreen
@@ -2050,26 +2053,6 @@ export default function Timer() {
         )}
 
         <div className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
-          {/* Stays put in fullscreen, unlike the mute/repeat pair opposite
-              — this corner floats over that view, so these are reachable
-              there without moving. Compact there, though: the row
-              underneath has to fit its own contents between this corner
-              and the space reserved for this one.
-              The readout joins them there, sitting directly on top of the
-              two settings that drive it. It can't be in that row and be
-              readable: this corner is painted above the fullscreen view
-              (z-[70] over z-[60]), so wherever the two meet, this wins —
-              in its own column here it never has to. Stacking rather than
-              sitting beside them also costs the corner no width at all,
-              which is width the row underneath gets to keep. */}
-          {isWordCounterFullscreen ? (
-            <div className="flex flex-col items-end gap-0.5">
-              {renderClockReadout(COMPACT_CLOCK_FONT_SIZE)}
-              {renderClockControls(COMPACT_CLOCK_FONT_SIZE)}
-            </div>
-          ) : (
-            renderClockControls(CLOCK_FONT_SIZE)
-          )}
 
           {/* skip-confirmations toggle; the site RESET next to it is
               destructive enough that it always asks */}
@@ -2275,16 +2258,18 @@ export default function Timer() {
               // digits to fit instead of overflowing past it. Below sm
               // there's no queryable container at all (see isRowLayout
               // above), so this falls back to the original vw-only clamp.
-              // The wall clock readout added above the digits is two more
-              // lines this block has to fit (time over date), so both
-              // solves below reserve their height too — a clamp of the
-              // same shape as those lines' own font size (CLOCK_FONT_SIZE,
-              // plus leading, doubled), so the reserve tracks them through
-              // a shrinking window rather than being a constant that's
-              // only right at one size.
+              // The wall clock added above the digits is three more lines
+              // this block has to fit — time, date, and the settings row
+              // under them, that last one a little taller than a text line
+              // for the zone box's own border. Both solves below reserve
+              // that height as a clamp of the same shape as those lines'
+              // own font size (CLOCK_FONT_SIZE plus leading, about four
+              // lines' worth), so the reserve tracks them through a
+              // shrinking window rather than being a constant that's only
+              // right at one size.
               style={{
                 fontSize: isRowLayout
-                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh) - max(2.4rem, min(2.8vw, 3vh))) / 1.75)), 7.5rem)'
+                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh) - max(3rem, min(5vw, 5.4vh))) / 1.75)), 7.5rem)'
                   // Below lg there's no queryable container (see
                   // isRowLayout above), so the exact cqh solve isn't
                   // available — but a plain vw-only clamp let the digits
@@ -2305,17 +2290,17 @@ export default function Timer() {
                   // On a tall narrow window (a phone) the vw term is far
                   // smaller and wins, so this never costs anything where
                   // height isn't the scarce thing.
-                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem - max(2.4rem, min(2.8vw, 3vh))) / 1.75)), 7.5rem)',
+                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem - max(3rem, min(5vw, 5.4vh))) / 1.75)), 7.5rem)',
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}
             >
-              {/* Wall clock at the top of this block, then the configured
-                  total sitting directly on the digits it's the total for.
-                  Every child here sets its own font-size: this block's own
-                  is the digit size, which is enormous.
-                  Stacked (time over date) like the fullscreen copy. */}
-              <div className="flex justify-center">{renderClockReadout(CLOCK_FONT_SIZE, true)}</div>
+              {/* Wall clock at the top of this block — time, date, then
+                  its own two settings — and then the configured total,
+                  sitting directly on the digits it's the total for. Every
+                  child here sets its own font-size: this block's own is
+                  the digit size, which is enormous. */}
+              <div className="flex justify-center">{renderClockCluster(CLOCK_FONT_SIZE)}</div>
               <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
@@ -2381,6 +2366,7 @@ export default function Timer() {
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={speakerButton}
           ringerButton={ringerButton}
+          clockCluster={renderClockCluster(COMPACT_CLOCK_FONT_SIZE)}
           timerDigits={wordCounterTimerDigits}
           timerBar={renderDrainBar('clamp(3rem, 8vw, 8rem)', true)}
           timerControls={
