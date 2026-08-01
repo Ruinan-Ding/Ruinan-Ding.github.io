@@ -7,16 +7,14 @@
 // It imports the .ts beside it directly — node strips the types itself —
 // so it checks the shipped source rather than a copy of it.
 import assert from 'node:assert/strict';
-import { countStats, capInsertion, isWithinCap, isAtCap, countLabel, countScale, COUNTER_MAX, COUNTER_WARN } from './wordCount.ts';
+import { countStats, capInsertion, isWithinCap, isAtCap, countLabel, COUNTER_MAX, COUNTER_WARN } from './wordCount.ts';
 
-// the numbers as the boxes print them: grouped in threes, and stepping
-// down a size each time they outgrow the column
+// the numbers as the boxes print them, grouped in threes. How far they
+// then shrink to fit is countFontSize in WordCounter, which is layout and
+// belongs with the column width it's measured against.
 assert.equal(countLabel(999), '999');
 assert.equal(countLabel(1000), '1,000');
 assert.equal(countLabel(COUNTER_MAX), '999,999');
-assert.equal(countScale(9999), undefined, 'four digits fit as they are');
-assert.equal(countScale(10000), '0.8em', 'a fifth digit steps down');
-assert.equal(countScale(100000), '0.68em', 'a sixth steps down again');
 assert.ok(COUNTER_WARN < COUNTER_MAX, 'the warning comes before the ceiling');
 
 // counting: the two filters are independent, and TOTAL is the columns summed

@@ -7,7 +7,7 @@ import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
-import { capInsertion, countLabel, countScale, countStats, COUNTER_MAX, COUNTER_WARN } from './wordCount';
+import { capInsertion, countLabel, countStats, COUNTER_MAX, COUNTER_WARN } from './wordCount';
 import type { DialogState } from './types';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
 
@@ -69,6 +69,19 @@ const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
 // carries the same size itself) shrink together — a notch below the
 // bigger textarea above (COUNTER_FONT_SIZE) to leave it room to grow
 const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
+
+// The largest size at which a number still fits its counter box: the box
+// is a third of COUNTER_COLUMN_WIDTH less its padding and borders, and a
+// monospace digit is 0.6em wide, so n characters need n * 0.6 of them.
+// Capped at the column's usual size, which short numbers keep.
+//
+// Worked out from the column's own width rather than picked by eye,
+// because the two don't shrink together — the column is a vw clamp and
+// the font is a min(vw, vh) one — so "how many characters fit" isn't a
+// constant. "1,000" is five characters where "999" was three, and five
+// never fit at full size at any window size.
+const countFontSize = (value: number) =>
+  `min(${COUNTER_FONT_SIZE}, calc((${COUNTER_COLUMN_WIDTH} - 30px) / ${(countLabel(value).length * 1.8).toFixed(2)}))`;
 
 
 function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, headerCornerWidth, timerDigits, timerBar, timerControls }: WordCounterProps) {
@@ -627,14 +640,14 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                         can't be allowed to change it — hence a font-size
                         on the number and not on the row */}
                     <div className="grid grid-cols-3 text-center text-white font-bold flex-shrink-0" style={{ width: COUNTER_COLUMN_WIDTH }}>
-                      <div className="overflow-hidden" style={{ fontSize: countScale(idx + 1) }}>{countLabel(idx + 1)}</div>
+                      <div className="overflow-hidden" style={{ fontSize: countFontSize(idx + 1) }}>{countLabel(idx + 1)}</div>
                       <div
                         className={`overflow-hidden border-l-2 border-r-2 ${isActive ? 'border-green-500' : 'border-white'}`}
-                        style={{ fontSize: countScale(stat.wordCount) }}
+                        style={{ fontSize: countFontSize(stat.wordCount) }}
                       >
                         {countLabel(stat.wordCount)}
                       </div>
-                      <div className="overflow-hidden" style={{ fontSize: countScale(stat.charCount) }}>{countLabel(stat.charCount)}</div>
+                      <div className="overflow-hidden" style={{ fontSize: countFontSize(stat.charCount) }}>{countLabel(stat.charCount)}</div>
                     </div>
                     <div className="flex-1" />
                   </div>
@@ -692,7 +705,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                     key={idx}
                     className="border border-white px-1 py-0.5 bg-black overflow-hidden"
                     style={{
-                      fontSize: countScale(total),
+                      fontSize: countFontSize(total),
                       color: total >= COUNTER_MAX ? '#ef4444' : total >= COUNTER_WARN ? '#eab308' : undefined,
                     }}
                     title={

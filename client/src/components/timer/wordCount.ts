@@ -5,9 +5,9 @@
 
 // Ceiling for lines, words and chars alike, and the mark where a total
 // turns yellow on the way to it — far enough out to be a heads-up rather
-// than a surprise. Six digits is more than an L/W/C box can hold at its
-// usual size, so the numbers shrink to fit past ten thousand rather than
-// the boxes growing (see countScale).
+// than a surprise. These numbers are wider than an L/W/C box can hold at
+// its usual size, so the numbers shrink to fit rather than the boxes
+// growing (see countFontSize in WordCounter).
 export const COUNTER_MAX = 999999;
 export const COUNTER_WARN = 999000;
 
@@ -17,16 +17,6 @@ export function countLabel(value: number): string {
   return value.toLocaleString('en-US');
 }
 
-// A counter box is three characters of room at the font it's set in, and
-// these numbers can run to seven ("999,999"). Two steps down covers the
-// difference: the first once a comma appears and a fifth digit with it,
-// the second at six digits. Given in em, so it stays relative to whatever
-// COUNTER_FONT_SIZE works out to at the current window size.
-export function countScale(value: number): string | undefined {
-  if (value >= 100000) return '0.68em';
-  if (value >= 10000) return '0.8em';
-  return undefined;
-}
 
 export interface CountStats {
   lineStats: { wordCount: number; charCount: number }[];
