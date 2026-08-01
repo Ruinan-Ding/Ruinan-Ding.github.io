@@ -1810,12 +1810,15 @@ export default function Timer() {
           {clock.time.format(nowMs)}
           {/* over the time rather than instead of it, on the same surface
               colour, so fading this away is the time coming back — see
-              hourFormatFizz in index.css */}
+              hourFormatFizz in index.css. Yellow while it does: the app's
+              "something just changed" colour everywhere else (the pause
+              flash, a counter nearing its limit), and it reads as the
+              answer to the click rather than as part of the clock. */}
           {isHourFormatFlashing && (
             <span
               aria-hidden
               className="absolute inset-0 flex items-center justify-center animate-hourFormatFizz"
-              style={{ backgroundColor: 'var(--app-surface)' }}
+              style={{ backgroundColor: 'var(--app-surface)', color: '#eab308' }}
             >
               {is24Hour ? '24H' : '12H'}
             </span>
