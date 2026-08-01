@@ -638,16 +638,21 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                     {/* the row's own height is a text line exactly (see
                         above), so a number that shrinks to fit its column
                         can't be allowed to change it — hence a font-size
-                        on the number and not on the row */}
+                        on the number and not on the row. Each cell then
+                        centers its own number in that height: a cell is
+                        stretched to the row whatever size its text is, so
+                        a shrunken one left to itself sits at the top of
+                        the space and reads as a different line from its
+                        full-size neighbours. */}
                     <div className="grid grid-cols-3 text-center text-white font-bold flex-shrink-0" style={{ width: COUNTER_COLUMN_WIDTH }}>
-                      <div className="overflow-hidden" style={{ fontSize: countFontSize(idx + 1) }}>{countLabel(idx + 1)}</div>
+                      <div className="flex items-center justify-center overflow-hidden" style={{ fontSize: countFontSize(idx + 1) }}>{countLabel(idx + 1)}</div>
                       <div
-                        className={`overflow-hidden border-l-2 border-r-2 ${isActive ? 'border-green-500' : 'border-white'}`}
+                        className={`flex items-center justify-center overflow-hidden border-l-2 border-r-2 ${isActive ? 'border-green-500' : 'border-white'}`}
                         style={{ fontSize: countFontSize(stat.wordCount) }}
                       >
                         {countLabel(stat.wordCount)}
                       </div>
-                      <div className="overflow-hidden" style={{ fontSize: countFontSize(stat.charCount) }}>{countLabel(stat.charCount)}</div>
+                      <div className="flex items-center justify-center overflow-hidden" style={{ fontSize: countFontSize(stat.charCount) }}>{countLabel(stat.charCount)}</div>
                     </div>
                     <div className="flex-1" />
                   </div>
@@ -703,7 +708,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 return (
                   <div
                     key={idx}
-                    className="border border-white px-1 py-0.5 bg-black overflow-hidden"
+                    // centered in the box for the same reason as the cells
+                    // above: three boxes side by side are all as tall as
+                    // the tallest, so the one holding "999,999" at its
+                    // smaller size would otherwise hang from the top while
+                    // "12" beside it sat full height
+                    className="flex items-center justify-center border border-white px-1 py-0.5 bg-black overflow-hidden"
                     style={{
                       fontSize: countFontSize(total),
                       color: total >= COUNTER_MAX ? '#ef4444' : total >= COUNTER_WARN ? '#eab308' : undefined,
