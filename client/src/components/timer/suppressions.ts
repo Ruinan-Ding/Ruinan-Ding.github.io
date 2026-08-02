@@ -25,17 +25,19 @@ const readKeys = (): string[] => {
 // timer" and "switch to it mid-run, losing progress" are the same
 // `switch` type but not remotely the same question.
 //
-// null means the dialog can never be silenced:
-// - clearCache is the site RESET, the one action that clears this list.
-//   Silencing it would leave no way back once everything else is silent.
-// - skipConfirmations is the master switch for confirmations as a whole.
-//   Its own dialog exists precisely so that turning them off can't happen
-//   by accident, which a "don't ask again" would undo.
+// null means the dialog can never be silenced. Only clearCache now: it's
+// the site RESET, the one action that clears this list, so silencing it
+// would leave no way back once everything else is silent.
+//
+// skipConfirmations used to be here too, on the grounds that the switch
+// turning confirmations off shouldn't be skippable itself. It's
+// answerable like the rest now — ticking the box means the next click of
+// that toggle turns them off on the spot. Nothing is lost that RESET
+// can't give back, and the toggle turns them back ON without ever asking.
 export const dialogKey = (dialog: DialogState): string | null => {
   switch (dialog.type) {
     case null:
     case 'clearCache':
-    case 'skipConfirmations':
       return null;
     // one question per timer state, not per field: HOURS, MINUTES and
     // SECONDS are three ways of doing the same thing, so answering for

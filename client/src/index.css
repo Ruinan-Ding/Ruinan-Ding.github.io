@@ -257,6 +257,24 @@
   animation: loadFlashGreen 1.2s ease-out forwards;
 }
 
+/* Third of the same set: red for "you already have this one". Adding a
+   preset that matches an existing time doesn't add a second copy — it
+   points at the one that's already there. Red rather than the insert's
+   yellow because nothing was inserted; it's the same colour the counters
+   and the alarm use for "this is why nothing happened". */
+@keyframes duplicateFlashRed {
+  from {
+    background-color: #ef4444;
+  }
+  to {
+    background-color: var(--app-surface);
+  }
+}
+
+.animate-duplicateFlash {
+  animation: duplicateFlashRed 1.2s ease-out forwards;
+}
+
 /* Deleting a preset or history entry: the row goes red first — long
    enough to register as "this one, gone" rather than a flicker — then
    fizzes out, fading while it shrinks and drifts left toward the minus

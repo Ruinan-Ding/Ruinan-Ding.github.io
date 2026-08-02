@@ -147,6 +147,9 @@ export default function Timer() {
   // loading an existing one) — never restored from storage, so a reload
   // never replays it
   const [insertedPreset, setInsertedPreset] = useState<FlashTarget>(null);
+  // the preset an add was refused for, because that time is already in
+  // the list — it flashes red rather than a new row appearing
+  const [duplicatePreset, setDuplicatePreset] = useState<FlashTarget>(null);
   const [insertedHistory, setInsertedHistory] = useState<FlashTarget>(null);
   const [loadedEntry, setLoadedEntry] = useState<FlashTarget>(null);
   // bumped (with the direction of the change) per-field whenever that
@@ -1087,11 +1090,30 @@ export default function Timer() {
     closeDialog();
   };
 
-  const handleAddPreset = useCallback((parts: TimeParts) => {
+  // Adding a time the list already holds doesn't add a second copy of it
+  // — a preset list is a set of times, and two identical rows are two
+  // ways to click the same thing. Instead the row that already has that
+  // time flashes red, which answers "why didn't that go in?" by pointing
+  // at the reason. Returns whether anything was actually added, so the
+  // panel knows whether to clear the box it was typed into.
+  //
+  // Matched on the time itself, not on a label: formatEntryLabel drops
+  // leading zeroes, so 1:05 and 0:01:05 print the same and are the same
+  // preset, while a label comparison would depend on how it's spelled.
+  const handleAddPreset = useCallback((parts: TimeParts): boolean => {
+    const existing = presets.find(
+      (p) => (p.hours ?? 0) === parts.hours && p.minutes === parts.minutes && p.seconds === parts.seconds
+    );
+    if (existing) {
+      setDuplicatePreset((prev) => bumpFlash(prev, existing.id));
+      return false;
+    }
+    if (presets.length >= MAX_PRESETS) return false;
     const id = uniqueId();
-    setPresets((prev) => (prev.length >= MAX_PRESETS ? prev : [...prev, { id, ...parts, timestamp: 0 }]));
+    setPresets((prev) => [...prev, { id, ...parts, timestamp: 0 }]);
     setInsertedPreset((prev) => bumpFlash(prev, id));
-  }, []);
+    return true;
+  }, [presets]);
 
   // Two steps, because the row's delete animation has to play AFTER the
   // question is answered, not before it: the − button asks to remove,
@@ -2026,6 +2048,7 @@ export default function Timer() {
             onSelect={handleSelectEntry}
             inserted={insertedPreset}
             loaded={loadedEntry}
+            duplicate={duplicatePreset}
           />
           <HistoryPanel
             history={history}
@@ -2078,12 +2101,12 @@ export default function Timer() {
               destructive enough that it always asks */}
           {/* Turning confirmations OFF asks first, and spells out what
               stops asking — it's the one switch that changes what every
-              other click does, and the point of a confirmation is lost
-              if the switch that removes them can be hit by accident.
-              Deliberately not gated on skipConfirmations the way other
-              dialogs are: this only ever fires while confirmations are
-              still on, so there's nothing to skip. Turning them back on
-              is a safe direction and goes straight through. */}
+              other click does. That question carries its own "don't ask
+              this again" like the rest of them now, so it can be answered
+              once and for good; RESET is what brings it back. Not gated
+              on skipConfirmations itself, which would be circular — this
+              branch only runs while confirmations are still on. Turning
+              them back on is a safe direction and goes straight through. */}
           {/* Same square box as the sidebar/word-counter arrows — this is
               a view switch like those, not one of the two bordered word
               buttons beside it, and it has no label to spend width on.
@@ -2095,11 +2118,16 @@ export default function Timer() {
           />
 
           <button
+            // Through askThenRun like every other question, so this
+            // dialog's own "don't ask this again" is honoured — tick it
+            // and the next click turns confirmations off on the spot.
+            // The skipConfirmations half of askThenRun can't fire here:
+            // this branch only runs while they're still on.
             onClick={() => {
               if (skipConfirmations) {
                 setSkipConfirmations(false);
               } else {
-                setDialog({ type: 'skipConfirmations' });
+                askThenRun({ type: 'skipConfirmations' }, () => setSkipConfirmations(true));
               }
             }}
             aria-pressed={!skipConfirmations}

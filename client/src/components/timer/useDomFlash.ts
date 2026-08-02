@@ -8,7 +8,7 @@ import { FLASH_DURATION_MS } from './useFlashOnToken';
 // previous kind's class sitting alongside the new one — two "animation"
 // values on the same element otherwise fight over which one the browser
 // actually renders.
-const ALL_FLASH_CLASSES = ['animate-insertFlash', 'animate-loadFlash', 'animate-correctFlashText'];
+const ALL_FLASH_CLASSES = ['animate-insertFlash', 'animate-loadFlash', 'animate-duplicateFlash', 'animate-correctFlashText'];
 
 // Toggling a React-driven className isn't enough to replay a still-running
 // CSS animation: even when state genuinely flips false->true across two
@@ -41,16 +41,21 @@ export function useDomFlash(ref: React.RefObject<HTMLElement | null>, flashKey: 
 
 // Shared by the preset and history list rows: resolves which flash (if
 // any) applies to this row's id and wires it up via useDomFlash, returning
-// the ref to attach to the row's button. Load wins over insert when both
-// target the same id (e.g. loading an entry within the flash window of it
-// being recorded/added).
-export function useEntryFlash(id: string, inserted: FlashTarget, loaded: FlashTarget) {
+// the ref to attach to the row's button.
+//
+// Newest intent wins where two target the same id: a rejected duplicate
+// over a load, and a load over an insert (e.g. loading an entry within
+// the flash window of it being recorded/added). Each is the answer to a
+// click that happened after the one before it.
+export function useEntryFlash(id: string, inserted: FlashTarget, loaded: FlashTarget, duplicate: FlashTarget = null) {
   const ref = useRef<HTMLButtonElement>(null);
-  const flash = loaded?.id === id
-    ? { key: `load:${loaded.token}`, className: 'animate-loadFlash' }
-    : inserted?.id === id
-      ? { key: `insert:${inserted.token}`, className: 'animate-insertFlash' }
-      : { key: null, className: '' };
+  const flash = duplicate?.id === id
+    ? { key: `duplicate:${duplicate.token}`, className: 'animate-duplicateFlash' }
+    : loaded?.id === id
+      ? { key: `load:${loaded.token}`, className: 'animate-loadFlash' }
+      : inserted?.id === id
+        ? { key: `insert:${inserted.token}`, className: 'animate-insertFlash' }
+        : { key: null, className: '' };
   useDomFlash(ref, flash.key, flash.className);
   return ref;
 }

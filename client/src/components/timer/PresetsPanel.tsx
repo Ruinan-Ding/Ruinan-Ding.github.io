@@ -24,7 +24,7 @@ const labelSegments = ({ hours, minutes, seconds }: TimeParts): Array<{ text: st
         { text: pad(seconds), unit: 'seconds' },
       ];
 
-function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, inserted, loaded }: {
+function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, inserted, loaded, duplicate }: {
   preset: TimerEntry;
   onRequestRemove: (id: string) => void;
   onRemove: (id: string) => void;
@@ -32,8 +32,9 @@ function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, in
   onSelect: (entry: TimerEntry) => void;
   inserted: FlashTarget;
   loaded: FlashTarget;
+  duplicate: FlashTarget;
 }) {
-  const buttonRef = useEntryFlash(preset.id, inserted, loaded);
+  const buttonRef = useEntryFlash(preset.id, inserted, loaded, duplicate);
   const fizz = useFizzRemove(useCallback(() => onRemove(preset.id), [onRemove, preset.id]));
 
   // Unlike a history row, this one doesn't start its own fizz on click —
@@ -79,7 +80,10 @@ function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, in
 
 interface PresetsPanelProps {
   presets: TimerEntry[];
-  onAdd: (parts: TimeParts) => void;
+  // returns whether the preset actually went in — false when that time is
+  // already in the list, which is answered by flashing the existing row
+  // (see `duplicate`) rather than by adding a second copy of it
+  onAdd: (parts: TimeParts) => boolean;
   // asks to remove; onRemove is the other half, called once the row has
   // finished animating out (see PresetRow)
   onRequestRemove: (id: string) => void;
@@ -98,13 +102,15 @@ interface PresetsPanelProps {
   onSelect: (entry: TimerEntry) => void;
   inserted: FlashTarget;
   loaded: FlashTarget;
+  // the row whose time an add was refused for, so it can flash red
+  duplicate: FlashTarget;
 }
 
 // Digit entry is keydown-driven rather than derived from onChange, since
 // onChange alone can't tell a partial entry from a complete one. Track the
 // raw typed digits instead, and render them unpadded (same style used
 // everywhere else in the app: "1:30", not "00:01:30").
-function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onRequestCorrect, onClear, correction, onCorrectionApplied, onSelect, inserted, loaded }: PresetsPanelProps) {
+function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onRequestCorrect, onClear, correction, onCorrectionApplied, onSelect, inserted, loaded, duplicate }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
@@ -130,8 +136,10 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
       return;
     }
     if (add) {
-      onAdd(parsePresetDigits(digits));
-      setDigits('');
+      // only clear the box if the time actually went in — a refused
+      // duplicate leaves what was typed sitting there to edit, next to
+      // the row that's flashing red to say why
+      if (onAdd(parsePresetDigits(digits))) setDigits('');
     } else {
       setDigits(presetDigitsFromParts(parsePresetDigits(digits)));
     }
@@ -171,8 +179,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   useEffect(() => {
     if (!correction) return;
     if (correction.add) {
-      onAdd(parsePresetDigits(correction.digits));
-      setDigits('');
+      if (onAdd(parsePresetDigits(correction.digits))) setDigits('');
     } else {
       const before = rawPresetDigits(digits);
       const after = rawPresetDigits(correction.digits);
@@ -232,6 +239,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
             onSelect={onSelect}
             inserted={inserted}
             loaded={loaded}
+            duplicate={duplicate}
           />
         ))}
       </div>
