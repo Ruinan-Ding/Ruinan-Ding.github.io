@@ -1,7 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/* No `dark:` variant on purpose. This app's theming is the two variables
+   below, swapped by [data-theme='light'] — a `dark:` variant would be a
+   second, parallel theming system, and it behaved like one: index.html
+   used to carry a permanent class="dark", so shadcn's leftover
+   dark:border-input on the dialog's CANCEL button applied in BOTH themes
+   and, at (0,2,0), outranked the border-white the dialog itself asked
+   for. The button's border was drawn in --input, which resolves to the
+   dialog's own background. Deleted at all three sites rather than
+   rewired. */
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -413,12 +421,13 @@
    is a fixed width and the digits column is capped at 44rem) and never
    spare height, so the panel used to hide on short windows while the
    room it needed sat unused beside it.
-   Applied two ways, same declarations: by container query once the row
-   it lives in is shorter than this panel's own worst-case stacked
-   footprint (~204px of box plus up to 57px of top margin clearing the
-   header buttons — 17.5rem rounds that up), and unconditionally below
-   lg, where the panel moves out of the row and under the digits and a
-   short wide strip is the only shape that fits there.
+   Applied by container query alone: once the row it lives in is shorter
+   than this panel's own worst-case stacked footprint (~204px of box plus
+   up to 57px of top margin clearing the header buttons — 17.5rem rounds
+   that up). The row is a size container from sm up (see isRowLayout in
+   Timer.tsx), which is also the only range the panel is rendered in, so
+   there's no second, breakpoint-based copy of this rule to keep in step
+   with it.
    minmax(min-content, 1fr) tracks, NOT Tailwind's grid-cols-3: that
    emits minmax(0, 1fr), which floors every track at zero, and the fields
    carry min-w-min, so they'd overflow their tracks and overlap. Against

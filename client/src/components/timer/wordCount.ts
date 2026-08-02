@@ -84,34 +84,58 @@ export function isWithinCap(text: string): boolean {
   return totalLines <= COUNTER_MAX && rawWords <= COUNTER_MAX && rawChars <= COUNTER_MAX;
 }
 
-// Full: one of the three has reached the ceiling, and nothing more goes
-// in at all. Not the same question as isWithinCap, which asks whether a
-// text is legal — a text sitting exactly on the limit is legal and full
-// at once. Asking only "would this be legal?" is what let newlines
-// through at 9999 characters: a line break isn't a character (see
-// countStats — the split eats it), so the character count didn't move and
-// every Enter was legal, forever.
-export function isAtCap(text: string): boolean {
-  const { totalLines, rawWords, rawChars } = countStats(text, false, false);
-  return totalLines >= COUNTER_MAX || rawWords >= COUNTER_MAX || rawChars >= COUNTER_MAX;
-}
-
 // What `next` should actually become, given the text it's replacing.
 // Anything that fits goes in whole; anything that doesn't gets cut where
 // it crosses the line rather than refused outright — paste a novel and
-// you keep the first 9999 characters of it, which is what you'd expect
-// and what the alternative (nothing happens, no reason given) isn't.
+// you keep the first COUNTER_MAX characters of it, which is what you'd
+// expect and what the alternative (nothing happens, no reason given)
+// isn't.
 //
 // The cut is made in the inserted run, not at the end of the result: a
 // paste can land in the middle of what's already there, and trimming the
-// tail would eat text the paste never touched. Which characters were
-// inserted is worked out from the common prefix and suffix of the two
-// strings — a textarea's change event doesn't say.
+// tail would eat text the paste never touched.
 export function capInsertion(prev: string, next: string): string {
-  if (next.length <= prev.length) return next;
+  // Which characters this edit inserted, and what it leaves behind if the
+  // insertion is refused — worked out from the common prefix and suffix
+  // of the two strings, because a textarea's change event doesn't say.
+  //
+  // This has to come first, before any decision about whether the edit
+  // fits. The length difference is NOT a measure of what went in: an edit
+  // that replaces a selection can insert far more than it grows the text
+  // by, and can even insert while shrinking it. Judging by length let a
+  // paste over a selection add thousands of lines at the line ceiling —
+  // a newline isn't a character, so neither "the result is shorter" nor
+  // "it only grew by n" says anything about how many lines arrived.
+  let start = 0;
+  while (start < prev.length && start < next.length && prev[start] === next[start]) start++;
+  let end = 0;
+  while (
+    end < prev.length - start &&
+    end < next.length - start &&
+    prev[prev.length - 1 - end] === next[next.length - 1 - end]
+  ) {
+    end++;
+  }
 
-  const { totalLines, rawWords, rawChars } = countStats(prev, false, false);
-  if (totalLines >= COUNTER_MAX || rawWords >= COUNTER_MAX || rawChars >= COUNTER_MAX) return prev;
+  const before = next.slice(0, start);
+  const after = prev.slice(prev.length - end);
+  const inserted = next.slice(start, next.length - end);
+  // The deletion half of an edit always goes through — otherwise text
+  // pasted in over the cap, or left over from before it existed, would be
+  // stuck there. Deleting can't raise any of the three counts, so this is
+  // always progress back toward legal.
+  const base = before + after;
+  if (inserted === '') return base;
+
+  const { totalLines, rawWords, rawChars } = countStats(base, false, false);
+  // Full: one of the three is already at the ceiling once this edit's own
+  // deletion is applied, so nothing more goes in. Judged here rather than
+  // by asking "would the result be legal?" — a text sitting exactly on
+  // the limit is legal and full at once, which is what let newlines
+  // through at the character limit forever: a line break isn't a
+  // character (see countStats — the split eats it), so the character
+  // count didn't move and every Enter was legal.
+  if (totalLines >= COUNTER_MAX || rawWords >= COUNTER_MAX || rawChars >= COUNTER_MAX) return base;
   // What n inserted characters can add at most: n characters (a newline
   // isn't one), n lines (if every one of them is a newline), and n + 1
   // words (n new ones, plus splitting the word it landed in). If even the
@@ -119,22 +143,14 @@ export function capInsertion(prev: string, next: string): string {
   // and there's nothing to work out — which matters because the check it
   // skips is a pass over the whole text, on every keypress, and this text
   // is allowed to be a million characters long.
-  const added = next.length - prev.length;
+  const added = inserted.length;
   if (rawChars + added <= COUNTER_MAX && totalLines + added <= COUNTER_MAX && rawWords + added + 1 <= COUNTER_MAX) {
     return next;
   }
   if (isWithinCap(next)) return next;
 
-  let start = 0;
-  while (start < prev.length && prev[start] === next[start]) start++;
-  let end = 0;
-  while (end < prev.length - start && prev[prev.length - 1 - end] === next[next.length - 1 - end]) end++;
-
-  const before = next.slice(0, start);
-  const after = prev.slice(prev.length - end);
-  const inserted = next.slice(start, next.length - end);
-
-  // largest number of inserted characters that still fits
+  // largest number of inserted characters that still fits; none of them
+  // fitting lands back on `base`, the edit's deletion and nothing else
   let fits = 0;
   let most = inserted.length;
   while (fits < most) {
@@ -142,5 +158,5 @@ export function capInsertion(prev: string, next: string): string {
     if (isWithinCap(before + inserted.slice(0, mid) + after)) fits = mid;
     else most = mid - 1;
   }
-  return fits === 0 ? prev : before + inserted.slice(0, fits) + after;
+  return before + inserted.slice(0, fits) + after;
 }

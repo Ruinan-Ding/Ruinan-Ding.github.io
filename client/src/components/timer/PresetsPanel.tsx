@@ -187,13 +187,12 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   }, [correction, digits, onAdd, onCorrectionApplied]);
 
   return (
-    // min-h-0 so this column can be shrunk below its content when the
-    // list outgrows the sidebar — without it a full list (MAX_PRESETS
-    // rows is taller than most windows) simply ran off the bottom, with
-    // the sidebar's own overflow-hidden clipping it and nothing to
-    // scroll. Shrinks in proportion to the history panel below, which
-    // does the same, so a long list on either side costs both of them.
-    <div className="flex flex-col min-h-0">
+    // flex-shrink-0: this panel is as tall as its own content and nothing
+    // squeezes it. The sidebar around it is the one scroll region now (see
+    // Timer.tsx), so a long list makes the pair scroll rather than making
+    // this box shorter — which is what used to leave a few presets in a
+    // two-row window with a bar of their own.
+    <div className="flex flex-col flex-shrink-0">
       {/* margin/padding/gap below all sized on shrinkClamp rather than
           fixed mb-4/pb-2/gap-2/mt-2 — those never moved at all regardless
           of window size, same rigidity as the font sizes above before
@@ -216,13 +215,12 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
           </button>
         )}
       </div>
-      {/* the list scrolls; the add row below it doesn't, so the box you
-          type a new preset into is still there at the bottom with a full
-          list scrolled to the top. overflow-x-hidden and a stable gutter
-          for the same reasons as the history list — see its own comment. */}
+      {/* No scrolling of its own — the sidebar scrolls the pair. The add
+          row below stays where it is, directly under the list it adds to,
+          and travels with it. */}
       <div
-        className="flex flex-col overflow-y-auto overflow-x-hidden min-h-0"
-        style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), scrollbarGutter: 'stable' }}
+        className="flex flex-col"
+        style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
       >
         {presets.map((preset) => (
           <PresetRow

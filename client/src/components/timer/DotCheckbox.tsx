@@ -1,10 +1,11 @@
 import { TOGGLE_FONT_SIZE } from './constants';
 
 // The square-with-a-dot checkbox shared by every toggle that reads as a
-// checkbox rather than a button: CONFIRMATIONS, the word counter's two
-// alphanumeric switches, the dialogs' "don't ask this again", and the wall
-// clock's 12/24 switch — that last one the only caller passing a size of
-// its own, since its whole row scales as one unit.
+// checkbox rather than a button: the word counter's two alphanumeric
+// switches, the dialogs' "don't ask this again", and the confirmations
+// toggle in the header corner — that last one the only caller passing a
+// size of its own, since it has to match the icons in the square buttons
+// beside it rather than a label.
 //
 // The dot is a child box inset by whole pixels of border and padding,
 // which is the one arrangement that actually stays centred. Painted box

@@ -1,6 +1,7 @@
 import { ChevronsDown, ChevronsUp, Maximize2, Minimize2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { readBoolean, readRaw, writeJSON, writeRaw } from '@/lib/storage';
+import { usePersisted } from '@/hooks/usePersisted';
+import { readBoolean, readRaw, writeRaw } from '@/lib/storage';
 import ConfirmDialog from './ConfirmDialog';
 import { HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, STORAGE_KEYS, TOGGLE_FONT_SIZE } from './constants';
 import DotCheckbox from './DotCheckbox';
@@ -55,6 +56,15 @@ interface WordCounterProps {
 // The one dialog this component owns, as a constant so the "is it
 // silenced?" check and the "silence it" call can't drift apart
 const CLEAR_DIALOG = { type: 'clearWordCounter' } as const;
+
+// Keys that operate the focused control instead of putting a character
+// into it — see the fullscreen refocus effect below, which has to leave
+// these alone or nothing in that view is reachable by keyboard.
+const NON_TYPING_KEYS = new Set([
+  'Tab', 'Enter', ' ', 'Escape',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+  'Home', 'End', 'PageUp', 'PageDown',
+]);
 
 const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
 // used identically in both the decorative row-rules overlay and the
@@ -137,12 +147,8 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   useEffect(() => {
     onFullscreenChange(isFullscreen);
   }, [isFullscreen, onFullscreenChange]);
-  useEffect(() => {
-    writeJSON(STORAGE_KEYS.wordCounterCollapsed, isCollapsed);
-  }, [isCollapsed]);
-  useEffect(() => {
-    writeJSON(STORAGE_KEYS.wordCounterFullscreen, isFullscreen);
-  }, [isFullscreen]);
+  usePersisted(STORAGE_KEYS.wordCounterCollapsed, isCollapsed);
+  usePersisted(STORAGE_KEYS.wordCounterFullscreen, isFullscreen);
 
   // hiding while fullscreen has to drop out of fullscreen too (there's no
   // such thing as a hidden-but-fullscreen view) — remembered here so
@@ -182,11 +188,11 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   useEffect(() => {
     if (isFullscreen) textareaRef.current?.focus();
   }, [isFullscreen]);
-  // fullscreen has nothing else to type into, so any keystroke — no
-  // matter what was last clicked (a checkbox, the collapse arrow, a
-  // dialog that has since closed) — should land in the textarea.
-  // Refocusing on document keydown (rather than the textarea's own
-  // onBlur) is what makes this work even after a click that doesn't
+  // fullscreen has nothing else to TYPE into, so any keystroke that
+  // produces text — no matter what was last clicked (a checkbox, the
+  // collapse arrow, a dialog that has since closed) — should land in the
+  // textarea. Refocusing on document keydown (rather than the textarea's
+  // own onBlur) is what makes this work even after a click that doesn't
   // blur the textarea until later, or a dialog that opens and closes
   // without ever blurring it again. Skipped while a confirm dialog is
   // open (e.g. RESET) — that's a real, intentional destination for
@@ -195,6 +201,16 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
     if (!isFullscreen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Keys that drive whatever already has focus rather than typing
+      // into it. Taking these too made this row's own controls — the
+      // timer buttons, mute, alarm repeat, the volume slider, the zone
+      // picker, the 12/24 clock — mouse-only: Tab is how you reach them
+      // and the arrows and Space/Enter are how you then work the one you
+      // landed on, and every one of those was being answered by yanking
+      // focus back to the textarea. Where the textarea already has focus
+      // this changes nothing, which is the ordinary case (entering
+      // fullscreen focuses it — see the effect above).
+      if (NON_TYPING_KEYS.has(e.key)) return;
       // Radix keeps the dialog element mounted (data-state="closed")
       // through its exit animation, so matching on the role alone would
       // keep skipping refocus for that entire fade-out — gating on
@@ -274,17 +290,15 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   const [alnumWordsOnly, setAlnumWordsOnly] = useState(() => readBoolean(STORAGE_KEYS.wordCounterAlnumWordsOnly, true));
   const [alnumCharsOnly, setAlnumCharsOnly] = useState(() => readBoolean(STORAGE_KEYS.wordCounterAlnumCharsOnly, true));
 
+  // writeRaw rather than usePersisted: the text is stored as itself, not
+  // as JSON, so a document already a megabyte long isn't also escaped and
+  // quoted on the way in
   useEffect(() => {
     writeRaw(STORAGE_KEYS.wordCounter, text);
   }, [text]);
 
-  useEffect(() => {
-    writeJSON(STORAGE_KEYS.wordCounterAlnumWordsOnly, alnumWordsOnly);
-  }, [alnumWordsOnly]);
-
-  useEffect(() => {
-    writeJSON(STORAGE_KEYS.wordCounterAlnumCharsOnly, alnumCharsOnly);
-  }, [alnumCharsOnly]);
+  usePersisted(STORAGE_KEYS.wordCounterAlnumWordsOnly, alnumWordsOnly);
+  usePersisted(STORAGE_KEYS.wordCounterAlnumCharsOnly, alnumCharsOnly);
 
   // rawWords/rawChars are the same text with nothing filtered out, which
   // is what the cap goes by (see isWithinCap) — counted in the same pass
@@ -308,9 +322,13 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   const capColor = (raw: number, on: boolean) =>
     raw >= COUNTER_MAX ? '#ef4444' : raw >= COUNTER_WARN ? '#eab308' : on ? 'var(--app-ink)' : '#6b7280';
 
-  // Deletions always go through — otherwise text pasted in over the cap,
-  // or left over from before it existed, would be stuck there. Everything
-  // else is cut to fit rather than refused (capInsertion).
+  // Every edit goes through capInsertion, deletions included: it works
+  // out for itself which characters this edit actually inserted, and
+  // passes the deletion half through untouched. Short-circuiting the
+  // "shorter result, so nothing was added" case here instead was wrong
+  // for the same reason it was wrong in there — replacing a selection can
+  // add hundreds of lines while the text gets shorter, and a newline
+  // isn't a character.
   //
   // Keeping anything back means the textarea's own value is no longer
   // what the DOM has, and putting it back — React does that for us —
@@ -338,7 +356,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const el = event.target;
     const typed = el.value;
-    const accepted = typed.length <= text.length ? typed : capInsertion(text, typed);
+    const accepted = capInsertion(text, typed);
     setText(accepted);
     if (accepted === typed) return;
 
