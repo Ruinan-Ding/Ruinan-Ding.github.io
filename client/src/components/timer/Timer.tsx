@@ -2,8 +2,10 @@ import { Bell, ChevronsLeft, ChevronsRight, ExternalLink, Moon, Repeat, Sun, Tra
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
+import { usePersisted } from '@/hooks/usePersisted';
 import { readBoolean, readJSON, writeJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
+import ClockCluster from './ClockCluster';
 import ConfirmDialog from './ConfirmDialog';
 import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
@@ -11,17 +13,12 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, ZONES_BY_REGION } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
-
-// The zone picker's own text is transparent (see that select), so its
-// options have to say what color they are themselves — the popup is the
-// browser's, drawn from these.
-const OPTION_STYLE = { color: 'var(--app-ink)', backgroundColor: 'var(--app-surface)' };
 
 // The alarm-repeat button's Bell is bigger than a normal header icon,
 // filling most of the button, since it's the button's whole identity
@@ -72,11 +69,15 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
 
 const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: (prev?.token ?? 0) + 1 });
 
-// Guards the preset migration below (older saves packed hours into
-// minutes) against corrupted storage: a non-numeric minutes/seconds/hours
-// field would otherwise slip through as NaN instead of falling back to
-// DEFAULT_PRESETS, since arithmetic on a bad number never throws.
-const isValidPresetEntry = (p: unknown): p is TimerEntry => {
+// Guards both saved lists against corrupted storage: a non-numeric
+// minutes/seconds/hours field would otherwise slip through as NaN, since
+// arithmetic on a bad number never throws. For presets that means the
+// migration below (older saves packed hours into minutes) falls back to
+// DEFAULT_PRESETS; for history it means the bad row is dropped rather
+// than rendering as "abc:NaN" and, if clicked, setting the countdown to
+// NaN — which it never recovers from, because every comparison the tick
+// makes against NaN is false.
+const isValidEntry = (p: unknown): p is TimerEntry => {
   if (typeof p !== 'object' || p === null) return false;
   const entry = p as Partial<TimerEntry>;
   return (
@@ -97,7 +98,10 @@ export default function Timer() {
     const savedHistory = readJSON<unknown>(STORAGE_KEYS.history, null);
     return {
       saved: (savedState && typeof savedState === 'object' ? savedState : {}) as Record<string, unknown>,
-      history: Array.isArray(savedHistory) ? (savedHistory as TimerEntry[]) : [],
+      // filtered, not cast: history gets the same guard the presets get,
+      // one bad row at a time rather than all-or-nothing, since a history
+      // list has no defaults worth falling back to
+      history: Array.isArray(savedHistory) ? savedHistory.filter(isValidEntry) : [],
     };
   }, []);
   const savedNumber = (key: string, fallback: number) =>
@@ -155,7 +159,7 @@ export default function Timer() {
   const [history, setHistory] = useState<TimerEntry[]>(initial.history);
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
     const parsed = readJSON<unknown>(STORAGE_KEYS.presets, null);
-    if (!Array.isArray(parsed) || !parsed.every(isValidPresetEntry)) return DEFAULT_PRESETS;
+    if (!Array.isArray(parsed) || !parsed.every(isValidEntry)) return DEFAULT_PRESETS;
     // older saves packed hours into minutes
     return parsed.map((p) => ({
       ...p,
@@ -170,9 +174,9 @@ export default function Timer() {
   // manual hide toggles for the sidebar/time-fields, plus the website
   // link's — all persisted, so a "tucked in" panel stays tucked in
   // across a reload. They only come back via the site RESET (which wipes
-  // every key in STORAGE_KEYS, these included). Unlike these, the word
-  // counter's own fullscreen view is deliberately NOT persisted (see its
-  // own comment) — a reload always comes back windowed.
+  // every key in STORAGE_KEYS, these included). The word counter's own
+  // collapse and fullscreen states are persisted the same way, in that
+  // component (see its own comments).
   const [isSidebarHidden, setIsSidebarHidden] = useState(() => readBoolean(STORAGE_KEYS.sidebarHidden, false));
   const [isTimeFieldsHidden, setIsTimeFieldsHidden] = useState(() => readBoolean(STORAGE_KEYS.timeFieldsHidden, false));
   // true only while isTimeFieldsHidden was forced by the auto-tuck check
@@ -204,40 +208,13 @@ export default function Timer() {
     return typeof saved === 'string' && TIME_ZONES.includes(saved) ? saved : DEFAULT_TIME_ZONE;
   });
   const [is24Hour, setIs24Hour] = useState(() => readBoolean(STORAGE_KEYS.clock24Hour, false));
-  // One tick a second is all a clock showing seconds needs — the
-  // countdown's own 10ms loop is separate and unaffected either way.
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  // Separate formatters rather than one so the time leads and the date
-  // follows; a single dateStyle/timeStyle formatter puts them the other
-  // way round. Rebuilt only when the zone or the 12/24 switch changes,
-  // not on every one of those ticks.
+  // The clock's own ticking instant, its formatters and the abbreviation
+  // it shows all live in ClockCluster now — nothing outside that box ever
+  // read them, and holding the once-a-second tick here re-rendered this
+  // whole component (and the word counter with it) to move a colon. What
+  // stays here is only what has to: the zone and the 12/24 setting are
+  // persisted, and both copies of the clock have to agree on them.
   //
-  // The time carries no zone name — the box that picks the zone is right
-  // underneath it saying "EDT", and saying it twice on one line is width
-  // this clock doesn't have to spend. The third formatter here is what
-  // that box reads: same job, just not printed alongside the time.
-  const clock = useMemo(() => ({
-    time: new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour12: !is24Hour,
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-    }),
-    date: new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
-    zone: new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' }),
-  }), [timeZone, is24Hour]);
-  // What the browser calls the selected zone right now — "EDT", "GMT+9" —
-  // which follows the daylight-saving changeover on its own because it's
-  // formatted live rather than looked up.
-  const zoneAbbr = useMemo(
-    () => clock.zone.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? '',
-    [clock, nowMs],
-  );
   // Clicking the time is what switches 12/24 — there's no separate switch
   // any more, which is a whole control's worth of width and a line of
   // height back. What makes it discoverable rather than a hidden gesture:
@@ -439,6 +416,14 @@ export default function Timer() {
     const check = () => {
       if (!isRowLayoutRef.current) {
         tuckedNeedsRef.current = null;
+        // A manual hide is left exactly as it is down here. Below sm the
+        // panel isn't rendered at all, so "hidden" is the layout rather
+        // than a decision — but re-labelling a manual hide as an
+        // auto-tuck made the persist effect below (see its own comment,
+        // which only saves a hide that ISN'T an auto-tuck) write the
+        // preference away, so one visit on a narrow window silently
+        // un-hid the panel for every later visit on a wide one.
+        if (isTimeFieldsHiddenRef.current && !isTimeFieldsAutoTuckedRef.current) return;
         if (!isTimeFieldsHiddenRef.current || !isTimeFieldsAutoTuckedRef.current) {
           setIsTimeFieldsHidden(true);
           setIsTimeFieldsAutoTucked(true);
@@ -607,30 +592,40 @@ export default function Timer() {
     return 'unstarted';
   }, [isRunning, isPaused]);
 
-  // Persist state; each key writes independently so one failing write
-  // (e.g. quota exceeded on the large history value) can't drop the rest
+  // Persist state, one key per hook so each writes only when its own value
+  // changes. This used to be a single effect writing all fourteen keys,
+  // which meant they shared one dependency list — and `seconds` is in it,
+  // so a running timer re-serialized the presets, the history, the theme
+  // and the rest once a second through an API that blocks the main
+  // thread. Same keys, same values, same moment they first appear; just
+  // not thirteen redundant writes a tick.
+  //
+  // timerState keeps a real effect of its own: it bundles six values into
+  // one object, and an object literal is a new identity every render, so
+  // through usePersisted it would write on every 10ms tick instead of
+  // fewer times than before.
   useEffect(() => {
     writeJSON(STORAGE_KEYS.timerState, { seconds, isPaused, isRunning, hours, minutes, timerSeconds });
-    writeJSON(STORAGE_KEYS.history, history);
-    writeJSON(STORAGE_KEYS.silentMode, isSilentMode);
-    writeJSON(STORAGE_KEYS.presets, presets);
-    writeJSON(STORAGE_KEYS.volume, volume);
-    writeJSON(STORAGE_KEYS.hasMutedBefore, hasMutedBefore);
-    writeJSON(STORAGE_KEYS.alarmLoop, isAlarmLooping);
-    writeJSON(STORAGE_KEYS.skipConfirmations, skipConfirmations);
-    writeJSON(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
-    writeJSON(STORAGE_KEYS.sidebarHidden, isSidebarHidden);
-    writeJSON(STORAGE_KEYS.lightTheme, isLightTheme);
-    writeJSON(STORAGE_KEYS.clockTimeZone, timeZone);
-    writeJSON(STORAGE_KEYS.clock24Hour, is24Hour);
-    // only a MANUAL hide persists. An auto-tuck is a reaction to the
-    // window it happened in, and the check that reverses it needs the
-    // panel's own tuckedNeedsRef (in-memory, gone on reload) to know
-    // there's room again — so persisting one meant a single moment of
-    // cramped layout hid the panel for good, reopenable only by finding
-    // its arrow, on every later visit at any window size.
-    writeJSON(STORAGE_KEYS.timeFieldsHidden, isTimeFieldsHidden && !isTimeFieldsAutoTucked);
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, history, isSilentMode, presets, volume, hasMutedBefore, isAlarmLooping, skipConfirmations, isWebsiteLinkHidden, isSidebarHidden, isLightTheme, isTimeFieldsHidden, isTimeFieldsAutoTucked, timeZone, is24Hour]);
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds]);
+  usePersisted(STORAGE_KEYS.history, history);
+  usePersisted(STORAGE_KEYS.silentMode, isSilentMode);
+  usePersisted(STORAGE_KEYS.presets, presets);
+  usePersisted(STORAGE_KEYS.volume, volume);
+  usePersisted(STORAGE_KEYS.hasMutedBefore, hasMutedBefore);
+  usePersisted(STORAGE_KEYS.alarmLoop, isAlarmLooping);
+  usePersisted(STORAGE_KEYS.skipConfirmations, skipConfirmations);
+  usePersisted(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
+  usePersisted(STORAGE_KEYS.sidebarHidden, isSidebarHidden);
+  usePersisted(STORAGE_KEYS.lightTheme, isLightTheme);
+  usePersisted(STORAGE_KEYS.clockTimeZone, timeZone);
+  usePersisted(STORAGE_KEYS.clock24Hour, is24Hour);
+  // only a MANUAL hide persists. An auto-tuck is a reaction to the
+  // window it happened in, and the check that reverses it needs the
+  // panel's own tuckedNeedsRef (in-memory, gone on reload) to know
+  // there's room again — so persisting one meant a single moment of
+  // cramped layout hid the panel for good, reopenable only by finding
+  // its arrow, on every later visit at any window size.
+  usePersisted(STORAGE_KEYS.timeFieldsHidden, isTimeFieldsHidden && !isTimeFieldsAutoTucked);
 
   // The regular persist effect above only fires on whole-second changes
   // (re-running it every 10ms tick to catch milliseconds would hammer
@@ -1017,8 +1012,15 @@ export default function Timer() {
   }, []);
 
   // the one switch sequence, shared by the direct path and the dialog
-  // confirm; start=false only loads the preset without running it
-  const applySwitch = (parts: TimeParts, start: boolean) => {
+  // confirm; start=false only loads the preset without running it.
+  //
+  // Memoized so handleSelectEntry below can simply depend on it. It used
+  // to be a plain function left out of that callback's dependency list,
+  // which worked only because the list happened to name isSilentMode and
+  // beep — this function's own transitive dependencies, through playTone
+  // — for no stated reason. Anything added here that read fresh state
+  // would have gone stale silently.
+  const applySwitch = useCallback((parts: TimeParts, start: boolean) => {
     clearAlarmInterval();
     loadEntry(parts);
     setIsPaused(false);
@@ -1026,9 +1028,9 @@ export default function Timer() {
     if (start) {
       recordHistory(parts);
       restartRunFade();
-      playTone('start');
+      if (!isSilentMode) beep(...TONES.start);
     }
-  };
+  }, [loadEntry, isSilentMode, beep]);
 
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
@@ -1078,7 +1080,7 @@ export default function Timer() {
     // when you picked it; the ones with something to lose ask first, and
     // that's the only difference between them.
     askThenRun({ type: 'switch', data: parts, mode: 'startFromIdle' }, () => applySwitch(parts, true));
-  }, [isRunning, isPaused, configuredTotalSeconds, loadEntry, isSilentMode, beep, askThenRun]);
+  }, [isRunning, isPaused, configuredTotalSeconds, applySwitch, askThenRun]);
 
   const handleConfirmSwitch = (parts: TimeParts, start: boolean) => {
     applySwitch(parts, start);
@@ -1729,109 +1731,19 @@ export default function Timer() {
       </p>
     </div>
   );
-  // The zone box: what the clock is on, and the picker that changes it.
-  //
-  // Takes its size from the caller (same as renderControlButtons and the
-  // drain bar) because the word counter's fullscreen row needs a smaller
-  // copy than the main view does — everything inside is em-based, so one
-  // number scales the lot.
-  const renderZoneBox = (fontSize: string) => (
-    <span className="inline-flex items-center flex-shrink-0" style={{ fontSize }}>
-      {/* Native select, so the zone list is the browser's own (TIME_ZONES)
-          and the picker is whatever the platform already does well —
-          400-odd options, type-to-find included, for free — but with its
-          own text drawn transparent, and the abbreviation and caret beside
-          it drawn here instead.
-          That split is what lets the two ends disagree: the closed box
-          shows only what the clock is on ("EDT", "GMT+10:30") and is
-          exactly as wide as that, while the list keeps every zone's city
-          AND its abbreviation in brackets. A plain select can't do both —
-          it draws the selected option's own text, so short box and
-          informative list are the same string. Ellipsising that string
-          was the previous answer, and it's what cut "GMT+10:30" short.
-          The value is the full zone id throughout, so nothing about what's
-          stored or validated changes. */}
-      <span
-        className="relative inline-flex items-center gap-1 border-2 font-bold flex-shrink-0 self-center focus-within:ring-1"
-        style={{ borderColor: 'currentColor', backgroundColor: 'var(--app-surface)', fontFamily: "'IBM Plex Mono', monospace", padding: '0 0.25em' }}
-      >
-        <span className="whitespace-nowrap">{zoneAbbr || timeZone}</span>
-        <span aria-hidden style={{ lineHeight: 1 }}>▾</span>
-        <select
-          value={timeZone}
-          // same check the saved value gets, for the same reason: a select
-          // reports "" when its value matches no option, and "" reaching
-          // the formatter is a RangeError on every render from then on —
-          // the whole page, not just the clock
-          onChange={(e) => { if (TIME_ZONES.includes(e.target.value)) setTimeZone(e.target.value); }}
-          className="absolute inset-0 w-full h-full cursor-pointer appearance-none border-0"
-          // transparent rather than hidden or opacity-0: the popup this
-          // opens is drawn by the browser from these same styles, and it
-          // has to stay readable. Colors go back on the options themselves.
-          style={{ color: 'transparent', backgroundColor: 'transparent', fontFamily: "'IBM Plex Mono', monospace", fontSize: 'inherit' }}
-          title={`Time zone the clock reads in — ${timeZone.replace(/_/g, ' ')}`}
-          aria-label="Clock time zone"
-        >
-          {ZONES_BY_REGION.map(([region, zones]) => (
-            <optgroup key={region} label={region} style={OPTION_STYLE}>
-              {zones.map(({ zone, label }) => (
-                <option key={zone} value={zone} style={OPTION_STYLE}>
-                  {zoneAbbrs[zone] ? `${label} (${zoneAbbrs[zone]})` : label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </span>
-    </span>
-  );
-  // The clock: time and zone on one line, date under them. Two lines
-  // rather than three because the 12/24 switch is gone — the time itself
-  // is the switch now (see handleHourFormatClick), which is a control
-  // this cluster no longer has to find room for.
-  //
-  // The time keeps a minimum width of its own so that dropping from a
-  // ten-character "3:56:55 PM" to an eight-character "15:56:55" doesn't
-  // drag the zone box beside it back and forth.
+  // The wall clock, in two sizes: full above the digits, compact in the
+  // word counter's fullscreen row. Everything inside it is em-based, so
+  // the font size is the only thing that differs. See ClockCluster.tsx.
   const renderClockCluster = (fontSize: string) => (
-    <div className="flex flex-col items-center gap-0.5 flex-shrink-0" style={{ fontSize }}>
-      <span className="flex items-center gap-1 leading-tight">
-        {/* Boxed like the zone beside it, because it does the same kind of
-            thing: the two read as a pair of controls rather than a label
-            that happens to be clickable. */}
-        <button
-          onClick={handleHourFormatClick}
-          aria-pressed={is24Hour}
-          className="relative border-2 whitespace-nowrap text-center transition-opacity duration-200 hover:opacity-80"
-          style={{ borderColor: 'currentColor', backgroundColor: 'var(--app-surface)', letterSpacing: '0.05em', padding: '0 0.25em', minWidth: '6.9em' }}
-          title={is24Hour ? 'Clock is on 24-hour time — click for 12-hour with AM/PM' : 'Clock is on 12-hour time — click for 24-hour'}
-          aria-label={is24Hour ? 'Show the clock as 12-hour time' : 'Show the clock as 24-hour time'}
-        >
-          {clock.time.format(nowMs)}
-          {/* over the time rather than instead of it, on the same surface
-              colour, so fading this away is the time coming back — see
-              hourFormatFizz in index.css. Yellow while it does: the app's
-              "something just changed" colour everywhere else (the pause
-              flash, a counter nearing its limit), and it reads as the
-              answer to the click rather than as part of the clock. */}
-          {isHourFormatFlashing && (
-            <span
-              aria-hidden
-              className="absolute inset-0 flex items-center justify-center animate-hourFormatFizz"
-              style={{ backgroundColor: 'var(--app-surface)', color: '#eab308' }}
-            >
-              {is24Hour ? '24H' : '12H'}
-            </span>
-          )}
-        </button>
-        {/* half a rem is the floor for anything in this cluster: below it
-            the caret and three capitals stop being shapes at all */}
-        {renderZoneBox(`max(0.5rem, calc(${fontSize} * 0.7))`)}
-      </span>
-      <span className="opacity-80 whitespace-nowrap leading-tight" style={{ letterSpacing: '0.05em' }}>
-        {clock.date.format(nowMs)}
-      </span>
-    </div>
+    <ClockCluster
+      fontSize={fontSize}
+      timeZone={timeZone}
+      is24Hour={is24Hour}
+      zoneAbbrs={zoneAbbrs}
+      isHourFormatFlashing={isHourFormatFlashing}
+      onHourFormatClick={handleHourFormatClick}
+      onTimeZoneChange={setTimeZone}
+    />
   );
   // Website link, shared between its normal spot (centered above the
   // digits, hidden during word counter fullscreen) and that fullscreen
@@ -1910,9 +1822,9 @@ export default function Timer() {
     // manual hide) and there's still no room for it, so this arrow would
     // just bounce it straight back to hidden on the very next check() —
     // showing it here would be a dead button. It reappears on its own
-    // once the panel does (see tuckedNeedsRef above). Only reachable at
-    // sm+ now: below sm nothing auto-tucks any more, so down there this
-    // arrow is always the real, clickable one.
+    // once the panel does (see tuckedNeedsRef above). Only ever rendered
+    // at sm+ anyway — the whole panel is (see the row below) — so the
+    // below-sm auto-tuck never reaches this.
     !isTimeFieldsAutoTucked && (
       <HeaderToggleButton
         onClick={() => {
@@ -2088,9 +2000,18 @@ export default function Timer() {
         // a row (isRowLayout) and the whole page stacks; below that a
         // left column genuinely doesn't belong, and above it there's
         // room, so that's the honest line.
+        // One scroll region for both panels, not one each. They used to
+        // scroll separately, which meant they were also sized separately:
+        // history took the leftover height and presets got whatever was
+        // left, so a handful of presets ended up in a two-row box with
+        // its own bar while the list below it had room to spare. Scrolling
+        // out here instead lets each list simply be as tall as it is, and
+        // there's one bar down the side of the pair — so the scrollbar
+        // gutter SIDEBAR_WIDTH budgets for is held open once, here, rather
+        // than once inside each list.
         <div
-          className="hidden sm:flex bg-black border-r-4 border-white flex-col overflow-hidden flex-shrink-0"
-          style={{ width: SIDEBAR_WIDTH, padding: SIDEBAR_PADDING, gap: SIDEBAR_PADDING }}
+          className="hidden sm:flex bg-black border-r-4 border-white flex-col overflow-y-auto overflow-x-hidden flex-shrink-0"
+          style={{ width: SIDEBAR_WIDTH, padding: SIDEBAR_PADDING, gap: SIDEBAR_PADDING, scrollbarGutter: 'stable' }}
         >
           <PresetsPanel
             presets={presets}
@@ -2246,10 +2167,11 @@ export default function Timer() {
             this row is flex-1 in both axes with an explicit w-full, so
             its box comes from its parent, never from what's in it.
             Size containment needs exactly that guarantee, so it's gated
-            to lg — below lg the panel isn't in this row at all and gets
-            the across form unconditionally instead. The digits column's
-            own nested container (further down) still resolves its 100cqh
-            against itself, being the nearer of the two. */}
+            to isRowLayout (sm) — which is also the only range the panel
+            is rendered in at all, so below it there's nothing to query
+            for. The digits column's own nested container (further down)
+            still resolves its 100cqh against itself, being the nearer of
+            the two. */}
         <div
           ref={timerRowRef}
           className="flex flex-col sm:flex-row gap-4 sm:gap-2 w-full min-h-0 flex-1 items-center justify-start sm:justify-between overflow-hidden"
@@ -2454,20 +2376,36 @@ export default function Timer() {
           {isRowLayout && timeFieldsPanel}
         </div>
 
+        {/* The six pre-rendered nodes below are the fullscreen row's, and
+            WordCounter only renders them inside its own fullscreen
+            branch — so while it's windowed they are built, handed over,
+            and thrown away untouched. That cost more than the wasted
+            work: they're fresh objects every render, which is exactly
+            what memo() compares, so memo() could never once bail out and
+            the whole word counter — one row per line of text — was
+            reconciled on every countdown tick, 100 times a second, to
+            show nothing new.
+            Passing null while windowed leaves this component's props all
+            primitives and stable callbacks, so memo() does the job it
+            was added for. Nothing renders differently either way: these
+            reach the DOM only when isWordCounterFullscreen is true, and
+            that is the same flag. */}
         <WordCounter
           onFocusChange={setIsWordCounterFocused}
           onFullscreenChange={setIsWordCounterFullscreen}
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
-          speakerButton={speakerButton}
-          ringerButton={ringerButton}
-          clockCluster={renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE)}
+          speakerButton={isWordCounterFullscreen ? speakerButton : null}
+          ringerButton={isWordCounterFullscreen ? ringerButton : null}
+          clockCluster={isWordCounterFullscreen ? renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE) : null}
           headerCornerWidth={headerCornerWidth}
-          timerDigits={wordCounterTimerDigits}
-          timerBar={renderDrainBar('clamp(3rem, 8vw, 8rem)', true)}
+          timerDigits={isWordCounterFullscreen ? wordCounterTimerDigits : null}
+          timerBar={isWordCounterFullscreen ? renderDrainBar('clamp(3rem, 8vw, 8rem)', true) : null}
           timerControls={
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {renderControlButtons(compactControlButtonStyle, 'border-2')}
-            </div>
+            isWordCounterFullscreen ? (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {renderControlButtons(compactControlButtonStyle, 'border-2')}
+              </div>
+            ) : null
           }
         />
       </div>

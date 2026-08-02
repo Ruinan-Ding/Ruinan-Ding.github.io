@@ -29,7 +29,7 @@ export const CLOCK_FONT_SIZE = shrinkClamp(0.6, 1.2, 1.3, 1.05);
 // between two reserved corners, and the clock has to fit in what's left.
 // Everything in both pieces is em-based (the zone box's width cap
 // included), so this one number scales all of it.
-export const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.5, 0.85, 0.95, 0.72);
+const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.5, 0.85, 0.95, 0.72);
 // ...and in that row it's capped again by the room actually left over.
 // The clock's widest line is its date, 17 monospace characters at 0.6em
 // each, so it needs about 10.2 times its own font size; 9cqi of the box
@@ -77,7 +77,7 @@ export const LIST_ROW_FONT_SIZE = shrinkClamp(0.9, 2.2, 2.8, 1.75);
 // padding. The +10px is its border-4 (8px) plus 2px of rounding slack —
 // em widths land on fractions, and 8 characters in a box sized to
 // exactly 8 characters is a perfect fit and therefore no fit at all.
-export const LIST_ROW_LABEL_EM = 5.4;
+const LIST_ROW_LABEL_EM = 5.4;
 export const LIST_ROW_BOX_WIDTH = `calc(${LIST_ROW_LABEL_EM}em + 10px)`;
 export const LIST_ROW_BUTTON_STYLE = {
   fontFamily: "'IBM Plex Mono', monospace",
@@ -99,12 +99,14 @@ export const LIST_ROW_BUTTON_STYLE = {
 // of its (smaller) font size. The 18px is every pixel in that row an em
 // width can't carry: LIST_ROW_BOX_WIDTH's own 10px (border-4 plus its
 // rounding slack), the − button's border-2 (4px), and the sidebar's own
-// border-r-4 (4px), and 16px for the scrollbar gutter both lists hold
-// open (scrollbar-gutter: stable — see either panel). Miss any of it and
-// the rows are clipped by the sidebar's overflow-hidden, or the bar ends
-// up sitting on top of the labels rather than beside them.
+// border-r-4 (4px), and 16px for the scrollbar gutter the sidebar holds
+// open (scrollbar-gutter: stable — see Timer). That gutter is reserved
+// once, by the sidebar itself, because presets and history share its one
+// scrollbar rather than each carrying their own. Miss any of it and the
+// rows are clipped, or the bar ends up sitting on top of the labels
+// rather than beside them.
 export const SIDEBAR_PADDING = shrinkClamp(0.5, 1, 1.1, 1);
-export const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
+const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
 export const LIST_ROW_REMOVE_FONT_SIZE = shrinkClamp(0.7, 1.4, 1.6, 1.1);
 export const SIDEBAR_WIDTH = `calc(${LIST_ROW_LABEL_EM} * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 34px)`;
 
@@ -122,7 +124,10 @@ export const LIST_ROW_REMOVE_BUTTON_STYLE = {
   flexShrink: 0,
 };
 
-// localStorage keys — don't rename, older saves use them
+// localStorage keys — don't rename, older saves use them. One of them,
+// lightTheme, is also spelled out literally in client/index.html, which
+// reads it before React mounts so a light-theme reload doesn't flash
+// dark first; renaming that one means editing both.
 export const STORAGE_KEYS = {
   timerState: 'timerAppState',
   history: 'timerAppHistory',

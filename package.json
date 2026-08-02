@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "check": "tsc --noEmit",
+    "test": "node client/src/components/timer/wordCount.check.mjs",
     "format": "prettier --write ."
   },
   "dependencies": {

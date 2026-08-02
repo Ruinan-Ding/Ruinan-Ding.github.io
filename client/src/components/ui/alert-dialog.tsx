@@ -117,7 +117,10 @@ function AlertDialogCancel({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Cancel>) {
   return (
     <AlertDialogPrimitive.Cancel
-      className={cn(DIALOG_BUTTON_CLASS, 'border bg-transparent shadow-xs hover:bg-accent dark:bg-transparent dark:border-input dark:hover:bg-input/50', className)}
+      // no dark: variants: this app has one theme system (see index.css),
+      // and these were overriding the border and hover colors the dialog
+      // passes in through className rather than defaulting under them
+      className={cn(DIALOG_BUTTON_CLASS, 'border bg-transparent shadow-xs hover:bg-accent', className)}
       {...props}
     />
   );

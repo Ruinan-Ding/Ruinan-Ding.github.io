@@ -65,12 +65,12 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded }: {
 
 function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded }: HistoryPanelProps) {
   return (
-    // flex-auto, not flex-1: flex-1's zero basis means this panel counts
-    // for nothing when the sidebar has to take height back, so every
-    // pixel came out of the presets list above (which can now scroll, and
-    // would have been the only one squeezed). Sized from content instead,
-    // both lists give up room in proportion to what they're using.
-    <div className="flex flex-col min-h-0 flex-auto">
+    // flex-shrink-0, like the presets panel above: neither list gives up
+    // height to the other any more. This one used to be flex-auto and so
+    // claimed the leftover space, which is what squeezed the presets into
+    // a box of their own with a second scrollbar. The sidebar is the one
+    // scroll region now (see Timer.tsx).
+    <div className="flex flex-col flex-shrink-0">
       {/* margin/padding below on shrinkClamp rather than fixed
           mb-4/pb-2/px-2/py-1 — same rigidity fix as PresetsPanel's own
           spacing. */}
@@ -89,20 +89,13 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded }
           </button>
         )}
       </div>
-      {/* overflow-x-hidden, not just overflow-y-auto: setting one axis to
-          auto makes the other compute to auto too, so a row a fraction of
-          a pixel wider than this column — a rounded em width, the y
-          scrollbar's own gutter — gave the list a horizontal scrollbar and
-          let it slide sideways. The rows are a fixed width the sidebar is
-          already sized to hold, so there's never anything out there worth
-          scrolling to.
-          scrollbar-gutter: stable holds that gutter open whether the list
-          is scrolling or not, so the bar appears beside the rows rather
-          than on top of them, and adding one entry never shifts the
-          column. SIDEBAR_WIDTH budgets for it. */}
+      {/* No scrolling or overflow rules of its own any more — the sidebar
+          owns both (see Timer.tsx), including the overflow-x-hidden that
+          keeps a row a fraction of a pixel too wide from giving the column
+          a horizontal bar to slide along. */}
       <div
-        className="flex flex-col overflow-y-auto overflow-x-hidden flex-1"
-        style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), scrollbarGutter: 'stable' }}
+        className="flex flex-col"
+        style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
       >
         {history.length === 0 ? (
           <p className="text-white opacity-50" style={{ fontSize: shrinkClamp(0.75, 1, 1.05, 0.875) }}>No history yet</p>

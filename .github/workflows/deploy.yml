@@ -34,6 +34,12 @@ jobs:
       - name: Type-check
         run: pnpm run check
 
+      # the counting and capping rules are the one piece of this app that
+      # is logic rather than layout, and this is the only thing that
+      # checks them — see wordCount.check.mjs
+      - name: Run checks
+        run: pnpm test
+
       - name: Build React app
         run: pnpm run build
 

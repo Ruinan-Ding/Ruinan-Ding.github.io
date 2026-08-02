@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 
   <head>
     <meta charset="UTF-8" />
@@ -16,6 +16,22 @@
         font-family: 'IBM Plex Mono', monospace;
       }
     </style>
+    <!-- Theme before first paint. Timer.tsx sets this same attribute in a
+         layout effect, but that can't run until React has mounted, so a
+         light-theme user got a full dark page first and then a flash to
+         light. Only 'light' needs setting: with no attribute at all the
+         :root defaults in index.css are already the dark pair.
+         'timerLightTheme' is STORAGE_KEYS.lightTheme — the one place in
+         the app that key is spelled out twice, noted in constants.ts. -->
+    <script>
+      try {
+        if (localStorage.getItem('timerLightTheme') === 'true') {
+          document.documentElement.dataset.theme = 'light';
+        }
+      } catch (e) {
+        /* storage blocked: the dark default stands, same as any first visit */
+      }
+    </script>
   </head>
 
   <body>
