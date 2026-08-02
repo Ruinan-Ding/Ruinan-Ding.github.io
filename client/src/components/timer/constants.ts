@@ -206,8 +206,13 @@ export const ALARM_GROUP_GAP_TICKS = 10;
 export const MAX_HOURS = 99;
 export const MAX_MINUTES = 59;
 export const MAX_SECONDS = 59;
-export const MAX_PRESETS = 20;
-export const MAX_HISTORY = 20;
+// Both lists share the sidebar's one scrollbar, so a long list costs
+// height it can scroll through rather than squeezing the other one — see
+// the sidebar in Timer. History is the one that fills on its own (every
+// started timer appends a row), which is why its ceiling is the higher
+// of the two.
+export const MAX_PRESETS = 100;
+export const MAX_HISTORY = 1000;
 
 // [frequency Hz, duration ms]
 export const TONES = {

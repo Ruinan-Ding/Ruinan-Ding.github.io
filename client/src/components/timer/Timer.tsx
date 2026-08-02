@@ -1172,6 +1172,21 @@ export default function Timer() {
     setHistory((prev) => prev.filter((entry) => entry.id !== id));
   }, []);
 
+  // Memoized rather than written inline at the two panels below, because
+  // an inline arrow is a new identity every render and these are the last
+  // unstable props either panel takes — one of them was enough to keep
+  // memo() from ever bailing out, so every countdown tick reconciled
+  // every row in both lists. That was survivable at twenty rows each and
+  // isn't at a hundred presets and a thousand history entries.
+  const handleRequestClearPresets = useCallback(
+    () => askThenRun({ type: 'clearPresets' }, handleClearPresets),
+    [askThenRun, handleClearPresets]
+  );
+  const handleRequestClearHistory = useCallback(
+    () => askThenRun({ type: 'clearHistory' }, handleClearHistory),
+    [askThenRun, handleClearHistory]
+  );
+
   const setterFor = useCallback(
     (unit: TimeUnit) => (unit === 'hours' ? setHours : unit === 'minutes' ? setMinutes : setTimerSeconds),
     []
@@ -2042,7 +2057,7 @@ export default function Timer() {
             onRemove={handleRemovePreset}
             removingId={removingPresetId}
             onRequestCorrect={handleRequestPresetCorrection}
-            onClear={() => askThenRun({ type: 'clearPresets' }, handleClearPresets)}
+            onClear={handleRequestClearPresets}
             correction={presetCorrection}
             onCorrectionApplied={handlePresetCorrectionApplied}
             onSelect={handleSelectEntry}
@@ -2054,7 +2069,7 @@ export default function Timer() {
             history={history}
             onSelect={handleSelectEntry}
             onRemove={handleRemoveHistoryEntry}
-            onClear={() => askThenRun({ type: 'clearHistory' }, handleClearHistory)}
+            onClear={handleRequestClearHistory}
             inserted={insertedHistory}
             loaded={loadedEntry}
           />
