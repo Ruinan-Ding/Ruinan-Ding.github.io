@@ -16,13 +16,13 @@
         font-family: 'IBM Plex Mono', monospace;
       }
     </style>
-    <!-- Theme before first paint. Timer.tsx sets this same attribute in a
-         layout effect, but that can't run until React has mounted, so a
-         light-theme user got a full dark page first and then a flash to
-         light. Only 'light' needs setting: with no attribute at all the
-         :root defaults in index.css are already the dark pair.
-         'timerLightTheme' is STORAGE_KEYS.lightTheme — the one place in
-         the app that key is spelled out twice, noted in constants.ts. -->
+    <!-- Theme before first paint. Timer.tsx sets the same attribute in a
+         layout effect, but that can't run until React mounts, so a
+         light-theme user got a dark page first and then a flash. Only
+         'light' needs setting: with no attribute the :root defaults in
+         index.css are already the dark pair.
+         'timerLightTheme' is STORAGE_KEYS.lightTheme, the one key spelled
+         out in two places; constants.ts notes it. -->
     <script>
       try {
         if (localStorage.getItem('timerLightTheme') === 'true') {
@@ -32,8 +32,8 @@
         /* storage blocked: the dark default stands, same as any first visit */
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-h6OY0r4p.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BmMxnHeX.css">
+    <script type="module" crossorigin src="/assets/index-Cg44x_3C.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DblGqfx9.css">
   </head>
 
   <body>
