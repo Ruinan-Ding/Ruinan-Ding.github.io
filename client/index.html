@@ -3,10 +3,14 @@
 
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- No maximum-scale: capping it blocks pinch-zoom on Android, which
+         is an accessibility failure and buys nothing here. Every size in
+         the app is a clamp that reflows on its own. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Write Timer</title>
+    <meta
+      name="description"
+      content="A minimal countdown timer that keeps counting past zero, with presets, run history, and a word counter for timed writing sessions." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />

@@ -55,7 +55,9 @@ const COUNTER_PADDING = shrinkClamp(0.5, 1, 1.1, 0.75);
 const COUNTER_GAP = '0.5rem';
 const COUNTER_LINE_HEIGHT = 1.6;
 const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
-const RULE_COLOR_IDLE = 'rgba(255, 255, 255, 0.35)';
+// Mixed off --app-ink rather than a literal white, or the rules vanish
+// against the light theme's own near-white surface.
+const RULE_COLOR_IDLE = 'color-mix(in oklab, var(--app-ink) 35%, transparent)';
 // A notch below the textarea's size, leaving it room to grow.
 const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
 
@@ -106,7 +108,13 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   useEffect(() => {
     onFullscreenChange(isFullscreen);
   }, [isFullscreen, onFullscreenChange]);
-  usePersisted(STORAGE_KEYS.wordCounterCollapsed, isCollapsed);
+  // Only a manual collapse persists, the same guard the timer's own
+  // auto-tuck gets. An auto-collapse is a reaction to one window size, and
+  // reversing it needs collapsedAtSizeRef, which is in memory and gone on
+  // reload: saved, it would come back looking like a deliberate collapse
+  // and stay shut at every later size, reopenable only by finding the
+  // arrow.
+  usePersisted(STORAGE_KEYS.wordCounterCollapsed, isCollapsed && !isAutoCollapsed);
   usePersisted(STORAGE_KEYS.wordCounterFullscreen, isFullscreen);
 
   // Collapsing has to leave fullscreen too, since there's no such thing as

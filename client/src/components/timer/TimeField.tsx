@@ -108,7 +108,9 @@ function TimeField({ label, placeholder, value, max, stacked, onRequestChange }:
           {digits === '' && (
             <div
               className="absolute inset-0 flex items-center justify-center font-bold pointer-events-none"
-              style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: FIELD_FONT_SIZE, color: 'rgba(255, 255, 255, 0.4)' }}
+              // Mixed off --app-ink, not a literal white: on the light
+              // theme's near-white surface the hint was invisible.
+              style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: FIELD_FONT_SIZE, color: 'color-mix(in oklab, var(--app-ink) 40%, transparent)' }}
             >
               {placeholder}
             </div>
