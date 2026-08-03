@@ -424,6 +424,19 @@
    full-width strip (~526px) does not.
    Unlayered on purpose: it has to beat the Tailwind flex utilities on the
    same element, and unlayered declarations outrank every @layer. */
+/* The alarm tip drops out on a short window, the height twin of the sm:
+   rule that drops it on a narrow one. Its cluster is absolutely
+   positioned, so it doesn't push anything down; on a short window the
+   digits column rises under it and the tip lands across the drain bar.
+   It's the least essential thing in that corner, and the same information
+   is on the two buttons' own tooltips.
+   Unlayered, so it beats the sm:block utility on the same element. */
+@media (max-height: 36rem) {
+  .alarm-tip {
+    display: none;
+  }
+}
+
 @container timer-row (max-height: 17.5rem) {
   .time-fields-box {
     display: grid;

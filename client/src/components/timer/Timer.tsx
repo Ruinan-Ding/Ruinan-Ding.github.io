@@ -1522,7 +1522,7 @@ export default function Timer() {
           itself; a plain width: 100% would size that parent to this
           paragraph instead. */}
       <p
-        className="hidden sm:block opacity-75 font-bold text-white text-left"
+        className="alarm-tip hidden sm:block opacity-75 font-bold text-white text-left"
         style={{ fontSize: shrinkClamp(0.45, 0.95, 1, 0.6), width: 0, minWidth: '100%', lineHeight: 1.25 }}
       >
         Tip: mute the volume or turn off repeat to silence the alarm — OFF + start at 00:00:00 = count-up stopwatch
