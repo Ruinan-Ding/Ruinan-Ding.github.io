@@ -20,24 +20,18 @@ import { isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 
-// The alarm-repeat button's Bell is bigger than a normal header icon,
-// filling most of the button, since it's the button's whole identity
-// rather than one of several equal icons
+// Bigger than a normal header icon, filling most of the button, since the
+// bell is that button's whole identity.
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
 
-// Drops the HOURS/MINUTES/SECONDS panel (and the arrow that stands in
-// for it while hidden — they share this so toggling never shifts either
-// one) just clear of the CONFIRMATIONS/RESET buttons in the same corner.
-// Both start at the content column's own padding edge, so clearing them
-// is exactly one header button tall plus a gap. This used to be a flat
-// mt-20 (5rem): fine at full size, but it doesn't shrink with the
-// buttons it's clearing the way everything else here does, so on a short
-// window those 80 fixed px were a third of the panel's whole footprint —
-// enough to overflow the row and auto-tuck a panel that had already
-// shrunk to its own floors and would otherwise still have fit.
+// Drops the HOURS/MINUTES/SECONDS panel clear of the buttons in the same
+// corner. Both start at the content column's padding edge, so the gap is
+// one header button tall. Derived from that button rather than a fixed
+// margin, which wouldn't shrink with it and cost a third of the panel's
+// footprint on a short window.
 const TIME_FIELDS_TOP_MARGIN = { marginTop: `calc(${HEADER_BUTTON_SIZE.height} + 0.5rem)` };
 
-// Speaker with sound waves that grow in as the volume rises; an X when muted
+// Sound waves grow in as the volume rises; an X when muted.
 function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean; color: string }) {
   const wave = (threshold: number) => Math.max(0, Math.min(1, (volume - threshold) / 0.25));
   return (
@@ -69,13 +63,11 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
 
 const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: (prev?.token ?? 0) + 1 });
 
-// Guards both saved lists against corrupted storage: a non-numeric
-// minutes/seconds/hours field would otherwise slip through as NaN, since
-// arithmetic on a bad number never throws. For presets that means the
-// migration below (older saves packed hours into minutes) falls back to
-// DEFAULT_PRESETS; for history it means the bad row is dropped rather
-// than rendering as "abc:NaN" and, if clicked, setting the countdown to
-// NaN — which it never recovers from, because every comparison the tick
+// Guards both saved lists against corrupt storage. Arithmetic on a bad
+// number never throws, so a non-numeric field would slip through as NaN:
+// presets fall back to DEFAULT_PRESETS, history drops the row. Without
+// this a bad entry renders as "abc:NaN" and, once clicked, sets the
+// countdown to NaN, which it never leaves since every comparison the tick
 // makes against NaN is false.
 const isValidEntry = (p: unknown): p is TimerEntry => {
   if (typeof p !== 'object' || p === null) return false;
@@ -88,19 +80,17 @@ const isValidEntry = (p: unknown): p is TimerEntry => {
 };
 
 export default function Timer() {
-  // Parse persisted state once, before first render, so the persist effect
-  // can't save defaults over it. A timer that was running or paused comes
-  // back paused rather than resuming the countdown blind (the elapsed
-  // wall-clock time while the page was gone is unknown/unwanted) — but it
-  // no longer drops to the unstarted look either.
+  // Parsed once before first render, so the persist effect can't save
+  // defaults over it. A timer that was running comes back paused rather
+  // than resuming blind: the wall-clock time while the page was gone is
+  // unknown, and it shouldn't count.
   const initial = useMemo(() => {
     const savedState = readJSON<unknown>(STORAGE_KEYS.timerState, null);
     const savedHistory = readJSON<unknown>(STORAGE_KEYS.history, null);
     return {
       saved: (savedState && typeof savedState === 'object' ? savedState : {}) as Record<string, unknown>,
-      // filtered, not cast: history gets the same guard the presets get,
-      // one bad row at a time rather than all-or-nothing, since a history
-      // list has no defaults worth falling back to
+      // Filtered, not cast: one bad row at a time rather than
+      // all-or-nothing, since history has no defaults to fall back to.
       history: Array.isArray(savedHistory) ? savedHistory.filter(isValidEntry) : [],
     };
   }, []);
@@ -130,31 +120,25 @@ export default function Timer() {
     const saved = readJSON<unknown>(STORAGE_KEYS.volume, null);
     return typeof saved === 'number' && Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : DEFAULT_VOLUME;
   });
-  // gates the one-time "are you sure?" the first time this browser mutes
+  // Gates the one-time "are you sure?" the first time this browser mutes.
   const [hasMutedBefore, setHasMutedBefore] = useState(() => readBoolean(STORAGE_KEYS.hasMutedBefore, false));
-  // on = alarm repeats until stopped; off = ring a single burst then go
-  // quiet. Off by default — that single-burst-then-silent behavior is
-  // also what makes 00:00:00 usable as a count-up stopwatch (see the tip
-  // on this button below), which an endlessly-repeating alarm would
-  // drown out.
+  // On, the alarm repeats until stopped; off, it rings one burst and goes
+  // quiet. Off by default, which is also what makes 00:00:00 usable as a
+  // count-up stopwatch.
   const [isAlarmLooping, setIsAlarmLooping] = useState(() => readBoolean(STORAGE_KEYS.alarmLoop, false));
-  // skips every confirmation dialog except the site-wide RESET, which is
-  // destructive enough to always ask
+  // Skips every confirmation except the site RESET, which always asks.
   const [skipConfirmations, setSkipConfirmations] = useState(() => readBoolean(STORAGE_KEYS.skipConfirmations, false));
 
-  // the most recently created/loaded preset or history entry, so their
-  // cards can play a one-shot flash (yellow for a fresh insert, green for
-  // loading an existing one) — never restored from storage, so a reload
-  // never replays it
+  // Targets for the list rows' one-shot flashes: yellow for a fresh
+  // insert, green for a load, red for a refused duplicate. Never restored
+  // from storage, so a reload doesn't replay them.
   const [insertedPreset, setInsertedPreset] = useState<FlashTarget>(null);
-  // the preset an add was refused for, because that time is already in
-  // the list — it flashes red rather than a new row appearing
   const [duplicatePreset, setDuplicatePreset] = useState<FlashTarget>(null);
   const [insertedHistory, setInsertedHistory] = useState<FlashTarget>(null);
   const [loadedEntry, setLoadedEntry] = useState<FlashTarget>(null);
-  // bumped (with the direction of the change) per-field whenever that
-  // field's own adjustment actually applies, so each HOURS/MINUTES/SECONDS
-  // digit on the countdown itself can flash green/red independently
+  // Bumped with the direction of the change when a field's adjustment
+  // applies, so each digit on the countdown flashes green or red on its
+  // own.
   const [hoursFlash, setHoursFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [minutesFlash, setMinutesFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [secondsFlash, setSecondsFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
@@ -174,62 +158,41 @@ export default function Timer() {
   const [dialog, setDialog] = useState<DialogState>({ type: null });
   const [isWordCounterFocused, setIsWordCounterFocused] = useState(false);
   const [isWordCounterFullscreen, setIsWordCounterFullscreen] = useState(false);
-  // manual hide toggles for the sidebar/time-fields, plus the website
-  // link's — all persisted, so a "tucked in" panel stays tucked in
-  // across a reload. They only come back via the site RESET (which wipes
-  // every key in STORAGE_KEYS, these included). The word counter's own
-  // collapse and fullscreen states are persisted the same way, in that
-  // component (see its own comments).
+  // Manual hide toggles, all persisted, so a tucked-in panel stays tucked
+  // in across a reload. Only the site RESET brings them back.
   const [isSidebarHidden, setIsSidebarHidden] = useState(() => readBoolean(STORAGE_KEYS.sidebarHidden, false));
   const [isTimeFieldsHidden, setIsTimeFieldsHidden] = useState(() => readBoolean(STORAGE_KEYS.timeFieldsHidden, false));
-  // true only while isTimeFieldsHidden was forced by the auto-tuck check
-  // below, never by the manual toggle — its own "Show" arrow hides
-  // itself while this is true (see the render below), since clicking it
-  // would just bounce straight back to hidden on the next check(). A
-  // manual hide leaves this false, so that arrow keeps working normally.
+  // True only when the auto-tuck below forced it. Its "Show" arrow hides
+  // itself while this is set, since clicking would bounce straight back on
+  // the next check().
   const [isTimeFieldsAutoTucked, setIsTimeFieldsAutoTucked] = useState(false);
   const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => readBoolean(STORAGE_KEYS.websiteLinkHidden, false));
-  // Light theme, persisted like the hide toggles above. The whole switch
-  // is one attribute on <html> — index.css swaps --app-surface and
-  // --app-ink off it, and every color in the app resolves through that
-  // pair, so nothing here needs to know which components exist. Written
-  // in a layout effect rather than during render so the paint that shows
-  // the new state and the attribute that causes it land together.
+  // The whole theme switch is one attribute on <html>: index.css swaps
+  // --app-surface and --app-ink off it and every colour resolves through
+  // that pair. In a layout effect so the attribute and the paint it
+  // causes land together.
   const [isLightTheme, setIsLightTheme] = useState(() => readBoolean(STORAGE_KEYS.lightTheme, false));
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = isLightTheme ? 'light' : 'dark';
   }, [isLightTheme]);
-  // Wall clock above the digits (see its own row in the render): which
-  // zone it reads in, and 12- or 24-hour, both persisted like the display
-  // toggles above. A saved zone is checked against the list the browser
-  // actually knows before it's trusted — Intl throws on an unknown zone,
-  // and it throws on every format call, so a hand-edited value or one
-  // renamed between browser versions would take the whole page down
-  // rather than just showing the wrong time.
+  // A saved zone is checked against the list the browser knows before it's
+  // trusted. Intl throws on an unknown zone, and it throws on every format
+  // call, so a hand-edited value would take the page down rather than just
+  // show the wrong time.
   const [timeZone, setTimeZone] = useState(() => {
     const saved = readJSON<unknown>(STORAGE_KEYS.clockTimeZone, null);
     return typeof saved === 'string' && TIME_ZONES.includes(saved) ? saved : DEFAULT_TIME_ZONE;
   });
   const [is24Hour, setIs24Hour] = useState(() => readBoolean(STORAGE_KEYS.clock24Hour, false));
-  // The clock's own ticking instant, its formatters and the abbreviation
-  // it shows all live in ClockCluster now — nothing outside that box ever
-  // read them, and holding the once-a-second tick here re-rendered this
-  // whole component (and the word counter with it) to move a colon. What
-  // stays here is only what has to: the zone and the 12/24 setting are
-  // persisted, and both copies of the clock have to agree on them.
+  // Held here rather than in ClockCluster because both copies of the clock
+  // have to agree, and it persists. The tick itself lives down there.
   //
-  // Clicking the time is what switches 12/24 — there's no separate switch
-  // any more, which is a whole control's worth of width and a line of
-  // height back. What makes it discoverable rather than a hidden gesture:
-  // the click answers, with "24H" or "12H" sitting over the time for a
-  // beat and then fading off it (hourFormatFizz in index.css). Held here
-  // for the same 1.2s the animation runs, so the element goes away only
-  // once it has finished fading.
-  // Set straight from the click rather than through useFlashOnToken like
-  // the CSS flashes: that helper turns on a tick later (so an animation
-  // can replay), which here would show one frame of the new time before
-  // the label that's meant to announce it. The timeout is restarted per
-  // click so a second one gets its own full beat.
+  // Clicking the time is the 12/24 switch. What makes that discoverable
+  // rather than a hidden gesture is that the click answers: "24H" or "12H"
+  // sits over the time and fades off it (hourFormatFizz in index.css).
+  // Held for the animation's own 1.2s, and set straight from the click
+  // rather than via useFlashOnToken, which turns on a tick later and would
+  // show a frame of the new time before the label announcing it.
   const [isHourFormatFlashing, setIsHourFormatFlashing] = useState(false);
   const hourFormatFlashRef = useRef(0);
   useEffect(() => () => window.clearTimeout(hourFormatFlashRef.current), []);
@@ -239,12 +202,11 @@ export default function Timer() {
     window.clearTimeout(hourFormatFlashRef.current);
     hourFormatFlashRef.current = window.setTimeout(() => setIsHourFormatFlashing(false), FLASH_DURATION_MS);
   };
-  // The same for every OTHER zone, so the picker can read "New York (EDT)"
-  // rather than leaving you to know which of the twelve Americas that all
-  // say EST is yours. This one needs an Intl.DateTimeFormat per zone and
-  // 418 of them measured 123ms, so it waits for an idle moment after the
-  // first paint rather than holding it up; until it lands the list shows
-  // plain city names, and the box beside it never depended on this at all.
+  // Abbreviations for every zone, so the picker reads "New York (EDT)"
+  // rather than leaving you to work out which of the twelve Americas
+  // saying EST is yours. Needs an Intl.DateTimeFormat per zone and 418 of
+  // them measured 123ms, so it waits for an idle moment after first paint.
+  // Until then the list shows plain city names.
   const [zoneAbbrs, setZoneAbbrs] = useState<Record<string, string>>({});
   useEffect(() => {
     const build = () => {
@@ -269,23 +231,9 @@ export default function Timer() {
     const id = window.setTimeout(build, 0);
     return () => window.clearTimeout(id);
   }, []);
-  // Mirrors Tailwind's own sm breakpoint — at and above it the timer row
-  // is horizontal, so the HOURS/MINUTES/SECONDS panel sits beside the
-  // digits (rather than stacked under them) and the digits column gets
-  // sm:self-stretch, which is what gives the digits' cqh-based sizing
-  // (see its own comment further down) a real height to query. Below sm
-  // the row is a column and the digits fall back to the plain vw-only
-  // formula.
-  // How much room the floating top-right corner actually takes, measured
-  // rather than derived. The word counter's fullscreen row has to stop
-  // before that corner, and every attempt to express its width as a
-  // formula was wrong somewhere — back when those three buttons carried
-  // labels they were a mix of clamps bottoming out at different widths,
-  // with one label dropping out entirely below sm. They're three plain
-  // squares now, so the formula (HEADER_CORNER_RESERVE) is finally simple
-  // enough to trust, but measuring can't be wrong at all, and it's the
-  // same tool this file already uses to decide whether the time-fields
-  // panel fits.
+  // How much room the floating top-right corner takes, measured rather
+  // than derived. The word counter's fullscreen row has to stop before it,
+  // and HEADER_CORNER_RESERVE is only a formula; measuring can't be wrong.
   const headerCornerRef = useRef<HTMLDivElement>(null);
   const [headerCornerWidth, setHeaderCornerWidth] = useState(0);
   useEffect(() => {
@@ -295,10 +243,12 @@ export default function Timer() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+  // Tailwind's sm. At and above it the timer row is horizontal, the panel
+  // sits beside the digits, and the digits column gets sm:self-stretch,
+  // which is what gives their cqh sizing a height to query.
   const [isRowLayout, setIsRowLayout] = useState(() => window.matchMedia('(min-width: 640px)').matches);
-  // Mirrors Tailwind's lg. Not about whether the panel shows — about
-  // which form it takes: inline (label beside the digit box) at lg+,
-  // stacked (label above it) below. See the auto-tuck ladder's comment.
+  // Tailwind's lg. Not whether the panel shows, but which form it takes:
+  // inline above, stacked below.
   const [isWideLayout, setIsWideLayout] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   useEffect(() => {
     const rowQuery = window.matchMedia('(min-width: 640px)');
@@ -315,117 +265,73 @@ export default function Timer() {
     };
   }, []);
 
-  // row containing the website link, digits, and (at sm+) the
-  // HOURS/MINUTES/SECONDS panel side by side — measured directly (rather
-  // than guessing a breakpoint) so the auto-tuck below reacts to whatever
-  // actually doesn't fit, not to an assumed window size
+  // The row holding the website link, the digits and, at sm+, the
+  // HOURS/MINUTES/SECONDS panel. Measured directly so the auto-tuck below
+  // reacts to what actually doesn't fit rather than an assumed size.
   const timerRowRef = useRef<HTMLDivElement | null>(null);
-  // the panel itself, so the height half of the check below can ask
-  // whether THIS is what overflows the row rather than reading the row's
-  // own scrollHeight — see its own comment there
+  // The panel itself, so the height check can ask whether this is what
+  // overflows the row rather than reading the row's own scrollHeight.
   const timeFieldsRef = useRef<HTMLDivElement | null>(null);
 
-  // What the row would have needed to keep the panel, measured with the
-  // panel still in it, at the moment the auto-tuck below last hid it —
-  // null whenever it isn't currently auto-tucked. Once hidden the panel
-  // is out of the DOM and can't be re-measured, so this is the app's
-  // proxy for "there's room again": the row is flex-1 whether or not the
-  // panel is in it, so its own box is an honest read of how much room
-  // there is regardless of what changed it (the window resizing, the
-  // sidebar toggling, the word counter's own auto-collapse freeing up
-  // its share).
+  // What the row NEEDED to keep the panel, measured with the panel still
+  // in it, or null when it isn't auto-tucked. Once hidden the panel is out
+  // of the DOM and can't be re-measured, so this is the proxy for "there's
+  // room again".
   //
-  // What it deliberately is NOT is the row's size at that moment. Hiding
-  // the panel doesn't change that size — the row is flex-1 either way —
-  // so "grown back to at least the size it tucked at" was already true
-  // the instant it tucked, and the panel bounced straight back in, was
-  // measured as not fitting, tucked again, forever. The old check hid
-  // that by reading the row's own scrollHeight, which the digits column
-  // kept overflowing after the panel was gone; measuring the panel
-  // itself (the whole point of the change) took the accident away.
+  // Deliberately not the row's size at that moment: hiding the panel
+  // doesn't change that size, so "grown back to what it was" is already
+  // true the instant it tucks, and the panel bounces in and out forever.
   const tuckedNeedsRef = useRef<{ w: number; h: number } | null>(null);
-  // shadow refs mirroring isTimeFieldsHidden/isTimeFieldsAutoTucked,
-  // reassigned every render — check() below reads through these instead
-  // of the state directly, since window resize / ResizeObserver / the
-  // deferred document.fonts.ready callback can all fire the SAME check
-  // closure from an effect run whose state has since gone stale (e.g.
-  // the sync call inside check() itself flips isTimeFieldsHidden, but
-  // fonts.ready's callback — registered in that same call — can still
-  // fire against the pre-flip closure before React re-renders with a
-  // fresh one). Reading refs instead means every invocation of check(),
-  // however it was triggered, always sees the true current state.
+  // check() reads state through refs. Window resize, the ResizeObserver
+  // and the deferred fonts.ready callback can all fire the same closure
+  // from an effect run whose state has since gone stale: check() flips
+  // isTimeFieldsHidden, and fonts.ready, registered in that same call, can
+  // still fire against the pre-flip closure before React re-renders.
   const isTimeFieldsHiddenRef = useRef(isTimeFieldsHidden);
   isTimeFieldsHiddenRef.current = isTimeFieldsHidden;
   const isTimeFieldsAutoTuckedRef = useRef(isTimeFieldsAutoTucked);
   isTimeFieldsAutoTuckedRef.current = isTimeFieldsAutoTucked;
-  // The panel is stacked below lg (see isWideLayout) — but stacked is
-  // also the taller of the two forms, so a window that's narrow AND
-  // short can't have it. This flag is the check below overriding the
-  // breakpoint back to the shorter inline form in exactly that case,
-  // rather than jumping straight to tucking the panel away. It holds
-  // the row height the stacked form actually needed at the moment it
-  // gave up, so the override reverses itself the instant the row has
-  // that much again — comparing against the row's size at that moment
-  // instead would flip back the moment the row grew by a pixel, find
-  // the stacked form still doesn't fit, and flip straight back.
+  // Stacked is the narrow form but also the taller one, so a window that's
+  // both narrow and short can't have it. This overrides the breakpoint
+  // back to inline in that case rather than tucking the panel away. It
+  // holds the height the stacked form needed, for the same reason
+  // tuckedNeedsRef does: comparing against the row's size at that moment
+  // would flip back on the first pixel of growth and immediately flip out.
   const [isTimeFieldsInlinedByHeight, setIsTimeFieldsInlinedByHeight] = useState(false);
   const inlinedByHeightNeedsRef = useRef<number | null>(null);
   const isTimeFieldsInlinedByHeightRef = useRef(isTimeFieldsInlinedByHeight);
   isTimeFieldsInlinedByHeightRef.current = isTimeFieldsInlinedByHeight;
-  // stacked = the narrow, tall form (label above the digit box/arrows);
-  // inline = the wide, short one (label beside them). Below lg by
-  // default, unless the height override above has taken it back.
+  // Stacked: label above the digit box. Inline: label beside it.
   const isTimeFieldsStacked = !isWideLayout && !isTimeFieldsInlinedByHeight;
   const isTimeFieldsStackedRef = useRef(isTimeFieldsStacked);
   isTimeFieldsStackedRef.current = isTimeFieldsStacked;
   const isRowLayoutRef = useRef(isRowLayout);
   isRowLayoutRef.current = isRowLayout;
 
-  // auto-tucks the time-fields panel out of the way once the timer row is
-  // genuinely too cramped for it, instead of letting it overlap the
-  // digits — and auto-reverses that once the row regrows past the size
-  // it tucked at. That reversal only ever undoes ITS OWN hide: a manual
-  // hide (tuckedNeedsRef stays null) is never fought, so a manual
-  // re-show (the header toggle) always gets a fresh check rather than
-  // being reopened for you — if there's still no room, this puts it
-  // right back. (The word counter has the equivalent check on itself,
-  // since collapsing it changes how much room THIS row gets — checking
-  // it from here would just watch its own fix take effect.)
+  // Tucks the panel away once the row is genuinely too cramped for it,
+  // and reverses once the row grows back past what the panel needed. That
+  // reversal only ever undoes its own hide: a manual hide leaves
+  // tuckedNeedsRef null and is never fought.
   //
-  // Tucking is the LAST rung of a ladder, not the first response to a
-  // cramped row. In order: inline form -> stacked form (below lg, a
-  // third of the width) -> 3-across if the row is too short for the
-  // stack (a grid, see .time-fields-box in index.css) -> inline again
-  // -> tucked. Getting narrower or shorter is always preferable to
-  // disappearing, so nothing here fires until every form that would
-  // actually help has already been tried.
+  // Tucking is the last rung of a ladder, not the first response. In
+  // order: inline, stacked (a third of the width), 3-across if the row is
+  // too short for the stack (.time-fields-box in index.css), inline again,
+  // tucked. Narrower or shorter always beats disappearing.
   //
-  // Below sm the row switches to flex-col (see its own className), which
-  // would put this panel underneath the digits rather than beside them.
-  // Deliberately not done: tucked under the timer it reads as part of
-  // the countdown rather than a control for it, and it pushes the whole
-  // column down. Below that breakpoint it just goes away — the ladder
-  // above is what keeps it alive everywhere there's room for any of its
-  // forms, and once there isn't, disappearing is the honest outcome.
-  // tuckedNeedsRef stays null in that case (there's no meaningful "size
-  // to recover to" below sm); the effect's own isRowLayout dependency
-  // re-fires the moment the breakpoint is crossed back, at which point
-  // the "was only sub-sm-hidden" branch gives it one fresh look — same
-  // as a manual re-show — and the real overflow check on the very next
-  // run decides whether it actually fits.
+  // Below sm the panel isn't rendered at all: the row is a column there,
+  // and under the digits this reads as part of the countdown rather than a
+  // control for it. tuckedNeedsRef stays null, and the isRowLayout
+  // dependency re-fires when the breakpoint is crossed back so the panel
+  // gets one fresh look.
   useEffect(() => {
     const el = timerRowRef.current;
     if (!el) return;
     const check = () => {
       if (!isRowLayoutRef.current) {
         tuckedNeedsRef.current = null;
-        // A manual hide is left exactly as it is down here. Below sm the
-        // panel isn't rendered at all, so "hidden" is the layout rather
-        // than a decision — but re-labelling a manual hide as an
-        // auto-tuck made the persist effect below (see its own comment,
-        // which only saves a hide that ISN'T an auto-tuck) write the
-        // preference away, so one visit on a narrow window silently
-        // un-hid the panel for every later visit on a wide one.
+        // A manual hide is left alone here. Only a hide that isn't an
+        // auto-tuck persists, so relabelling one as an auto-tuck let a
+        // single visit on a narrow window erase the preference.
         if (isTimeFieldsHiddenRef.current && !isTimeFieldsAutoTuckedRef.current) return;
         if (!isTimeFieldsHiddenRef.current || !isTimeFieldsAutoTuckedRef.current) {
           setIsTimeFieldsHidden(true);
@@ -438,22 +344,15 @@ export default function Timer() {
         setIsTimeFieldsAutoTucked(false);
         return;
       }
-      // a few px of tolerance throughout — sub-pixel layout rounding
-      // (fractional clamp() results, font metrics) alone was enough to
-      // trip a bare `>` comparison and tuck this away over a 1px
-      // "overflow" that was never actually visible
+      // A few px of tolerance throughout: sub-pixel rounding from
+      // fractional clamp() results and font metrics is enough to trip a
+      // bare `>` and tuck the panel over an overflow nobody can see.
       const tooWide = el.scrollWidth > el.clientWidth + 4;
-      // The panel's OWN box against the row's, not the row's
-      // scrollHeight. The digits column beside it (website link,
-      // configured time, digits, drain bar, START/RESET/STOP, status,
-      // hints) is by far the tallest thing in this row, so on a short
-      // window it is what overflows — and reading the row's scrollHeight
-      // meant that overflow tucked away the panel instead, which frees
-      // no vertical space whatsoever and was the main reason this
-      // collapsed so eagerly. getBoundingClientRect rather than
-      // offsetTop/offsetHeight: this panel's offsetParent is the
-      // positioned column wrapper further up, not the row, so its
-      // offsets are measured against the wrong box.
+      // The panel's own box against the row's, not the row's scrollHeight.
+      // The digits column is by far the tallest thing here, so on a short
+      // window it is what overflows, and tucking the panel for that frees
+      // no vertical space at all. getBoundingClientRect because the
+      // panel's offsetParent is the column wrapper, not the row.
       const panel = timeFieldsRef.current;
       let tooTall = false;
       let neededHeight = 0;
@@ -464,25 +363,22 @@ export default function Timer() {
         tooTall = neededHeight > el.clientHeight + 4;
       }
 
-      // Stacked is the narrow form but also the taller one, so a row
-      // that's short rather than narrow is better served by going back
-      // to inline than by losing the panel. Only once inline ALSO
-      // doesn't fit (the next check() sees it) does this fall through to
-      // the tuck below.
+      // A row that's short rather than narrow is better served by going
+      // back to inline than by losing the panel. Only once inline also
+      // doesn't fit does this fall through to the tuck below.
       if (!isTimeFieldsHiddenRef.current && tooTall && isTimeFieldsStackedRef.current) {
         inlinedByHeightNeedsRef.current = neededHeight;
         setIsTimeFieldsInlinedByHeight(true);
         return;
       }
 
-      // `panel &&`: only something actually rendered can be tucked. Once
-      // it is, the row's own remaining overflow (the digits column's, on
-      // a short window) is not this panel's problem and must not
-      // re-record a need it can no longer measure — nor convert a manual
-      // hide into an auto-tuck, which the branch above would then undo.
+      // `panel &&`: only something rendered can be tucked. Once it is, the
+      // row's remaining overflow belongs to the digits column and must not
+      // re-record a need this can no longer measure, nor turn a manual
+      // hide into an auto-tuck that the branch above would then undo.
       if (panel && (tooWide || tooTall)) {
-        // recorded with the panel still measurable, and recorded as what
-        // it NEEDED rather than what the row had — see tuckedNeedsRef
+        // Recorded while the panel is still measurable, and as what it
+        // needed rather than what the row had.
         tuckedNeedsRef.current = { w: el.scrollWidth, h: neededHeight };
         setIsTimeFieldsHidden(true);
         setIsTimeFieldsAutoTucked(true);
@@ -504,8 +400,8 @@ export default function Timer() {
         return;
       }
 
-      // the row has the height the stacked form wanted back — hand the
-      // breakpoint its decision back
+      // The row has the height the stacked form wanted, so hand the
+      // decision back to the breakpoint.
       if (
         isTimeFieldsInlinedByHeightRef.current &&
         (!inlinedByHeightNeedsRef.current || el.clientHeight >= inlinedByHeightNeedsRef.current)
@@ -518,9 +414,9 @@ export default function Timer() {
     window.addEventListener('resize', check);
     const resizeObserver = new ResizeObserver(check);
     resizeObserver.observe(el);
-    // the very first check can land before the custom monospace font
-    // swaps in, measuring the (narrower) fallback font and missing an
-    // overflow that only shows up once the real font's wider digits load
+    // The first check can land before the monospace font swaps in,
+    // measuring the narrower fallback and missing an overflow that only
+    // appears once the real font's wider digits load.
     document.fonts?.ready.then(check);
     return () => {
       window.removeEventListener('resize', check);
@@ -528,31 +424,28 @@ export default function Timer() {
     };
   }, [isTimeFieldsHidden, isTimeFieldsAutoTucked, isTimeFieldsInlinedByHeight, isRowLayout, isWideLayout]);
 
-  // bumps when a fresh countdown starts so the green fade replays even if
-  // the window never left the running state (see runFadeClass below)
+  // Bumped when a fresh countdown starts, so the green fade replays even
+  // if the window never left the running state.
   const [runCycle, setRunCycle] = useState(0);
   const restartRunFade = () => setRunCycle((c) => c + 1);
 
-  // hover preview over the drain bar: x offset within the track and the
-  // time that point corresponds to
+  // Drain bar hover preview: x within the track, and the time it maps to.
   const [barHover, setBarHover] = useState<{ x: number; seconds: number } | null>(null);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
-  // Timer states an adjustment has already been asked about, so HOURS,
-  // MINUTES and SECONDS share one prompt per state rather than one each
-  // (see requestConfiguredChange). In-memory on purpose: this is "you
-  // already answered that a moment ago", which shouldn't outlive the
-  // session — the dialog's own "don't ask this again" checkbox is what
-  // makes an answer permanent, and that goes to storage instead.
+  // States an adjustment has already been asked about, so the three fields
+  // share one prompt per state. In memory on purpose: this means "you
+  // answered that a moment ago", which shouldn't outlive the session. The
+  // dialog's "don't ask again" is what makes an answer permanent.
   const askedAdjustInStatesRef = useRef(new Set<TimerStateKind>());
-  // Radix fires both onClick and onOpenChange for the same click, so the
-  // dismiss handler needs a ref to tell "just confirmed" from "cancelled"
+  // Radix fires onClick and onOpenChange for the same click, so the
+  // dismiss handler needs this to tell a confirm from a cancel.
   const justConfirmedRef = useRef(false);
 
   const { beep } = useBeep(volume);
-  // cancels the in-flight preview burst so a new one overrides it
+  // Cancels an in-flight preview burst so a new one overrides it.
   const previewCleanupRef = useRef<(() => void) | null>(null);
 
   const configured: TimeParts = useMemo(
@@ -560,23 +453,19 @@ export default function Timer() {
     [hours, minutes, timerSeconds]
   );
   const configuredTotalSeconds = toTotalSeconds(configured);
-  // a timer that's never run — idle at its configured time — has nothing
-  // for STOP or RESET to act on
+  // A timer sitting idle at its configured time has nothing for STOP or
+  // RESET to act on.
   const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
 
   const closeDialog = () => setDialog({ type: null });
 
-  // Every "are you sure?" in this component goes through here, so the two
-  // ways a question can already be answered are checked in one place
-  // instead of at a dozen call sites: confirmations turned off globally
-  // (the CONFIRMATIONS button), or this particular question silenced by
-  // its own "don't ask again" checkbox (see suppressions.ts). Either way
-  // the action just runs.
+  // Every "are you sure?" goes through here, so the two ways a question
+  // can already be answered are checked in one place rather than a dozen
+  // call sites: confirmations turned off globally, or this question
+  // silenced by its own "don't ask again". Either way the action runs.
   //
-  // The two dialogs that call setDialog directly rather than coming
-  // through here are the deliberate exceptions: the site RESET and the
-  // switch that turns confirmations off. Both are documented in
-  // dialogKey, and both would be self-defeating to let anything skip.
+  // The site RESET is the one dialog that calls setDialog directly, since
+  // letting anything skip it would be self-defeating.
   const askThenRun = useCallback((next: DialogState, run: () => void) => {
     if (skipConfirmations || isDialogSuppressed(next)) {
       run();
@@ -585,9 +474,8 @@ export default function Timer() {
     setDialog(next);
   }, [skipConfirmations]);
 
-  // Which of the four situations the timer is in right now. Read off
-  // timeRef rather than `seconds` so a caller mid-click sees the live
-  // value, same as every other check in this component.
+  // Read off timeRef rather than `seconds` so a caller mid-click sees the
+  // live value, like every other check here.
   const timerStateKind = useCallback((): TimerStateKind => {
     if (timeRef.current.seconds < 0) return 'ringing';
     if (isPaused) return 'paused';
@@ -595,18 +483,14 @@ export default function Timer() {
     return 'unstarted';
   }, [isRunning, isPaused]);
 
-  // Persist state, one key per hook so each writes only when its own value
-  // changes. This used to be a single effect writing all fourteen keys,
-  // which meant they shared one dependency list — and `seconds` is in it,
-  // so a running timer re-serialized the presets, the history, the theme
-  // and the rest once a second through an API that blocks the main
-  // thread. Same keys, same values, same moment they first appear; just
-  // not thirteen redundant writes a tick.
+  // One key per hook, so each writes only when its own value changes. A
+  // single effect for all fourteen means a single dependency list, and
+  // `seconds` is in it: a running timer re-serialised the presets, the
+  // history and every setting once a second.
   //
-  // timerState keeps a real effect of its own: it bundles six values into
-  // one object, and an object literal is a new identity every render, so
-  // through usePersisted it would write on every 10ms tick instead of
-  // fewer times than before.
+  // timerState keeps an effect of its own because it bundles six values
+  // into an object literal, which is a new identity every render and would
+  // write on every 10ms tick through usePersisted.
   useEffect(() => {
     writeJSON(STORAGE_KEYS.timerState, { seconds, isPaused, isRunning, hours, minutes, timerSeconds });
   }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds]);
@@ -622,20 +506,16 @@ export default function Timer() {
   usePersisted(STORAGE_KEYS.lightTheme, isLightTheme);
   usePersisted(STORAGE_KEYS.clockTimeZone, timeZone);
   usePersisted(STORAGE_KEYS.clock24Hour, is24Hour);
-  // only a MANUAL hide persists. An auto-tuck is a reaction to the
-  // window it happened in, and the check that reverses it needs the
-  // panel's own tuckedNeedsRef (in-memory, gone on reload) to know
-  // there's room again — so persisting one meant a single moment of
-  // cramped layout hid the panel for good, reopenable only by finding
-  // its arrow, on every later visit at any window size.
+  // Only a manual hide persists. An auto-tuck is a reaction to one window
+  // size, and the check that reverses it needs tuckedNeedsRef, which is in
+  // memory and gone on reload, so saving one would hide the panel for good
+  // at every later size.
   usePersisted(STORAGE_KEYS.timeFieldsHidden, isTimeFieldsHidden && !isTimeFieldsAutoTucked);
 
-  // The regular persist effect above only fires on whole-second changes
-  // (re-running it every 10ms tick to catch milliseconds would hammer
-  // localStorage), so it can't capture where within the current second a
-  // reload lands. Flush milliseconds separately right before the page
-  // actually goes away, reading through a ref so this listener registers
-  // once instead of rebinding every tick.
+  // timerState only writes on whole-second changes, so it can't capture
+  // where inside the current second a reload lands. Flushed separately as
+  // the page goes away, through a ref so the listener registers once
+  // rather than rebinding every tick.
   const persistedTimeRef = useRef(time);
   persistedTimeRef.current = time;
   useEffect(() => {
@@ -651,13 +531,13 @@ export default function Timer() {
     };
   }, []);
 
-  // Confirming via Space closes the dialog without a Radix close event, so
-  // the flag isn't consumed by onOpenChange; clear it as each dialog opens
+  // Confirming with Space closes the dialog without a Radix close event,
+  // so onOpenChange never consumes the flag. Cleared as each one opens.
   useEffect(() => {
     if (dialog.type !== null) justConfirmedRef.current = false;
   }, [dialog.type]);
 
-  // Tab title/favicon shows the remaining time
+  // Tab title and favicon show the remaining time.
   const remainingWholeSeconds = Math.floor(Math.abs(seconds * 1000 + milliseconds) / 1000);
   useFavicon(
     isRunning,
@@ -668,15 +548,16 @@ export default function Timer() {
     Math.floor(remainingWholeSeconds / 3600)
   );
 
-  // Countdown: subtract elapsed wall-clock time; keeps going negative until
-  // the -99:59:59 floor
+  // Subtracts elapsed wall-clock time, and keeps going negative down to
+  // the -99:59:59 floor.
   useEffect(() => {
     if (!isRunning || isPaused) return;
 
     let lastTime = Date.now();
     intervalRef.current = setInterval(() => {
       const now = Date.now();
-      // a backwards clock step (NTP/manual adjustment) must not add time
+      // A backwards clock step from NTP or a manual change must not add
+      // time back.
       const elapsed = Math.max(0, now - lastTime);
       lastTime = now;
 
@@ -694,32 +575,23 @@ export default function Timer() {
     };
   }, [isRunning, isPaused]);
 
-  // Alarm while in negative time: ALARM_TOTAL_BURSTS bursts of
-  // ALARM_BURST_COUNT beeps, then a longer pause, then the whole group
-  // repeats for as long as the alarm stays active
   const isAlarmActive = isRunning && !isPaused && seconds < 0 && !isSilentMode;
-  // With repeat off, the alarm gets one finite ring per overtime period.
-  // The allowance is consumed the moment ringing starts — so pause/resume
-  // or mute toggles can't squeeze out extra groups, and toggling repeat
-  // off mid-ring mutes immediately — and it resets once the timer leaves
-  // negative time.
+  // With repeat off the alarm gets one finite ring per overtime period,
+  // and the allowance is spent the moment ringing starts. Pause/resume and
+  // mute can't squeeze out extra groups, turning repeat off mid-ring mutes
+  // at once, and it resets when the timer leaves negative time.
   const isOvertime = seconds < 0;
   const alarmRungThisOvertimeRef = useRef(false);
-  // the pattern position also lives in a ref so effect re-runs (repeat
-  // toggles, pause/resume) continue the ring where it left off instead of
-  // restarting it at the first burst
+  // The pattern position lives in a ref too, so effect re-runs from repeat
+  // or pause toggles continue the ring instead of restarting it.
   const alarmTickRef = useRef(0);
-  // With repeat off, once the finite ring finishes on its own the digits
-  // fade red as a persistent "you missed this" cue — cleared by turning
-  // repeat back on, or by leaving overtime (a fresh countdown shouldn't
-  // start pre-tinted).
+  // With repeat off, a ring that finishes on its own leaves the digits
+  // faded red as a "you missed this" cue. Cleared by turning repeat back
+  // on or leaving overtime.
   const [hasRungOut, setHasRungOut] = useState(false);
-  // useLayoutEffect rather than useEffect: this can fire in the same
-  // commit as seconds jumping back to non-negative (e.g. a reset that
-  // restarts the countdown while hasRungOut is still true from a just-
-  // finished non-looping ring) — running before paint instead of after
-  // avoids a one-frame flash of solid-red digits on an otherwise-fresh
-  // countdown.
+  // Layout effect, not effect: this can fire in the same commit as seconds
+  // going non-negative, and running after paint gives a one-frame flash of
+  // solid red digits on an otherwise fresh countdown.
   useLayoutEffect(() => {
     if (!isOvertime) {
       alarmRungThisOvertimeRef.current = false;
@@ -732,12 +604,9 @@ export default function Timer() {
   }, [isAlarmLooping]);
 
   // With repeat off and still above zero, pausing flashes the window
-  // yellow/black a fixed 3 times (animate-pauseFlashLimited below)
-  // instead of forever, then the digits wave yellow once that settles —
-  // cleared by resuming or turning repeat back on, so the next pause
-  // replays the same 3-flash cue fresh. Not used once negative — that
-  // case shows the red wave immediately instead of waiting on this. The
-  // drain bar's own pause flash is untouched by any of this.
+  // yellow three times rather than forever, and the digits wave yellow
+  // once that settles. Cleared on resume so the next pause replays it.
+  // Unused below zero, where the red wave shows immediately instead.
   const [hasPausedSettled, setHasPausedSettled] = useState(false);
   useEffect(() => {
     if (!isPaused || isAlarmLooping) setHasPausedSettled(false);
@@ -753,16 +622,16 @@ export default function Timer() {
   }, [isPaused, isAlarmLooping]);
 
   // Window flash synced to the alarm: isAlarmRinging while the beep
-  // interval runs, isBeepFlash pulsing red for each individual beep
+  // interval runs, isBeepFlash pulsing red on each individual beep.
   const [isAlarmRinging, setIsAlarmRinging] = useState(false);
   const [isBeepFlash, setIsBeepFlash] = useState(false);
 
   useEffect(() => {
     if (!isAlarmActive) return;
     if (!isAlarmLooping && alarmRungThisOvertimeRef.current) {
-      // repeat got turned off mid-ring, which mutes it immediately rather
-      // than letting it finish its pattern — treat that the same as the
-      // ring completing on its own, so the digits still fade red
+      // Repeat turned off mid-ring mutes immediately rather than finishing
+      // the pattern. Treated the same as the ring completing, so the
+      // digits still fade red.
       setHasRungOut(true);
       return;
     }
@@ -776,9 +645,8 @@ export default function Timer() {
     }
 
     const playTick = () => {
-      // with repeat off, the whole ring is one pass through the full
-      // pattern — all ALARM_TOTAL_BURSTS bursts, same as one group of a
-      // looping ring — not just its first burst
+      // With repeat off the ring is one full pass through the pattern,
+      // every burst of it, not just the first.
       if (!isAlarmLooping && alarmTickRef.current >= pattern.length) {
         if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
         beepIntervalRef.current = null;
@@ -788,7 +656,7 @@ export default function Timer() {
       }
       if (pattern[alarmTickRef.current % pattern.length]) {
         beep(...TONES.alarm);
-        // flash red for exactly as long as the beep sounds
+        // Red for exactly as long as the beep sounds.
         setIsBeepFlash(true);
         window.setTimeout(() => setIsBeepFlash(false), TONES.alarm[1]);
       }
@@ -806,11 +674,11 @@ export default function Timer() {
     };
   }, [isAlarmActive, isAlarmLooping, beep]);
 
-  // Space/S/R mirror the on-screen controls; the ref lets the keydown
-  // listener stay registered once instead of rebinding every tick
+  // Space/S/R mirror the on-screen controls. The ref lets the keydown
+  // listener register once instead of rebinding every tick.
   const keyActionRef = useRef<(code: string) => boolean>(() => false);
   keyActionRef.current = (code) => {
-    // let the dialog own the keyboard while open
+    // The dialog owns the keyboard while it's open.
     if (dialog.type !== null) return false;
     if (code === 'Space') {
       if (isRunning) {
@@ -855,12 +723,12 @@ export default function Timer() {
     }
   };
 
-  // Muting is silent — no confirmation tone — except the very first time
-  // this browser has ever muted, which asks for confirmation first
+  // Muting makes no sound of its own, except the first time this browser
+  // ever mutes, which asks first.
   const handleMuteToggle = () => {
     if (isSilentMode) {
-      // unmuting with the slider parked at 0 restores a usable level; the
-      // confirmation tone plays at the restored level, not the stale 0
+      // Unmuting with the slider parked at 0 restores a usable level, and
+      // the confirmation tone plays at that level rather than the stale 0.
       beep(...TONES.silentToggle, volume === 0 ? DEFAULT_VOLUME : undefined);
       if (volume === 0) setVolume(DEFAULT_VOLUME);
       setIsSilentMode(false);
@@ -879,21 +747,21 @@ export default function Timer() {
     closeDialog();
   };
 
-  // Dragging the slider to 0 mutes; dragging back off 0 unmutes
+  // Dragging the slider to 0 mutes; dragging back off 0 unmutes.
   const handleVolumeChange = (value: number) => {
     setVolume(value);
     if (value === 0) {
       setIsSilentMode(true);
-      // sliding to 0 is already an explicit mute — the button's one-time
-      // "are you sure?" would be redundant after this
+      // Sliding to 0 is already an explicit mute, so the button's one-time
+      // "are you sure?" would be redundant after it.
       setHasMutedBefore(true);
     } else if (isSilentMode) {
       setIsSilentMode(false);
     }
   };
 
-  // On release, preview the chosen level with one alarm burst
-  // (ALARM_BURST_COUNT beeps); a re-release cancels the previous burst
+  // On release, previews the chosen level with one alarm burst. Releasing
+  // again cancels the burst still in flight.
   const playVolumePreview = (value: number) => {
     previewCleanupRef.current?.();
     if (value === 0) return;
@@ -926,10 +794,8 @@ export default function Timer() {
     }
   };
 
-  // Shared by every path that restarts the countdown from a fresh total
-  // (adjusting a field, resetting, auto-restarting after finishing): stop
-  // any ringing alarm, snap the clock to the new total, and replay the
-  // green fade.
+  // Shared by every path that restarts from a fresh total: stop any
+  // ringing alarm, snap to the new total, replay the green fade.
   const restartCountdown = (totalSeconds: number) => {
     clearAlarmInterval();
     setTime({ seconds: totalSeconds, milliseconds: 0 });
@@ -943,7 +809,7 @@ export default function Timer() {
   };
 
   const togglePause = () => {
-    // the beep is a side effect, so it stays out of the state updater
+    // The beep is a side effect, so it stays out of the state updater.
     const nextIsPaused = !isPaused;
     if (!isSilentMode) {
       beep(...(nextIsPaused ? TONES.pause : TONES.resume));
@@ -952,7 +818,7 @@ export default function Timer() {
   };
 
   const handleStart = () => {
-    // If the timer is at 0 or in negative time, restart from the configured time
+    // At or past zero, start again from the configured time.
     setTime((prev) => ({
       seconds: prev.seconds <= 0 ? configuredTotalSeconds : prev.seconds,
       milliseconds: 0,
@@ -974,12 +840,9 @@ export default function Timer() {
   };
 
   const handleStopClick = () => {
-    // A ringing alarm used to stop with no confirmation, on the theory
-    // that silencing it is urgent. But stopping doesn't just silence —
-    // it throws away how far past zero the timer had counted, which is
-    // the one number a count-up run exists to produce, and the alarm has
-    // its own mute and repeat-off controls for the urgent case. So this
-    // asks like every other stop now.
+    // Asks even while ringing. Stopping doesn't only silence the alarm, it
+    // throws away how far past zero the timer counted, which is the whole
+    // output of a count-up run. Mute and repeat-off cover the urgent case.
     askThenRun({ type: 'stop' }, handleConfirmStop);
   };
 
@@ -990,11 +853,7 @@ export default function Timer() {
   };
 
   const handleResetClick = () => {
-    // A finished timer used to restart on the spot, no question asked —
-    // the same "it's already alarming, just do it" reasoning STOP and
-    // preset-switching used to make. It's wrong for the same reason:
-    // restarting throws away how far past zero the timer counted, which
-    // on a count-up run is the only number it produced.
+    // Asks even on a finished timer, for the same reason STOP does.
     askThenRun({ type: 'reset' }, handleConfirmReset);
   };
 
@@ -1014,15 +873,13 @@ export default function Timer() {
     setTime({ seconds: toTotalSeconds(parts), milliseconds: 0 });
   }, []);
 
-  // the one switch sequence, shared by the direct path and the dialog
-  // confirm; start=false only loads the preset without running it.
+  // The one switch sequence, shared by the direct path and the dialog
+  // confirm. start=false loads the preset without running it.
   //
-  // Memoized so handleSelectEntry below can simply depend on it. It used
-  // to be a plain function left out of that callback's dependency list,
-  // which worked only because the list happened to name isSilentMode and
-  // beep — this function's own transitive dependencies, through playTone
-  // — for no stated reason. Anything added here that read fresh state
-  // would have gone stale silently.
+  // Memoized so handleSelectEntry can just depend on it. As a plain
+  // function left out of that dependency list it was correct only because
+  // the list happened to name its transitive deps, and anything added here
+  // that read fresh state would have gone stale silently.
   const applySwitch = useCallback((parts: TimeParts, start: boolean) => {
     clearAlarmInterval();
     loadEntry(parts);
@@ -1037,51 +894,39 @@ export default function Timer() {
 
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
-    // flashes on the click itself rather than once the switch actually
-    // applies — simpler than threading the entry id through the confirm
-    // dialog, and a cancelled switch still leaves a harmless flash. The
-    // panels check loadedId before insertedId, so loading a just-created
-    // entry shows green immediately instead of staying yellow until the
-    // insert flash's own timing runs out.
+    // Flashed on the click rather than when the switch applies: simpler
+    // than threading the id through the dialog, and a cancelled switch
+    // leaves a harmless flash. The panels check loaded before inserted, so
+    // loading a just-created entry goes green rather than staying yellow.
     setLoadedEntry((prev) => bumpFlash(prev, entry.id));
-    // Already loaded, and the timer is sitting at it unstarted: nothing
-    // to load and nothing to lose, so this doesn't ask — it just runs.
-    // Picking a time out of the list is a request to run that time, and
-    // this row is no exception for already being the one showing.
+    // Every branch below runs the picked time. Picking one out of the list
+    // is a request to run it, whatever the timer was doing; the only
+    // difference is whether there's something to lose first.
+    //
+    // Already loaded and sitting at it unstarted: nothing to lose.
     if (!isRunning && timeRef.current.seconds === configuredTotalSeconds && toTotalSeconds(parts) === configuredTotalSeconds) {
       applySwitch(parts, true);
       return;
     }
-    // actively counting down (not paused): confirm, then start the new
-    // preset immediately
+    // Counting down.
     if (isRunning && !isPaused && timeRef.current.seconds >= 0) {
       askThenRun({ type: 'switch', data: parts, mode: 'switchRunning' }, () => applySwitch(parts, true));
       return;
     }
-    // paused (even paused in overtime), or a stopped timer showing
-    // anything other than its configured time — mid-run or overtime
-    // after a reload — still has progress on screen; confirm before
-    // discarding it, then run the one that was picked
+    // Paused, or stopped somewhere other than the configured time after a
+    // reload. Either way there's progress on screen to discard.
     if (isPaused || (!isRunning && timeRef.current.seconds !== configuredTotalSeconds)) {
       askThenRun({ type: 'switch', data: parts, mode: 'loadOnly' }, () => applySwitch(parts, true));
       return;
     }
-    // A ringing timer used to hand off to the new preset and keep
-    // running with no confirmation, on the grounds that it was already
-    // alarming. But how far past zero it had counted is real elapsed
-    // time — the whole output of a count-up run — and switching discards
-    // it just as thoroughly as switching mid-countdown discards the time
-    // remaining. Same question, then.
+    // Ringing. How far past zero it counted is real elapsed time, and
+    // switching discards it as thoroughly as switching mid-countdown
+    // discards the time remaining.
     if (isRunning && timeRef.current.seconds < 0) {
       askThenRun({ type: 'switch', data: parts, mode: 'switchRunning' }, () => applySwitch(parts, true));
       return;
     }
-    // Never run (idle at its configured time): nothing to lose, so the
-    // question is only "this one?" — and answering it starts the run.
-    // Every branch above ends the same way now. Picking a time out of the
-    // list is a request to run that time, whatever the timer was doing
-    // when you picked it; the ones with something to lose ask first, and
-    // that's the only difference between them.
+    // Idle at a different time: the question is only "this one?".
     askThenRun({ type: 'switch', data: parts, mode: 'startFromIdle' }, () => applySwitch(parts, true));
   }, [isRunning, isPaused, configuredTotalSeconds, applySwitch, askThenRun]);
 
@@ -1090,16 +935,12 @@ export default function Timer() {
     closeDialog();
   };
 
-  // Adding a time the list already holds doesn't add a second copy of it
-  // — a preset list is a set of times, and two identical rows are two
-  // ways to click the same thing. Instead the row that already has that
-  // time flashes red, which answers "why didn't that go in?" by pointing
-  // at the reason. Returns whether anything was actually added, so the
-  // panel knows whether to clear the box it was typed into.
+  // A preset list is a set of times, so adding one it already holds adds
+  // nothing and flashes the existing row red instead. Returns whether
+  // anything went in, so the panel knows whether to clear its input.
   //
-  // Matched on the time itself, not on a label: formatEntryLabel drops
-  // leading zeroes, so 1:05 and 0:01:05 print the same and are the same
-  // preset, while a label comparison would depend on how it's spelled.
+  // Matched on the time, not the label: formatEntryLabel drops leading
+  // zeroes, so 1:05 and 0:01:05 print the same and are the same preset.
   const handleAddPreset = useCallback((parts: TimeParts): boolean => {
     const existing = presets.find(
       (p) => (p.hours ?? 0) === parts.hours && p.minutes === parts.minutes && p.seconds === parts.seconds
@@ -1115,13 +956,11 @@ export default function Timer() {
     return true;
   }, [presets]);
 
-  // Two steps, because the row's delete animation has to play AFTER the
-  // question is answered, not before it: the − button asks to remove,
-  // and only a confirmed removal sets removingPresetId, which is what
-  // tells that row to turn red and fizz out (see PresetRow). Dropping it
-  // from the array is the last step, once the animation ends and the row
-  // calls back — cancelling leaves a row that never animated at all,
-  // rather than one that faded out and had to be put back.
+  // Two steps, so the delete animation plays after the question is
+  // answered rather than before. Only a confirmed removal sets this, which
+  // is what tells the row to fizz out; dropping it from the array happens
+  // last, when the row calls back. Cancelling leaves a row that never
+  // animated at all rather than one that has to be put back.
   const [removingPresetId, setRemovingPresetId] = useState<string | null>(null);
 
   const handleRequestRemovePreset = useCallback((id: string) => {
@@ -1136,8 +975,8 @@ export default function Timer() {
   }, []);
 
   // Same two-step shape as the removal above: the panel asks, the dialog
-  // answers, and the answer travels back down as `presetCorrection` for
-  // the panel to apply — the typed digits live down there, not here.
+  // answers, and the answer travels back down for the panel to apply,
+  // since the typed digits live down there.
   const [presetCorrection, setPresetCorrection] = useState<{ digits: string; add: boolean } | null>(null);
 
   const handleRequestPresetCorrection = useCallback((digits: string, add: boolean) => {
@@ -1160,9 +999,9 @@ export default function Timer() {
     setInsertedHistory(null);
   }, []);
 
-  // Empties the list outright rather than fizzing each row out like a
-  // single − does: twenty rows playing that animation at once is a mess,
-  // and the dialog this comes through has already made the point.
+  // Empties the list outright rather than fizzing each row out the way a
+  // single − does. A hundred rows animating at once is a mess, and the
+  // dialog has already made the point.
   const handleClearPresets = useCallback(() => {
     setPresets([]);
     setInsertedPreset(null);
@@ -1172,12 +1011,11 @@ export default function Timer() {
     setHistory((prev) => prev.filter((entry) => entry.id !== id));
   }, []);
 
-  // Memoized rather than written inline at the two panels below, because
-  // an inline arrow is a new identity every render and these are the last
-  // unstable props either panel takes — one of them was enough to keep
-  // memo() from ever bailing out, so every countdown tick reconciled
-  // every row in both lists. That was survivable at twenty rows each and
-  // isn't at a hundred presets and a thousand history entries.
+  // Memoized rather than written inline at the panels below. An inline
+  // arrow is a new identity every render, and these were the last unstable
+  // props either panel took: one is enough to stop memo() ever bailing
+  // out, which had every countdown tick reconciling every row in both
+  // lists. Survivable at twenty rows, not at a thousand.
   const handleRequestClearPresets = useCallback(
     () => askThenRun({ type: 'clearPresets' }, handleClearPresets),
     [askThenRun, handleClearPresets]
@@ -1197,55 +1035,45 @@ export default function Timer() {
     []
   );
 
-  // Apply a change to one unit of the configured time and restart the
-  // countdown from the new configured total, refilling the drain bar. A
-  // running timer keeps running from the top, a paused one waits there,
-  // and a finished (beeping) one restarts running. This is the ONLY
-  // place a field edit lands: the request path used to apply it up front
-  // and have the dialog's dismiss handler put it back, which meant the
-  // configured total visibly changed underneath the "adjust?" dialog
-  // that was still asking whether to change it. previous is passed in
-  // (rather than read off `configured`) because it's the value being
-  // changed FROM, which a confirmed call needs after the fact to pick
-  // the flash direction — `configured` still holds it here either way.
+  // Applies a change to one unit and restarts the countdown from the new
+  // total. A running timer keeps running from the top, a paused one waits
+  // there, a ringing one restarts.
+  //
+  // The only place a field edit lands. Applying it up front and undoing it
+  // on dismiss meant the configured total changed underneath the dialog
+  // still asking whether to change it. `previous` is passed in because a
+  // confirmed call needs the value it changed from to pick the flash
+  // direction, after `configured` has moved on.
   const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
     setterFor(unit)(value);
     if (timeRef.current.seconds < 0) setIsPaused(false);
     restartCountdown(toTotalSeconds({ ...configured, [unit]: value }));
-    // the hour digit drops out of the countdown display once hours hits 0,
-    // so there's nothing there to draw attention to
+    // The hour digit drops out of the display at 0, so there's nothing
+    // left to draw attention to.
     if (unit !== 'hours' || value > 0) {
       flashSetterFor(unit)((prev) => ({ token: prev.token + 1, direction: value >= previous ? 'inc' : 'dec' }));
     }
   }, [setterFor, flashSetterFor, configured]);
 
-  // Changing a field asks for confirmation first — once per timer state,
-  // for all three fields together.
+  // Changing a field asks first, once per timer state, for all three
+  // fields together. An unstarted timer asks too: these fields are how the
+  // timer is set up, an arrow is one misclick, and a silently changed
+  // total is only noticeable if you read the digits before pressing START.
+  //
+  // Tracked by state kind rather than by transition, because setting a
+  // timer up means touching two or three fields in a row, which is one
+  // intent; and pausing to nudge a minute, resuming, then pausing to nudge
+  // again is still the same question about the same paused timer.
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
     const previous = configured[unit];
     if (value === previous) return;
 
-    // An unstarted timer asks too. It used to change in silence on the
-    // grounds that there was no run to disturb — but these fields are
-    // also how the timer is set up in the first place, an arrow is one
-    // misclick, and a silently changed configured time is only
-    // noticeable if you happen to read the digits before pressing START.
-    //
-    // HOURS, MINUTES and SECONDS share one question per state, tracked
-    // by kind (see askedAdjustInStatesRef) rather than by transition:
-    // setting up a timer means touching two or three of these fields in
-    // a row, which is one intent, not three — and pausing to nudge a
-    // minute, resuming, then pausing to nudge it again is still the same
-    // question about the same paused timer. Answer it once per situation
-    // the timer can be in; tick "don't ask this again" in the dialog to
-    // answer it for that situation permanently.
     const state = timerStateKind();
     if (!askedAdjustInStatesRef.current.has(state)) {
       const next: DialogState = { type: 'adjust', data: { unit, value, previous, state } };
-      // marked before asking, not after confirming: the point is one
-      // dialog per state, and a cancelled question was still asked. The
-      // dismiss handler clears it again so cancelling doesn't silently
-      // hand the next adjustment a free pass.
+      // Marked before asking, not after confirming: a cancelled question
+      // was still asked. The dismiss handler clears it again so cancelling
+      // doesn't hand the next adjustment a free pass.
       askedAdjustInStatesRef.current.add(state);
       askThenRun(next, () => {
         askedAdjustInStatesRef.current.delete(state);
@@ -1265,24 +1093,14 @@ export default function Timer() {
     closeDialog();
   };
 
-  // Goes through askThenRun like every other question now, so both the
-  // CONFIRMATIONS switch and this dialog's own "don't ask again" apply
-  // to it. It used to be exempt on the grounds that hiding the link
-  // isn't reversible from the UI — it still isn't, but the site RESET
-  // brings it back, and that's the same escape hatch every other
-  // silenced dialog has.
   const handleHideWebsiteLinkClick = () => {
     askThenRun({ type: 'hideWebsiteLink' }, () => setIsWebsiteLinkHidden(true));
   };
 
-  // Seeking via the drain bar moves only the remaining time while the
-  // timer is running or paused — the configured time stays as it is, and
-  // a paused timer stays paused there. A timer that's never run (or has
-  // been stopped back to its configured time) has nothing to resume
-  // into, though: seeking it instead sets a brand-new configured time at
-  // that point, exactly like typing it into the HOURS/MINUTES/SECONDS
-  // fields would, and it stays idle there — a later START records that
-  // new time to history normally, same as any other start.
+  // While the timer is running or paused, seeking moves only the remaining
+  // time and leaves the configured time alone. An idle timer has nothing
+  // to resume into, so seeking sets a new configured time at that point
+  // instead, exactly as typing it into the fields would.
   const applySeek = (targetSeconds: number) => {
     if (!isRunning) {
       const parts = fromTotalSeconds(targetSeconds);
@@ -1302,8 +1120,8 @@ export default function Timer() {
     askThenRun({ type: 'seek', data: { targetSeconds, mode } }, () => applySeek(targetSeconds));
   };
 
-  // maps a mouse position on the track to its time: the bar drains left
-  // to right, so the track's left end is the configured time, right is 0
+  // The bar drains left to right, so the track's left end is the
+  // configured time and its right end is zero.
   const barPointSeconds = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = Math.min(rect.width, Math.max(0, e.clientX - rect.left));
@@ -1312,8 +1130,8 @@ export default function Timer() {
 
   const handleDialogConfirm = (dontAskAgain: boolean) => {
     justConfirmedRef.current = true;
-    // Recorded before the switch below runs, since some of these close
-    // over dialog state the actions themselves go on to clear
+    // Recorded before the switch runs, since some of these actions clear
+    // the dialog state they close over.
     if (dontAskAgain) suppressDialog(dialog);
     switch (dialog.type) {
       case 'stop':
@@ -1323,7 +1141,7 @@ export default function Timer() {
         handleConfirmMute();
         break;
       case 'clearCache':
-        // wipe saved state and reload so every piece of state re-initializes
+        // Wipe and reload, so every piece of state re-initialises.
         Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
         window.location.reload();
         break;
@@ -1331,11 +1149,9 @@ export default function Timer() {
         handleConfirmReset();
         break;
       case 'switch':
-        // every mode starts the new time — the modes differ only in what
-        // they had to warn about first (see handleSelectEntry). This is
-        // the path where the dialog was actually shown; the one where it
-        // was skipped or silenced runs the same applySwitch through
-        // askThenRun, and the two have to agree.
+        // Every mode starts the new time; they differ only in what they
+        // warned about first. The skipped-dialog path runs the same
+        // applySwitch through askThenRun, and the two have to agree.
         handleConfirmSwitch(dialog.data, true);
         break;
       case 'seek':
@@ -1358,8 +1174,8 @@ export default function Timer() {
         closeDialog();
         break;
       case 'removePreset':
-        // hands off to the row's fizz; the actual removal happens when
-        // that animation ends (see handleRemovePreset)
+        // Hands off to the row's fizz; the removal happens when that
+        // animation ends.
         setRemovingPresetId(dialog.data.id);
         closeDialog();
         break;
@@ -1374,10 +1190,9 @@ export default function Timer() {
     }
   };
 
-  // Dismissing an 'adjust' dialog has no edit to undo — nothing was
-  // applied to begin with (see requestConfiguredChange) — but the
-  // once-per-state prompt has to re-arm, or the next adjustment in this
-  // same state would skip its dialog and apply silently.
+  // Dismissing an 'adjust' has no edit to undo, since nothing was applied,
+  // but the once-per-state prompt has to re-arm or the next adjustment in
+  // that state would apply silently.
   const handleDialogDismiss = () => {
     if (!justConfirmedRef.current && dialog.type === 'adjust') {
       askedAdjustInStatesRef.current.delete(dialog.data.state);
@@ -1387,57 +1202,43 @@ export default function Timer() {
   };
 
   const remaining = formatTime(seconds, milliseconds);
-  // same label style as the presets/history lists ("1:30", not "01:30:00")
+  // Same label style as the sidebar lists: "1:30", not "01:30:00".
   const configuredLabel = formatEntryLabel(configured);
 
-  // one-shot flash on the countdown's own HH/MM/SS segment — green for an
-  // increase, red for a decrease — tied to the same tokens that gate
-  // applyAdjustment's flash (so it fires only when that field's own edit
-  // actually applies, not on every render)
+  // One-shot flash on a countdown segment, green for an increase and red
+  // for a decrease. Tied to the tokens applyAdjustment bumps, so it fires
+  // only when that field's edit applies rather than on every render.
   const isHoursFlashing = useFlashOnToken(hoursFlash.token);
   const isMinutesFlashing = useFlashOnToken(minutesFlash.token);
   const isSecondsFlashing = useFlashOnToken(secondsFlash.token);
   const flashTextClass = (isFlashing: boolean, direction: 'inc' | 'dec') =>
     isFlashing ? (direction === 'inc' ? 'animate-increaseFlashText' : 'animate-decreaseFlashText') : '';
 
-  // Window's own pause flash: pausing mid-overtime always stays plain
-  // black regardless of repeat, since the digits below take over that
-  // cue immediately (redWave) rather than waiting on this to settle.
-  // Above zero it's the original behavior: infinite yellow with repeat
-  // on, a fixed 3 cycles with it off (see the hasPausedSettled effect
-  // above). The drain bar's pauseFlashBar is separate and always infinite.
+  // Pausing mid-overtime stays plain black whatever repeat says, since the
+  // digits take that cue over immediately with redWave. Above zero it's
+  // infinite yellow with repeat on, three cycles with it off.
   const pauseFlashClass = seconds < 0 ? 'bg-black' : isAlarmLooping ? 'animate-pauseFlash' : 'animate-pauseFlashLimited';
 
-  // Drain bar under the digits: full at the configured time, empty at 0
-  // (and through overtime), its left edge receding rightward as time runs
-  // out while the hue sweeps green (120) -> red (0)
+  // Full at the configured time, empty at zero and through overtime, its
+  // left edge receding as the hue sweeps green (120) to red (0).
   const configuredMs = configuredTotalSeconds * 1000;
   const remainingMs = Math.max(0, seconds * 1000 + milliseconds);
   const timeFraction = configuredMs > 0 ? Math.min(1, remainingMs / configuredMs) : 0;
-  // pausing mid-overtime would otherwise leave the bar at 0% (invisible) —
-  // same trigger as the window/digit overtime cues above, so pausing while
-  // ringing keeps the bar full and red instead of disappearing. Whether it
-  // keeps flashing on top of that is repeat-dependent (see the bar's
-  // className below): repeat on treats the ring as ongoing even while
-  // paused, repeat off doesn't.
+  // Pausing mid-overtime would otherwise leave the bar at 0% and
+  // invisible, so it stays full and red instead.
   const isPausedOvertime = isPaused && seconds < 0;
-  // Full red bar (flashing while isAlarmRinging is actually true, static
-  // otherwise) any time the digits themselves are in a "red" state:
-  // actively ringing, paused mid-overtime, or repeat off with the finite
-  // ring already finished (hasRungOut) while still running — that last
-  // one used to leave the bar at 0% since timeFraction has nothing left
-  // to show, out of step with the digits already sitting solid red.
+  // Full red whenever the digits are in a red state: ringing, paused
+  // mid-overtime, or a finished finite ring while still running. That last
+  // one has no timeFraction left to show and would sit at 0% while the
+  // digits beside it were solid red.
   const isBarRedState = isAlarmRinging || hasRungOut || isPausedOvertime;
-  // ringing red wins over the hue (the animate-alarmFlashBar class then
-  // wins over this, alternating it with black); gray while never started
+  // Red wins over the hue; animate-alarmFlashBar then alternates it with
+  // black. Grey while never started.
   const barFillColor = isBarRedState ? '#ef4444' : isRunning ? `hsl(${120 * timeFraction}, 75%, 50%)` : '#6b7280';
 
-  // Shared between the main digit column's own bar and the compact copy
-  // riding in the word counter's fullscreen row — same hover-preview/
-  // click-to-seek behavior either way, just a different width and (since
-  // the compact copy sits near the very top of the screen, where the
-  // tooltip's usual "float above the bar" position would land off-screen)
-  // which side the hover tooltip lands on.
+  // Shared by the main column's bar and the compact copy in the word
+  // counter's fullscreen row. Same hover and seek behaviour; the copy sits
+  // near the top of the screen, so its tooltip goes below the track.
   const renderDrainBar = (width: string, tooltipBelow: boolean = false) => (
     <div
       className={`relative flex justify-end border-2 flex-shrink-0 ${tooltipBelow ? '' : 'mx-auto'} ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
@@ -1472,15 +1273,11 @@ export default function Timer() {
           {formatEntryLabel(fromTotalSeconds(barHover.seconds))}
         </div>
       )}
-      {/* the animation's background-color wins over the inline hue, and
-          both bar animations run out of step with the window's flash so
-          the bar stays visible against it: paused (above zero) alternates
-          yellow/black at a quarter of the window's rate; isBarRedState
-          fills the track full red, only flashing red/black while
-          isAlarmRinging is actually true or paused mid-overtime with
-          repeat on — repeat off (whether that's a finished finite ring
-          while still running, or paused with the ring not treated as
-          ongoing) sits static instead. */}
+      {/* The animation's background-color wins over the inline hue. Both
+          bar animations run out of step with the window's own flash so the
+          bar stays visible against it: paused alternates yellow at a
+          quarter of the window's rate, and a red bar only flashes while
+          actually ringing, or paused mid-overtime with repeat on. */}
       <div
         className={isAlarmRinging || (isPausedOvertime && isAlarmLooping) ? 'animate-alarmFlashBar' : isPaused && !isPausedOvertime ? 'animate-pauseFlashBar' : ''}
         style={{
@@ -1504,36 +1301,29 @@ export default function Timer() {
     </div>
   );
 
-  // The whole window carries the state color: running flashes bright
-  // green and fades to black within 5s (runFade), after which the text
-  // glows to that same green (glowFade); paused flashes yellow; overtime
-  // pulses red in sync with the alarm beeps and stays black while silent.
-  // The small text sitting directly on the window fades black -> white
-  // during the window fade before glowing green (it sets --glow-from:
-  // black); the digits hold white through it (no override, so the
-  // keyframes' white fallback applies) before glowing the same green. The
-  // A/B swap keyed on runCycle restarts both fades for a fresh countdown
-  // while the window is already green.
+  // The window carries the state colour: running flashes green and fades
+  // to black over 5s, after which the text glows that same green; paused
+  // flashes yellow; overtime pulses red with the beeps and stays black
+  // while silent. Text sitting on the window sets --glow-from so it fades
+  // black to white in step, while the digits hold white through it. The
+  // A/B swap on runCycle restarts both fades when a fresh countdown starts
+  // on an already-green window.
   const isWindowGreen = isRunning && !isPaused && seconds >= 0;
   const fadeSuffix = runCycle % 2 === 0 ? 'A' : 'B';
   const runFadeClass = `animate-runFade${fadeSuffix}`;
   const glowFadeClass = `animate-glowFade${fadeSuffix}`;
   const textGlowStyle = { '--glow-from': 'var(--app-surface)' } as React.CSSProperties;
 
-  // a reloaded overtime timer isn't ringing — the keys act on the timer
+  // A reloaded overtime timer isn't ringing; the keys act on the timer.
   const hintSubject = isRunning && seconds < 0 ? 'alarm' : 'timer';
   const hints = [
     { text: `Press SPACE to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${hintSubject}`, disabled: false },
     { text: `Press R to RESET the ${hintSubject}`, disabled: isIdleAtConfigured },
     { text: `Press S to STOP the ${hintSubject}`, disabled: isIdleAtConfigured },
   ];
-  // every hint shares the same color/glow, so one row of plain text
-  // (wrapping only if it truly doesn't fit) replaces what was one
-  // flex-item div per line — that ate 3x the vertical space on short
-  // windows, forcing the outer area to scroll just to reach STOP's hint.
-  // Shared verbatim (not just duplicated) between the normal digits
-  // column and the word counter's fullscreen header, which covers that
-  // column entirely and would otherwise lose these hints altogether.
+  // One row of plain text rather than a div per hint. They all share a
+  // colour and glow, and three flex items cost 3x the vertical space on a
+  // short window, enough to make the column scroll to reach the last one.
   const hintsText = hints
     .map(({ text, disabled }) =>
       isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
@@ -1552,14 +1342,11 @@ export default function Timer() {
     </div>
   );
 
-  // Which of the digits' color states currently applies. Pausing while
-  // negative (overtime) shows the red wave immediately — no waiting on
-  // the window's own flash to settle, unlike the yellow wave above zero,
-  // and it wins regardless of whether the ring itself ever finished.
-  // green/white/either wave all animate themselves (green via the
-  // ancestor's own glow fade, the waves via their own CSS class, white
-  // via just having no override), so only solid 'red' (the ring
-  // finishing while still running, not paused) needs a driven fade.
+  // Which digit colour applies. Pausing in overtime shows the red wave at
+  // once, without waiting for the window flash to settle the way the
+  // yellow wave does, and it wins whether or not the ring ever finished.
+  // Green, white and both waves animate themselves, so only solid red
+  // needs the driven fade below.
   const digitColorCategory: 'green' | 'yellowWave' | 'redWave' | 'red' | 'white' =
     isPaused && seconds < 0 ? 'redWave'
       : isPaused && hasPausedSettled ? 'yellowWave'
@@ -1567,9 +1354,9 @@ export default function Timer() {
       : isWindowGreen ? 'green'
       : 'white';
   const digitWaveClass = digitColorCategory === 'yellowWave' ? 'animate-waveYellowText' : digitColorCategory === 'redWave' ? 'animate-waveRedText' : '';
-  // Routes a switch into solid red through an instant white first, so a
-  // fade never cross-blends directly from green — white or either wave
-  // already read as neutral, so those can fade straight into red.
+  // Routes a switch into solid red through an instant white, so the fade
+  // never cross-blends out of green. White and both waves already read as
+  // neutral and can fade straight to red.
   const [digitColorStyle, setDigitColorStyle] = useState<{ color?: string; transition: string }>({ transition: 'color 0s' });
   const prevDigitColorCategoryRef = useRef(digitColorCategory);
   useEffect(() => {
@@ -1597,25 +1384,22 @@ export default function Timer() {
       ? (isPaused ? 'PAUSED' : 'RUNNING')
       : (seconds === configuredTotalSeconds ? 'READY' : 'STOPPED');
 
-  // Every size here clamps on min(vw, vh) rather than vw alone, so a short
-  // window shrinks these controls instead of the digits: the digits'
-  // own font-size (see the clock below) clamps on vw only, so a short
-  // window never touches it — the digits keep priority over everything
-  // else in this column.
+  // Clamped on min(vw, vh) rather than vw alone, so a short window shrinks
+  // these instead of the digits. The digits clamp on vw only, which is
+  // what gives them priority over everything else in this column.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
     padding: `${shrinkClamp(0.65, 1.4, 1.5, 1.4)} ${shrinkClamp(1.3, 2.75, 3.1, 2.75)}`,
     fontSize: shrinkClamp(1, 1.95, 2.4, 1.65),
     borderColor: color,
     color,
-    // black chip so the colored borders stay readable on the colored window
+    // A surface-coloured chip keeps the borders readable on the coloured
+    // window behind them.
     backgroundColor: 'var(--app-surface)',
     minWidth: shrinkClamp(7, 16.5, 17.5, 11.25),
   });
-  // Word counter fullscreen covers the digits column (and its START/
-  // RESUME/RESET/STOP row) entirely, so a compact copy of those same
-  // buttons rides in that view's own header instead — same colors and
-  // logic, scaled to a single header row instead of the full-size chip
+  // The same buttons scaled to a single header row, for the word counter's
+  // fullscreen view, which covers the real ones.
   const compactControlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
     height: HEADER_BUTTON_SIZE.height,
@@ -1625,16 +1409,15 @@ export default function Timer() {
     color,
     backgroundColor: 'var(--app-surface)',
   });
-  // Mute/volume and alarm-repeat controls, shared between their normal
-  // floating spot (top-left corner, hidden during word counter
-  // fullscreen) and the word counter's own fullscreen header row, which
-  // needs copies of both inline instead — see that row's own comment.
+  // Mute and alarm-repeat, shared between their floating spot in the
+  // top-left corner and the word counter's fullscreen row, which needs
+  // them inline because it covers that corner.
   const speakerButton = (
     <div className="relative group">
       <button
         onClick={(e) => {
-          // touch devices have no hover — focus keeps the volume
-          // popup open (group-focus-within) so a tap can reach it
+          // Touch devices have no hover, so focus is what keeps the volume
+          // popup open (group-focus-within) long enough to reach it.
           e.currentTarget.focus();
           handleMuteToggle();
         }}
@@ -1675,10 +1458,8 @@ export default function Timer() {
             aria-label="Volume"
             title={`Volume: ${Math.round(volume * 100)}%`}
           />
-          {/* the title attribute above already said this on hover, but a
-              tooltip on top of a control you're already hovering to use
-              is easy to miss — showing it plainly next to the slider
-              means the number's visible the moment the popup opens. */}
+          {/* The title above says this on hover, but a tooltip over a
+              control you're already hovering is easy to miss. */}
           <span
             className="text-white font-bold flex-shrink-0"
             style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.6, 1, 1.1, 0.75), minWidth: '2.75em', textAlign: 'right' }}
@@ -1701,10 +1482,9 @@ export default function Timer() {
       title={isAlarmLooping ? 'Alarm repeats until stopped — click to ring a single burst instead' : 'Alarm rings a single burst then stays quiet — click to repeat until stopped'}
       aria-label={isAlarmLooping ? 'Disable alarm repeat' : 'Enable alarm repeat'}
     >
-      {/* Bell is the main icon — this button is fundamentally about
-          the alarm, not a generic loop toggle — sized to fill most
-          of the button; Repeat sits centered inside the bell's own
-          body as a badge for the repeat setting specifically */}
+      {/* The bell is the main icon, since this is about the alarm rather
+          than being a generic loop toggle. Repeat sits inside the bell's
+          body as a badge for the setting itself. */}
       <Bell
         color={isAlarmLooping ? '#22c55e' : 'var(--app-ink)'}
         style={RINGER_BELL_SIZE}
@@ -1724,42 +1504,23 @@ export default function Timer() {
       />
     </button>
   );
-  // The tip only rides alongside the buttons in their normal spot — the
-  // word counter's fullscreen row drops it (along with the WORD COUNTER
-  // label and website link) to leave that already-crowded row room to
-  // just show speaker/ringer/digits/controls, not to also explain them.
-  // gap-2 between ringer and speaker matches the same gap-2 the outer
-  // cluster uses between the sidebar arrow and this pair, so the
-  // spacing reads as one consistent rhythm rather than two different
-  // gaps; the tip below spans just the ringer/speaker pair, not the
-  // sidebar arrow beside them.
+  // The tip only rides along in the buttons' normal spot; the word
+  // counter's fullscreen row is too crowded to explain its controls as
+  // well as show them.
   const ringerAndSpeakerCluster = (
     <div className="flex flex-col items-start gap-1">
       <div className="flex items-center gap-2">
         {ringerButton}
         {speakerButton}
       </div>
-      {/* the count-up/stopwatch trick used to live only in the mute
-          button's tooltip, which was actively misleading — muting
-          silences the alarm entirely, it's turning repeat OFF that
-          lets 00:00:00 ring once and then keep counting silently. Now
-          spells out both real ways to actually quiet the alarm (mute
-          the volume, or turn repeat off) alongside that trick, rather
-          than just hinting at the OFF half of it.
-          Made a permanent visible label (not just a hover tooltip) so
-          it's discoverable without needing to find and hover this
-          specific button first. Drops off below sm (matching the
-          CONFIRMATIONS label elsewhere) rather than shrinking further —
-          on an already-cramped window this is the least essential thing
-          here, and this row never wraps, so freeing the space matters
-          more than keeping the tip legible.
-          Width is exactly the ringer+speaker row above it, at every
-          size, rather than its own maxWidth clamp that only roughly
-          tracked that row and drifted past the speaker's right edge:
-          width 0 + minWidth 100% takes the parent's full width while
-          contributing nothing to how that parent (fit-content, sized by
-          the row) measures itself — a plain width: 100% would size the
-          parent to this paragraph's own long text instead. */}
+      {/* A visible label rather than another tooltip, so the stopwatch
+          trick is discoverable without hovering the right button first.
+          Drops out below sm, where this row is the least essential thing
+          on a cramped window and never wraps.
+          width 0 + minWidth 100% makes this exactly as wide as the buttons
+          above without contributing to how the fit-content parent measures
+          itself; a plain width: 100% would size that parent to this
+          paragraph instead. */}
       <p
         className="hidden sm:block opacity-75 font-bold text-white text-left"
         style={{ fontSize: shrinkClamp(0.45, 0.95, 1, 0.6), width: 0, minWidth: '100%', lineHeight: 1.25 }}
@@ -1782,22 +1543,14 @@ export default function Timer() {
       onTimeZoneChange={setTimeZone}
     />
   );
-  // Website link, shared between its normal spot (centered above the
-  // digits, hidden during word counter fullscreen) and that fullscreen
-  // view's own header row, which gets a copy inline instead — see that
-  // row's own comment.
   const websiteLinkButton = (
-    // Held clear of the two header corners it shares a band with. This
-    // sits centered on the row while those float at its ends, so as the
-    // window narrows the gap between them closes from both sides — and
-    // the corners stop shrinking before this does, since every control in
-    // them bottoms out on a rem floor.
-    // It stays on one line and on the same row throughout: it gets
-    // narrower instead (see the font-size below), and once that would
-    // make it unreadable it drops out altogether rather than wrapping or
-    // moving down. md: is where that happens — the gap left between two
-    // HEADER_CORNER_RESERVEs at their floors is about 7rem there, which
-    // is this label at the smallest size it's worth drawing.
+    // Centred in a band whose two ends are the floating header corners,
+    // so the gap closes from both sides as the window narrows, and the
+    // corners stop shrinking first because their controls bottom out on
+    // rem floors. This stays on one line throughout: it gets narrower
+    // instead, and below md it drops out entirely rather than wrapping.
+    // The gap between two HEADER_CORNER_RESERVEs at their floors is about
+    // 7rem there, which is this label at its smallest legible size.
     <div className="relative z-[70] hidden md:flex items-center gap-1.5 flex-shrink-0">
       <button
         onClick={handleHideWebsiteLinkClick}
@@ -1822,22 +1575,17 @@ export default function Timer() {
           fontFamily: "'IBM Plex Mono', monospace",
         }}
       >
-        {/* sized in em now that this link's own font-size can be the
-            thing that gives way — its own clamp would have kept the icon
-            full size while the label shrank around it */}
+        {/* em, so it shrinks with the label. Its own clamp would have kept
+            the icon full size while the text shrank around it. */}
         <ExternalLink style={{ width: '1em', height: '1em' }} />
         Check Out My Website!
       </a>
     </div>
   );
-  // Compact "remaining / total" readout riding in the word counter's
-  // fullscreen header alongside the compact controls above — that view
-  // covers the real digits, so this is the only clock visible there.
-  // Built from the same `remaining` (formatTime output) as the real
-  // digits, so hours and milliseconds show here exactly like they do
-  // there — not the shorter "1:30"-style label configuredLabel uses,
-  // which is fine for a static reference total but would hide real
-  // precision on a ticking remaining time.
+  // "remaining / total" for the word counter's fullscreen header, which
+  // covers the real digits. Built from the same formatTime output, so
+  // hours and milliseconds show exactly as they do there; the shorter
+  // configuredLabel style would hide real precision on a ticking value.
   const wordCounterTimerDigits = (
     <span
       className="font-bold flex-shrink-0"
@@ -1851,17 +1599,13 @@ export default function Timer() {
       {' '}<span className="opacity-60">/ {configuredLabel}</span>
     </span>
   );
-  // The HOURS/MINUTES/SECONDS panel (or, while hidden, the arrow that
-  // brings it back). Hoisted out of the JSX only to keep the timer row's
-  // own markup readable — it has exactly one slot, in that row.
+  // The HOURS/MINUTES/SECONDS panel, or the arrow that brings it back.
+  // Hoisted out of the JSX to keep the row's markup readable; it has
+  // exactly one slot, in that row.
   const timeFieldsPanel = isTimeFieldsHidden ? (
-    // Hidden with nothing to click: the panel was auto-tucked (not a
-    // manual hide) and there's still no room for it, so this arrow would
-    // just bounce it straight back to hidden on the very next check() —
-    // showing it here would be a dead button. It reappears on its own
-    // once the panel does (see tuckedNeedsRef above). Only ever rendered
-    // at sm+ anyway — the whole panel is (see the row below) — so the
-    // below-sm auto-tuck never reaches this.
+    // No arrow while auto-tucked: there's still no room, so it would
+    // bounce straight back on the next check() and read as a dead button.
+    // It returns on its own when the panel does.
     !isTimeFieldsAutoTucked && (
       <HeaderToggleButton
         onClick={() => {
@@ -1876,25 +1620,16 @@ export default function Timer() {
       />
     )
   ) : (
-    // items-start: the hide button sits flush against the box's
-    // top-left corner — its right edge touching the box's left
-    // edge — rather than centered on the box's full height.
-    // sm:self-start + TIME_FIELDS_TOP_MARGIN on the wrapper keeps
-    // that corner pinned below the header buttons, matching the
-    // collapsed button above so toggling never shifts its position.
-    // The ref is what the auto-tuck ladder measures: it asks whether
-    // THIS box outgrows the row, rather than whether anything in the
-    // row does (see that effect's own comment).
-    // min-w-min rather than flex-shrink-0: the 3-across form is wider
-    // than the panel's share of the row at the narrow end of sm+ (it
-    // needs ~526px at 1024, where this gets ~349), and it only fits
-    // there because the box is allowed to shrink until its grid tracks
-    // reach min-content and each field wraps its own box/arrows under
-    // its label. Refusing to shrink meant across overflowed and the
-    // ladder tucked the panel at exactly the sizes across exists for.
-    // min-w-min, not the automatic minimum, because index.css's blanket
-    // `.flex { min-width: 0 }` overrides that — the shrinking has to
-    // stop at min-content instead of crushing the box past it.
+    // items-start puts the hide button flush against the box's top-left
+    // corner rather than centred on its height, and the top margin pins
+    // that corner below the header buttons so toggling never shifts it.
+    //
+    // min-w-min rather than flex-shrink-0: the 3-across form needs ~526px
+    // where the panel gets ~349 at 1024, and only fits because the box can
+    // shrink until its grid tracks reach min-content and each field wraps.
+    // min-w-min specifically, because index.css's blanket
+    // `.flex { min-width: 0 }` overrides the automatic minimum and would
+    // let it crush past min-content instead of wrapping.
     <div
       ref={timeFieldsRef}
       className="flex items-start min-w-min sm:self-start"
@@ -1909,25 +1644,12 @@ export default function Timer() {
         icon={<ChevronsRight style={HEADER_ICON_SIZE} />}
         label="Hide hours/minutes/seconds"
       />
-      {/* padding/gap sized on shrinkClamp rather than Tailwind's
-          sm:/md: steps — those jump discretely at fixed
-          breakpoints, so most of this box's own footprint stayed
-          rigid right up until the auto-tuck check gave up on it
-          entirely. This keeps shrinking continuously the same
-          way TimeField's own contents already do.
-          All three fields take the same form at once — inline
-          (label beside the digit box/arrows) at lg+, stacked
-          (label above them) below, which is roughly a third of
-          the width at ~1.4x the height. That's what a horizontal
-          squeeze gets instead of the panel disappearing; see
-          isTimeFieldsStacked and the auto-tuck ladder above.
-          Width is w-fit, so this box just sizes to whatever the
-          current form needs.
-          time-fields-box is the hook for the wide-and-short 3-across
-          form (index.css), which is the other half of that ladder:
-          the container query there turns this flex-col into a
-          3-column grid once the row it sits in is too short for a
-          vertical stack of three. */}
+      {/* Padding and gap on shrinkClamp rather than Tailwind's sm:/md:
+          steps, which jump at fixed breakpoints and leave most of this
+          box's footprint rigid until the auto-tuck gives up on it.
+          time-fields-box is the hook for the 3-across form: the container
+          query in index.css turns this flex-col into a 3-column grid once
+          the row is too short for a vertical stack. */}
       <div
         className="border-4 border-white bg-black flex flex-col w-fit time-fields-box"
         style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
@@ -1939,9 +1661,8 @@ export default function Timer() {
     </div>
   );
 
-  // Shared between the normal in-column button row and the compact
-  // fullscreen-header copy above — same START/RESUME-PAUSE/RESET/STOP
-  // logic either way, just a different size/border weight
+  // Shared by the in-column button row and the compact fullscreen copy.
+  // Same logic either way, different size and border weight.
   const renderControlButtons = (buttonStyle: (color: string) => React.CSSProperties, borderClass: string) => (
     <>
       {!isRunning && (
@@ -1991,10 +1712,10 @@ export default function Timer() {
         seconds < 0
           ? isPaused
             ? pauseFlashClass
-            // red only while a beep actually sounds — silent overtime
-            // (muted, ring-once finished, stopped after a reload) stays
-            // black, so the flashing always matches the audio; the color
-            // snaps (no transition) to keep the pulses crisp
+            // Red only while a beep is actually sounding, so silent
+            // overtime stays black and the flashing always matches the
+            // audio. The colour snaps, with no transition, to keep the
+            // pulses crisp.
             : isBeepFlash
               ? 'bg-red-500'
               : 'bg-black'
@@ -2005,47 +1726,23 @@ export default function Timer() {
             : 'bg-black'
       }`}
     >
-      {/* Sidebar: sm+ only — no mobile drawer, so it never pops up over
-          the timer on a shrunk window. Hidden entirely at any width via
-          the << header toggle. Word counter fullscreen (z-[60], no
-          z-index here) deliberately covers this when active — see its
-          own comment in WordCounter.tsx — so this can't out-stack it. */}
+      {/* sm+ only, with no mobile drawer, so it never pops up over the
+          timer on a narrow window. The word counter's fullscreen view
+          (z-[60], nothing here) covers it deliberately. */}
       {!isSidebarHidden && (
-        // w-fit rather than its own clamp — a clamp stretches the row
-        // buttons' flex-1 width to match, but LIST_ROW_BUTTON_STYLE's
-        // own font-size clamp doesn't grow at the same rate, so a wider
-        // sidebar just meant more empty padding around the same-size
-        // "1:05"-style text instead of a genuinely bigger, more legible
-        // list. w-fit sizes this to whatever its widest actual content
-        // needs — fixed once that's determined, so the row buttons'
-        // flex-1 still fills it uniformly, just without an unrelated
-        // width formula stretching it further than the content asks for.
-        // Fixed width (SIDEBAR_WIDTH — see its own comment), not w-fit
-        // and not the 9rem minWidth floor before that. w-fit tracked the
-        // content, which sounds right until you notice the content
-        // changes constantly: every started timer appends a history row,
-        // and one long entry among the short ones resized this column
-        // and shifted the whole timer beside it mid-use. The computed
-        // width fits the longest row that can ever appear, so the labels
-        // still set the size — just once, up front, instead of every
-        // time the list changes.
+        // A computed width rather than w-fit: the content changes
+        // constantly, since every started timer appends a history row, and
+        // one long entry among the short ones resized this column and
+        // shifted the timer beside it mid-use. SIDEBAR_WIDTH fits the
+        // longest row that can ever appear, so the labels still set the
+        // size, once, instead of on every list change.
         //
-        // sm, not lg: SIDEBAR_WIDTH works out to ~160px at these sizes,
-        // so 1024px was hiding the panel across a whole band of widths
-        // that had several times the room it asks for — it just vanished
-        // on the way down. sm is where the timer row itself stops being
-        // a row (isRowLayout) and the whole page stacks; below that a
-        // left column genuinely doesn't belong, and above it there's
-        // room, so that's the honest line.
-        // One scroll region for both panels, not one each. They used to
-        // scroll separately, which meant they were also sized separately:
-        // history took the leftover height and presets got whatever was
-        // left, so a handful of presets ended up in a two-row box with
-        // its own bar while the list below it had room to spare. Scrolling
-        // out here instead lets each list simply be as tall as it is, and
-        // there's one bar down the side of the pair — so the scrollbar
-        // gutter SIDEBAR_WIDTH budgets for is held open once, here, rather
-        // than once inside each list.
+        // One scroll region for both panels, not one each. Scrolling
+        // separately meant sizing separately: history took the leftover
+        // height and presets got what was left, which put a handful of
+        // presets in a two-row box with its own bar. Out here each list is
+        // simply as tall as it is, and the gutter SIDEBAR_WIDTH budgets
+        // for is held open once.
         <div
           className="hidden sm:flex bg-black border-r-4 border-white flex-col overflow-y-auto overflow-x-hidden flex-shrink-0"
           style={{ width: SIDEBAR_WIDTH, padding: SIDEBAR_PADDING, gap: SIDEBAR_PADDING, scrollbarGutter: 'stable' }}
@@ -2077,28 +1774,18 @@ export default function Timer() {
       )}
 
       <div className="flex-1 flex flex-col items-center p-2 sm:p-3 md:p-4 gap-2 overflow-hidden min-h-0 relative">
-        {/* The whole cluster (sidebar toggle + mute + alarm repeat) hides
-            during word counter fullscreen — that view covers the sidebar
-            entirely, and puts its own copies of the mute/repeat controls
-            inline in its header row instead (see ringerAndSpeakerCluster
-            above and WordCounter's own comment) so
-            they aren't just duplicated, they actually relocate. Every
-            header control below sizes on min(vw, vh), like the digits
-            column, so a short window shrinks these too instead of
-            competing with the digits for space. */}
-        {/* z-[80], one above the other header strip and the website
-            link (both z-[70]): the volume popup swings right out of the
-            speaker into the space the link occupies, and on a tie the
-            link — later in the DOM — was painting over it. Nothing here
-            ever overlaps the right-hand strip, so out-stacking it costs
-            nothing. */}
+        {/* Hidden during word counter fullscreen, which carries its own
+            copies of these controls inline, so they relocate rather than
+            being duplicated.
+            z-[80], one above the right-hand strip and the website link:
+            the volume popup swings right out of the speaker into the
+            link's space, and on a tie the link won by being later in the
+            DOM. Nothing here overlaps the right strip. */}
         {!isWordCounterFullscreen && (
         <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[80] flex items-start gap-2">
-          {/* below sm the sidebar itself is force-hidden (see its own
-              hidden sm:flex above) regardless of isSidebarHidden — so
-              this toggle would sit there doing nothing below that
-              width. Matching its breakpoint here means it only shows
-              once there's an actual panel for it to control. */}
+          {/* The sidebar is force-hidden below sm whatever isSidebarHidden
+              says, so this toggle matches its breakpoint and only appears
+              when there's a panel for it to control. */}
           <HeaderToggleButton
             onClick={() => setIsSidebarHidden((prev) => !prev)}
             icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
@@ -2109,23 +1796,10 @@ export default function Timer() {
         </div>
         )}
 
-        {/* measured, not estimated — see headerCornerRef */}
+        {/* Measured rather than estimated; see headerCornerRef. */}
         <div ref={headerCornerRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
 
-          {/* skip-confirmations toggle; the site RESET next to it is
-              destructive enough that it always asks */}
-          {/* Turning confirmations OFF asks first, and spells out what
-              stops asking — it's the one switch that changes what every
-              other click does. That question carries its own "don't ask
-              this again" like the rest of them now, so it can be answered
-              once and for good; RESET is what brings it back. Not gated
-              on skipConfirmations itself, which would be circular — this
-              branch only runs while confirmations are still on. Turning
-              them back on is a safe direction and goes straight through. */}
-          {/* Same square box as the sidebar/word-counter arrows — this is
-              a view switch like those, not one of the two bordered word
-              buttons beside it, and it has no label to spend width on.
-              Sun while dark (what clicking gets you), moon while light. */}
+          {/* Sun while dark, showing what clicking gets you. */}
           <HeaderToggleButton
             onClick={() => setIsLightTheme((prev) => !prev)}
             icon={isLightTheme ? <Moon style={HEADER_ICON_SIZE} /> : <Sun style={HEADER_ICON_SIZE} />}
@@ -2133,11 +1807,12 @@ export default function Timer() {
           />
 
           <button
-            // Through askThenRun like every other question, so this
-            // dialog's own "don't ask this again" is honoured — tick it
-            // and the next click turns confirmations off on the spot.
-            // The skipConfirmations half of askThenRun can't fire here:
-            // this branch only runs while they're still on.
+            // Turning confirmations off is the one switch that changes
+            // what every other click does, so it asks. Through askThenRun
+            // like the rest, so its own "don't ask this again" is
+            // honoured. Not circular: askThenRun's skipConfirmations check
+            // can't fire here, since this branch only runs while they're
+            // still on. Turning them back on never asks.
             onClick={() => {
               if (skipConfirmations) {
                 setSkipConfirmations(false);
@@ -2146,13 +1821,10 @@ export default function Timer() {
               }
             }}
             aria-pressed={!skipConfirmations}
-            // The same square box as the arrows and the theme toggle, its
-            // checkbox sized like their icons. It used to carry the word
-            // CONFIRMATIONS, which made it the widest control in this
-            // corner by a distance — thirteen characters — and this corner
-            // is what the website link and the word counter's fullscreen
-            // row both have to keep clear of. The tooltip says what the
-            // box means; the box says whether it's on.
+            // Wordless, like the rest of this corner: a label here made it
+            // the widest control by a distance, and this corner is what
+            // the website link and the fullscreen row keep clear of. The
+            // tooltip says what it means, the box says whether it's on.
             className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80 flex-shrink-0"
             style={{
               ...HEADER_BUTTON_SIZE,
@@ -2168,10 +1840,7 @@ export default function Timer() {
             <DotCheckbox checked={!skipConfirmations} fontSize={HEADER_ICON_SIZE.width} />
           </button>
 
-          {/* Reset the whole site to defaults. Square and wordless like
-              the rest of this corner now — the bin says it, and red says
-              which kind of it. Nothing here is reachable by accident
-              anyway: this one asks even with confirmations turned off. */}
+          {/* Resets the whole site. Asks even with confirmations off. */}
           <button
             onClick={() => setDialog({ type: 'clearCache' })}
             className="flex items-center justify-center border-3 border-red-500 text-red-500 transition-all duration-200 hover:opacity-80 flex-shrink-0"
@@ -2183,38 +1852,19 @@ export default function Timer() {
           </button>
         </div>
 
-        {/* items-center centers the row's children in the cross axis
-            (horizontally at mobile, vertically at lg — keeping the
-            HOURS/MINUTES/SECONDS panel vertically centered there). The
-            inline alignItems: 'safe center' falls back to start-alignment
-            instead of clipping an overflowing item in a way scrolling
-            can't reach (set via inline style since Tailwind's
-            arbitrary-value class for it didn't generate real CSS here).
-            Keep the items-center class too: an invalid inline value is
-            dropped rather than resolving to blank, so this class is the
-            fallback for browsers that reject the "safe" keyword, not dead
-            weight. sm:self-start on the digits column below overrides
-            just that one child to sit at the top instead, so the link
-            living at its top always lands at the true top of the page —
-            no "safe" fallback needed there since start-alignment can't
-            clip content off the top the way center can. sm:self-stretch
-            (rather than self-start) gives it the row's full height so the
-            inner flex-1 wrapper around the digits/controls below can
-            still center THAT content in the leftover space, instead of
-            everything bunching up under the link. */}
+        {/* alignItems: 'safe center' falls back to start-alignment rather
+            than clipping an overflowing item somewhere scrolling can't
+            reach. Inline, because Tailwind's arbitrary-value class for it
+            didn't generate real CSS here; the items-center class stays as
+            the fallback for browsers that reject the "safe" keyword, since
+            an invalid inline value is dropped rather than blanking it. */}
         {/* container-type: size makes this row queryable by height, which
-            is what lets the HOURS/MINUTES/SECONDS panel inside it switch
-            to its 3-across form when the row is too short for the stack
-            (see .time-fields-box in index.css) with no state, no
-            observer and no risk of the switch moving its own trigger:
-            this row is flex-1 in both axes with an explicit w-full, so
-            its box comes from its parent, never from what's in it.
-            Size containment needs exactly that guarantee, so it's gated
-            to isRowLayout (sm) — which is also the only range the panel
-            is rendered in at all, so below it there's nothing to query
-            for. The digits column's own nested container (further down)
-            still resolves its 100cqh against itself, being the nearer of
-            the two. */}
+            is what lets the panel inside switch to its 3-across form with
+            no state, no observer, and no risk of the switch moving its own
+            trigger: the row is flex-1 in both axes with an explicit
+            w-full, so its box comes from its parent rather than its
+            contents, which is exactly what size containment needs. Gated
+            to sm, the only range the panel is rendered in anyway. */}
         <div
           ref={timerRowRef}
           className="flex flex-col sm:flex-row gap-4 sm:gap-2 w-full min-h-0 flex-1 items-center justify-start sm:justify-between overflow-hidden"
@@ -2224,141 +1874,76 @@ export default function Timer() {
         >
           <div className="flex-1 hidden sm:block"></div>
 
-          {/* never shrinks, at any width: its inner box carries an
-              explicit width (see below), so letting the flex row shrink
-              this column only pushed that box past the column's own
-              clipped edge — and the resulting overflow auto-tucked the
-              HOURS/MINUTES/SECONDS panel beside it. Nothing in this row
-              shrinks now; the panel beside it changes form on a
-              breakpoint instead (see isTimeFieldsStacked), which is a
-              third of the width rather than a squeezed version of the
-              same one. */}
+          {/* Never shrinks at any width. Its inner box carries an explicit
+              width, so letting the row shrink this column only pushed that
+              box past the column's clipped edge, and the overflow
+              auto-tucked the panel beside it. The panel changes form on a
+              breakpoint instead, which is a third of the width rather than
+              a squeezed version of the same one. */}
           <div className="flex flex-col items-center justify-center flex-shrink-0 min-w-0 gap-1 w-full sm:w-auto sm:self-stretch">
-            {/* Link to my main site: living in this column (rather than
-                the absolute-positioned header strip) means it's centered
-                by the same items-center that centers the digits below it,
-                at every window size, without fighting the header icons
-                for space. Its font-size clamps on min(vw, vh) rather than
-                vw alone, so on a short-but-wide window the vh term takes
-                over and shrinks it — yielding vertical room to the digits
-                (sized purely by vw, so a short window never shrinks them)
-                and the START/RESET/STOP row below. Pink instead of a timer
-                state color so it never blends into the window's own green
-                run-start flash; the glow is suppressed during pause/alarm
-                so it doesn't compete with those higher-priority signals.
-                Hidden during word counter fullscreen — that view's own
-                header row already carries plenty (mute, repeat, digits,
-                controls), so this drops entirely there rather than
-                competing for the same space. */}
+            {/* In this column rather than the absolute header strip, so
+                the same items-center that centres the digits centres it,
+                without fighting the header icons for space. Its font-size
+                clamps on min(vw, vh), so a short window shrinks it and
+                yields height to the digits, which clamp on vw alone. Pink
+                so it never blends into the window's green run flash, and
+                the glow is suppressed during pause and alarm so it doesn't
+                compete with those. */}
             {!isWebsiteLinkHidden && !isWordCounterFullscreen && websiteLinkButton}
 
-            {/* Everything below the link centers itself in whatever
-                vertical space is left under it (flex-1 + justify-center),
-                rather than being pulled up flush against the link now
-                that the column above sits at the top instead of being
-                vertically centered as a whole.
-                container-type: size (sm+ only — see isRowLayout) turns
-                this box's own resolved height (already the true leftover
-                space, after the word counter below takes its share and
-                after the link above takes its own row when shown) into a
-                queryable unit (cqh) for the digits' font-size below — vh
-                alone can't see any of that sharing, which is what let the
-                digits overflow past this box and collide with the link,
-                or force the row to scroll, on short windows. Removing the
-                link gives this box more of that resolved height
-                automatically, so the digits grow back into the freed
-                space without any extra wiring.
-                Below sm, this column loses its own sm:self-stretch height
-                (mobile/stacked layout gives it fit-content height
-                instead), so this box would have nothing but its own
-                (now-contained, i.e. reported as ~0) content to size
-                itself against — collapsing this whole column to a sliver
-                and spilling its real content down into the
-                HOURS/MINUTES/SECONDS panel stacked below it. So the
-                container/cqh setup — and the explicit width it also
-                requires below, for the same reason the width bug above
-                needed one — only apply at sm+; below it this reverts to
-                plain fit-content sizing, same as before any of this. */}
+            {/* container-type: size turns this box's resolved height, the
+                real leftover after the word counter and the link take
+                their share, into a cqh unit for the digits below. vh can't
+                see any of that sharing, which let the digits overflow into
+                the link or force the row to scroll on short windows.
+                Removing the link frees height the digits grow back into
+                with no extra wiring.
+                sm+ only: below it this column loses sm:self-stretch and
+                takes fit-content height, so a size container would have
+                nothing but its own contained (~0) content to measure
+                against and would collapse the column to a sliver. */}
             <div
               className="flex-1 flex flex-col items-center justify-center min-h-0 gap-1"
               style={isRowLayout ? { containerType: 'size', width: 'clamp(16rem, 40vw, 44rem)' } : undefined}
             >
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-              // solved from measured layout, not guessed: this block's own
-              // height comes out to ~2.8rem + 1.73x its font-size (padding
-              // + configured-time line + progress bar don't scale with the
-              // digits; the digit line itself does), and its siblings
-              // (buttons row + status/hints, both font-size-independent)
-              // add another ~7.9rem — so total container content height is
-              // ~10.75rem + 1.73x font-size. Solving that for font-size in
-              // terms of the container's own height (100cqh) gives an
-              // exact fit instead of a guessed percentage.
-              // That reserved part isn't actually a constant, though,
-              // which is what a flat 12.5rem got wrong in both
-              // directions: those siblings are themselves sized on
-              // min(vw, vh) clamps, so they measure ~13rem on a tall
-              // window (where a flat 12.5rem under-reserves) and shrink
-              // to their own rem floors of ~9.7rem on a short one (where
-              // it over-reserves by ~45px — and since every reserved
-              // pixel costs 1.75x its own height in font-size, that alone
-              // was pinning the digits at their 1.2rem floor on windows
-              // ~580px tall, on a row with room to spare). Reserving
-              // max(floor, vh-scaled) instead tracks them through both:
-              // the vh term follows the siblings while they still scale,
-              // the floor takes over once they've bottomed out, and each
-              // leaves ~10px of slack so this column still can't be the
-              // thing that overflows the row and auto-tucks the
-              // HOURS/MINUTES/SECONDS panel beside it.
-              // On any reasonably tall window this still clamps at the same
-              // 10.5vw/7.5rem ceiling as before (unchanged normal-case
-              // size) — it only pulls back once the query container (see
-              // its own comment above) is genuinely short, shrinking the
-              // digits to fit instead of overflowing past it. Below sm
-              // there's no queryable container at all (see isRowLayout
-              // above), so this falls back to the original vw-only clamp.
-              // The wall clock added above the digits is three more lines
-              // this block has to fit — time, date, and the settings row
-              // under them, that last one a little taller than a text line
-              // for the zone box's own border. Both solves below reserve
-              // that height as a clamp of the same shape as those lines'
-              // own font size (CLOCK_FONT_SIZE plus leading, about four
-              // lines' worth), so the reserve tracks them through a
-              // shrinking window rather than being a constant that's only
-              // right at one size.
+              // Solved from measured layout rather than picked. This block
+              // is ~2.8rem plus 1.73x its font-size (only the digit line
+              // scales), and its siblings add ~7.9rem, so the container's
+              // content is ~10.75rem + 1.73x font-size. Solving that for
+              // font-size against 100cqh gives an exact fit.
+              //
+              // The reserve isn't a constant: the siblings are themselves
+              // min(vw, vh) clamps, measuring ~13rem on a tall window and
+              // bottoming out near 9.7rem on a short one. A flat figure was
+              // wrong in both directions, and since every reserved pixel
+              // costs 1.75x its height in font-size, over-reserving pinned
+              // the digits at their floor on windows with room to spare.
+              // max(floor, vh-scaled) tracks the siblings while they scale
+              // and takes over once they stop, leaving ~10px of slack so
+              // this column can't be what overflows the row.
+              //
+              // The second max() is the clock's own reserve, shaped like
+              // CLOCK_FONT_SIZE so it tracks the same way.
               style={{
                 fontSize: isRowLayout
                   ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh) - max(3rem, min(5vw, 5.4vh))) / 1.75)), 7.5rem)'
-                  // Below lg there's no queryable container (see
-                  // isRowLayout above), so the exact cqh solve isn't
-                  // available — but a plain vw-only clamp let the digits
-                  // ignore height entirely and overflow the row, and the
-                  // row clips (overflow-hidden), so the START/RESET/STOP
-                  // buttons under them were being sliced in half on any
-                  // short sub-lg window. This is the same solve as the lg
-                  // one with the two measurements it can't take replaced
-                  // by estimates: the row gets about half the viewport
-                  // height (it splits the column with the word counter),
-                  // and ~15rem of that goes to everything in this column
-                  // that isn't the digit line — its siblings, this
-                  // block's own label/bar/padding, and the time-fields
-                  // strip that now sits under the row down here. A flat
-                  // vh coefficient can't do this job: those parts bottom
-                  // out on rem floors instead of scaling, so anything
-                  // that fits at 900px tall overflows at 500.
-                  // On a tall narrow window (a phone) the vw term is far
-                  // smaller and wins, so this never costs anything where
-                  // height isn't the scarce thing.
+                  // No queryable container below sm, so the two
+                  // measurements are replaced by estimates: the row gets
+                  // about half the viewport height, and ~15rem of that goes
+                  // to everything here that isn't the digit line. A vw-only
+                  // clamp instead let the digits ignore height entirely and
+                  // overflow a row that clips, slicing the buttons in half.
+                  // On a tall narrow window the vw term wins anyway, so
+                  // this costs nothing where height isn't scarce.
                   : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem - max(3rem, min(5vw, 5.4vh))) / 1.75)), 7.5rem)',
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}
             >
-              {/* Wall clock at the top of this block — time, date, then
-                  its own two settings — and then the configured total,
-                  sitting directly on the digits it's the total for. Every
-                  child here sets its own font-size: this block's own is
-                  the digit size, which is enormous. */}
+              {/* Every child sets its own font-size, since this block's own
+                  is the digit size. */}
               <div className="flex justify-center">{renderClockCluster(CLOCK_FONT_SIZE)}</div>
               <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
                 {configuredLabel}
@@ -2368,20 +1953,16 @@ export default function Timer() {
                 style={digitColorStyle}
               >
                 {remaining.hours && (
-                  // marginRight in em (relative to this span's own 0.5em
-                  // font, so ~0.15em of the main digit size) rather than
-                  // the outer gap-1 — that's a flat 0.25rem regardless of
-                  // how huge the digits get, which reads as basically no
-                  // gap at all at the larger sizes this block scales up
-                  // to; an em-based margin keeps pace with it instead.
+                  // An em margin rather than the outer gap-1, which is a
+                  // flat 0.25rem however large the digits get and reads as
+                  // no gap at all at the sizes this scales to.
                   <span style={{ fontSize: '0.5em', marginRight: '0.3em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction)}>
                     {remaining.sign}{remaining.hours}
                   </span>
                 )}
-                {/* minutes/seconds share one flex wrapper (no gap) so they
-                    still sit flush as "MM:SS" — the outer gap-1 only
-                    needs to separate this whole group from the hours and
-                    ms segments beside it */}
+                {/* Minutes and seconds share a gapless wrapper so they sit
+                    flush as "MM:SS"; the outer gap only separates that
+                    group from the hours and ms segments. */}
                 <span className="flex items-baseline">
                   <span className={flashTextClass(isMinutesFlashing, minutesFlash.direction)}>{!remaining.hours && remaining.sign}{remaining.minutes}</span>
                   <span>:</span>
@@ -2396,11 +1977,10 @@ export default function Timer() {
               {renderControlButtons(controlButtonStyle, 'border-4')}
             </div>
 
-            {/* plain block layout, not flex — a flex container here would
-                pick up index.css's `.flex { min-height: 0 }` rule and, as
-                a flex item of the column above, could get shrunk to a true
-                zero-height (and vanish) instead of just wrapping/scrolling
-                once nothing more can be shrunk via font-size alone */}
+            {/* Block, not flex: a flex container picks up index.css's
+                `.flex { min-height: 0 }` and, as a flex item of the column
+                above, could be shrunk to zero height and vanish rather
+                than wrapping once font-size has nothing left to give. */}
             <div className="text-center">
               <div
                 className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
@@ -2419,20 +1999,14 @@ export default function Timer() {
           {isRowLayout && timeFieldsPanel}
         </div>
 
-        {/* The six pre-rendered nodes below are the fullscreen row's, and
-            WordCounter only renders them inside its own fullscreen
-            branch — so while it's windowed they are built, handed over,
-            and thrown away untouched. That cost more than the wasted
-            work: they're fresh objects every render, which is exactly
-            what memo() compares, so memo() could never once bail out and
-            the whole word counter — one row per line of text — was
-            reconciled on every countdown tick, 100 times a second, to
-            show nothing new.
-            Passing null while windowed leaves this component's props all
-            primitives and stable callbacks, so memo() does the job it
-            was added for. Nothing renders differently either way: these
-            reach the DOM only when isWordCounterFullscreen is true, and
-            that is the same flag. */}
+        {/* WordCounter renders these six only inside its fullscreen
+            branch, so while it's windowed they were built, handed over and
+            thrown away. Worse than the wasted work: they're fresh objects
+            every render, which is what memo() compares, so it could never
+            bail out and the whole word counter reconciled on every tick.
+            Null while windowed leaves the props all primitives and stable
+            callbacks. Nothing renders differently, since these reach the
+            DOM on the same flag either way. */}
         <WordCounter
           onFocusChange={setIsWordCounterFocused}
           onFullscreenChange={setIsWordCounterFullscreen}

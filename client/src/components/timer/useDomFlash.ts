@@ -2,25 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import type { FlashTarget } from './types';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
 
-// Every class useDomFlash might ever apply to an element, so a switch
-// between flash kinds (e.g. a preset's insert flash still fading when it
-// gets loaded) always starts from a clean slate instead of leaving the
-// previous kind's class sitting alongside the new one — two "animation"
-// values on the same element otherwise fight over which one the browser
-// actually renders.
+// Cleared before applying a new one, so switching kinds mid-fade doesn't
+// leave two animation values fighting on the same element.
 const ALL_FLASH_CLASSES = ['animate-insertFlash', 'animate-loadFlash', 'animate-duplicateFlash', 'animate-correctFlashText'];
 
-// Toggling a React-driven className isn't enough to replay a still-running
-// CSS animation: even when state genuinely flips false->true across two
-// renders, the browser can coalesce those DOM mutations before ever
-// painting the "removed" state, so the animation just keeps counting up
-// from wherever it was instead of restarting (confirmed via
-// element.getAnimations()[0].currentTime never resetting). The reliable
-// fix is a real DOM class removal, a forced synchronous reflow, then
-// re-adding the class — bypassing React's className diffing entirely for
-// this one property, driven directly off the ref. flashKey should change
-// on every trigger (e.g. `${kind}:${token}`), including repeats of the
-// same underlying id, so a reselect within the flash window replays it.
+// Replays a CSS animation that may still be running. Toggling a
+// React-driven className isn't enough: the browser can coalesce the two
+// DOM mutations before painting the removed state, and the animation keeps
+// counting from where it was. Removing the class, forcing a reflow and
+// re-adding it is what actually restarts it, which means going around
+// React's className diffing for this one property.
+//
+// flashKey must change on every trigger, repeats of the same id included,
+// so a reselect within the flash window replays rather than no-ops.
 export function useDomFlash(ref: React.RefObject<HTMLElement | null>, flashKey: string | null, className: string) {
   const prevKeyRef = useRef<string | null>(null);
 
@@ -39,14 +33,9 @@ export function useDomFlash(ref: React.RefObject<HTMLElement | null>, flashKey: 
   }, [flashKey, className, ref]);
 }
 
-// Shared by the preset and history list rows: resolves which flash (if
-// any) applies to this row's id and wires it up via useDomFlash, returning
-// the ref to attach to the row's button.
-//
-// Newest intent wins where two target the same id: a rejected duplicate
-// over a load, and a load over an insert (e.g. loading an entry within
-// the flash window of it being recorded/added). Each is the answer to a
-// click that happened after the one before it.
+// Resolves which flash applies to a list row and returns the ref to hang
+// on its button. Where two target the same id the newer intent wins:
+// duplicate over load, load over insert.
 export function useEntryFlash(id: string, inserted: FlashTarget, loaded: FlashTarget, duplicate: FlashTarget = null) {
   const ref = useRef<HTMLButtonElement>(null);
   const flash = duplicate?.id === id
@@ -60,14 +49,12 @@ export function useEntryFlash(id: string, inserted: FlashTarget, loaded: FlashTa
   return ref;
 }
 
-// Shared by both list rows' remove buttons: the row plays its red
-// fizz-out (see removeFizz in index.css) and only actually drops out of
-// the list once that animation ends, so it isn't yanked out from under
-// itself mid-frame. Driven by animationend rather than a timeout so the
-// two can't drift apart when the duration is retuned — with a timeout
-// fallback, since animationend never fires for a row whose animation
-// was suppressed (prefers-reduced-motion, a background tab throttling
-// it), and a row that can't finish animating must still be deletable.
+// A row plays its fizz-out (removeFizz in index.css) and only leaves the
+// list once the animation ends, so it isn't yanked out mid-frame. Driven
+// by animationend so retuning the duration can't desync the two, with a
+// timeout fallback: animationend never fires when the animation is
+// suppressed (prefers-reduced-motion, a throttled background tab), and the
+// row still has to be deletable.
 export function useFizzRemove(onRemove: () => void) {
   const [isRemoving, setIsRemoving] = useState(false);
 

@@ -9,9 +9,9 @@ import { FLASH_DURATION_MS } from './useFlashOnToken';
 
 type CorrectedUnits = { hours: boolean; minutes: boolean; seconds: boolean };
 
-// The displayed value, split the way formatEntryLabel builds it, so each
-// piece can be colored on its own: hours only when there are any, and
-// minutes unpadded in that case since it leads.
+// Split the way formatEntryLabel builds it, so each piece can be coloured
+// on its own: hours only when there are any, minutes unpadded when it
+// leads.
 const labelSegments = ({ hours, minutes, seconds }: TimeParts): Array<{ text: string; unit: keyof CorrectedUnits }> =>
   hours > 0
     ? [
@@ -37,20 +37,19 @@ function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, in
   const buttonRef = useEntryFlash(preset.id, inserted, loaded, duplicate);
   const fizz = useFizzRemove(useCallback(() => onRemove(preset.id), [onRemove, preset.id]));
 
-  // Unlike a history row, this one doesn't start its own fizz on click —
-  // deleting a preset asks first, so the animation waits for the answer
-  // and is triggered from above once there is one.
+  // Unlike a history row, this doesn't start its own fizz on click.
+  // Deleting a preset asks first, so the animation is triggered from above
+  // once there's an answer.
   const { start } = fizz;
   useEffect(() => {
     if (isRemoving) start();
   }, [isRemoving, start]);
 
   return (
-    // items-stretch, so the − button takes its height from the box
-    // beside it rather than from its own smaller font. flex-shrink-0
-    // (like a history row) now that the list around it scrolls: without
-    // it a full list squashed every row flat instead of overflowing into
-    // that scroll.
+    // items-stretch so the − takes its height from the box beside it
+    // rather than its own smaller font. flex-shrink-0 because the sidebar
+    // scrolls: without it a full list squashes every row flat instead of
+    // overflowing into that scroll.
     <div className="flex items-stretch flex-shrink-0" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
       <button
         onClick={() => onRequestRemove(preset.id)}
@@ -61,9 +60,8 @@ function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, in
       >
         −
       </button>
-      {/* the fizz plays on the label box, not the − that triggered it,
-          so what animates out is the thing being deleted; the row
-          unmounts on animationend (see useFizzRemove) */}
+      {/* The fizz plays on the label box, not the − that triggered it, so
+          what animates out is the thing being deleted. */}
       <button
         ref={buttonRef}
         onClick={() => onSelect(preset)}
@@ -80,54 +78,49 @@ function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, in
 
 interface PresetsPanelProps {
   presets: TimerEntry[];
-  // returns whether the preset actually went in — false when that time is
-  // already in the list, which is answered by flashing the existing row
-  // (see `duplicate`) rather than by adding a second copy of it
+  // Returns whether the preset actually went in. False when that time is
+  // already listed, which is answered by flashing the existing row rather
+  // than adding a second copy.
   onAdd: (parts: TimeParts) => boolean;
   // asks to remove; onRemove is the other half, called once the row has
   // finished animating out (see PresetRow)
   onRequestRemove: (id: string) => void;
   onRemove: (id: string) => void;
-  // the preset whose removal has been confirmed, and which should now be
-  // playing its fizz — null the rest of the time
+  // The preset whose removal has been confirmed and should now be playing
+  // its fizz; null the rest of the time.
   removingId: string | null;
-  // asks whether to correct an out-of-range entry; the answer comes back
-  // as `correction`, which is applied and then acknowledged
+  // Asks whether to correct an out-of-range entry. The answer comes back
+  // as `correction`, which is applied and then acknowledged.
   onRequestCorrect: (digits: string, add: boolean) => void;
-  // empties the whole list; always asks first (see the clearPresets
-  // dialog), unlike history's own Clear
+  // Empties the whole list, always asking first, unlike history's Clear.
   onClear: () => void;
   correction: { digits: string; add: boolean } | null;
   onCorrectionApplied: () => void;
   onSelect: (entry: TimerEntry) => void;
   inserted: FlashTarget;
   loaded: FlashTarget;
-  // the row whose time an add was refused for, so it can flash red
+  // The row whose time an add was refused for, so it can flash red.
   duplicate: FlashTarget;
 }
 
-// Digit entry is keydown-driven rather than derived from onChange, since
-// onChange alone can't tell a partial entry from a complete one. Track the
-// raw typed digits instead, and render them unpadded (same style used
-// everywhere else in the app: "1:30", not "00:01:30").
+// Digit entry is keydown-driven rather than derived from onChange, which
+// can't tell a partial entry from a complete one. The raw typed digits are
+// tracked instead and rendered unpadded, "1:30" rather than "00:01:30".
 function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onRequestCorrect, onClear, correction, onCorrectionApplied, onSelect, inserted, loaded, duplicate }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
 
-  // Shows exactly what was typed, out of range and all — see
-  // rawPresetDigits. Correcting happens once, at commit, and only after
-  // asking (handleCommit below).
+  // Shows exactly what was typed, out of range and all. Correcting happens
+  // once, at commit, and only after asking.
   const displayValue = digits === '' ? '' : formatEntryLabel(rawPresetDigits(digits));
-  // the input's real value matches the hint's character count while empty
-  // (rendered invisible) purely so the caret lands right after the hint's
-  // last "S" instead of in the middle of the empty box
+  // While empty, the real value matches the hint's character count, drawn
+  // invisible, so the caret lands after the hint's last "S".
   const inputValue = digits === '' ? 'HH:MM:SS' : displayValue;
 
-  // The three ways an entry is finished: Enter, the + button, and
-  // leaving the field. Only the first two add it; blurring just settles
-  // the text. All three are a commit, though, so all three are where an
-  // out-of-range entry gets questioned.
+  // Three ways to finish an entry: Enter, the + button, and leaving the
+  // field. Only the first two add it, but all three are a commit and so
+  // all three are where an out-of-range entry gets questioned.
   const handleCommit = (add: boolean) => {
     if (digits === '') return;
     if (add && atCapacity) return;
@@ -136,9 +129,9 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
       return;
     }
     if (add) {
-      // only clear the box if the time actually went in — a refused
-      // duplicate leaves what was typed sitting there to edit, next to
-      // the row that's flashing red to say why
+      // Only clear if the time actually went in. A refused duplicate
+      // leaves what was typed sitting there to edit, beside the row
+      // flashing red to say why.
       if (onAdd(parsePresetDigits(digits))) setDigits('');
     } else {
       setDigits(presetDigitsFromParts(parsePresetDigits(digits)));
@@ -158,14 +151,11 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
 
   const handleBlur = () => handleCommit(false);
 
-  // Which of HH/MM/SS the correction actually rewrote, so only those
-  // flash — the same one-shot yellow the countdown's own segments get
-  // when a HOURS/MINUTES/SECONDS field changes them. Correcting 99:99 to
-  // 59:59 rewrote both; correcting 1:99 to 1:59 rewrote only the
-  // seconds, and lighting up the untouched 1 would be pointing at the
-  // wrong number. Only for the correct-and-stay path: correcting on the
-  // way to adding leaves an empty box, and the row that lands in the
-  // list below carries its own yellow insert flash instead.
+  // Which of HH/MM/SS the correction rewrote, so only those flash.
+  // Correcting 1:99 to 1:59 touches only the seconds, and lighting up the
+  // untouched 1 would point at the wrong number. Only for the
+  // correct-and-stay path; correcting on the way to adding leaves an empty
+  // box and the new row carries its own insert flash.
   const [correctedUnits, setCorrectedUnits] = useState<CorrectedUnits | null>(null);
   const isFlashingCorrection = correctedUnits !== null;
   useEffect(() => {
@@ -194,18 +184,14 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   }, [correction, digits, onAdd, onCorrectionApplied]);
 
   return (
-    // flex-shrink-0: this panel is as tall as its own content and nothing
-    // squeezes it. The sidebar around it is the one scroll region now (see
-    // Timer.tsx), so a long list makes the pair scroll rather than making
-    // this box shorter — which is what used to leave a few presets in a
-    // two-row window with a bar of their own.
+    // flex-shrink-0: as tall as its own content, with nothing squeezing
+    // it. The sidebar is the one scroll region, so a long list scrolls the
+    // pair rather than shortening this box.
     <div className="flex flex-col flex-shrink-0">
-      {/* margin/padding/gap below all sized on shrinkClamp rather than
-          fixed mb-4/pb-2/gap-2/mt-2 — those never moved at all regardless
-          of window size, same rigidity as the font sizes above before
-          their own fix. */}
-      {/* Clear sits in the heading rule like history's does, and only
-          while there's something to clear */}
+      {/* Spacing on shrinkClamp rather than fixed Tailwind steps, which
+          don't move at all as the window shrinks.
+          Clear sits in the heading rule, and only when there's something
+          to clear. */}
       <div
         className="flex justify-between items-center border-b-2 border-white flex-shrink-0"
         style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
@@ -222,9 +208,9 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
           </button>
         )}
       </div>
-      {/* No scrolling of its own — the sidebar scrolls the pair. The add
-          row below stays where it is, directly under the list it adds to,
-          and travels with it. */}
+      {/* No scrolling of its own; the sidebar scrolls the pair. The add row
+          below stays directly under the list it adds to and travels with
+          it. */}
       <div
         className="flex flex-col"
         style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
@@ -247,11 +233,10 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
         <div className="flex items-stretch" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5), marginTop: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
           <button
             onClick={handleAdd}
-            // keeps the input focused through the click, so this is one
-            // commit (an add) rather than two: without it the input
-            // blurs first, which is itself a commit, and an
-            // out-of-range entry would open the correction dialog on the
-            // way down — swallowing the click that was meant to add it
+            // Keeps the input focused through the click, so this is one
+            // commit rather than two. Otherwise the input blurs first,
+            // which is itself a commit, and an out-of-range entry opens the
+            // correction dialog on the way down, swallowing the click.
             onMouseDown={(e) => e.preventDefault()}
             disabled={atCapacity}
             aria-label="Add preset"
@@ -262,19 +247,13 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
             +
           </button>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            {/* no letter-spacing here or on the input itself: the two
-                have to render the same 8 characters at the same width
-                (this div shows through while the input's own text is
-                transparent), and the extra spacing pushed both past the
-                8 characters the input now sizes itself to. */}
-            {/* Two jobs, one box, both shown through a transparent
-                input: the grey HH:MM:SS hint while empty, and — for the
-                length of a correction flash — the corrected value split
-                into its HH/MM/SS pieces so only the rewritten ones glow.
-                An input renders one uniform color for its whole value,
-                so per-segment coloring has to happen out here; the input
-                already goes transparent for the hint, and this is the
-                same trick for the same reason. */}
+            {/* Two jobs, both shown through a transparent input: the grey
+                HH:MM:SS hint while empty, and the corrected value split
+                into segments during a correction flash, so only the
+                rewritten ones glow. An input draws one colour for its whole
+                value, so per-segment colouring has to happen out here.
+                No letter-spacing on either, since the two have to render
+                the same 8 characters at the same width. */}
             <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: LIST_ROW_BUTTON_STYLE.fontSize, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
               {displayValue === '' && 'HH:MM:SS'}
               {correctedUnits && labelSegments(rawPresetDigits(digits)).map((segment, index) => (
@@ -301,9 +280,9 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               onBlur={handleBlur}
-              // typing again ends the flash early — the segments below
-              // are a still image of what the correction did, and they'd
-              // stop matching the moment the value changes under them
+              // Typing ends the flash early. The segments underneath are a
+              // still image of what the correction did, and they'd stop
+              // matching the moment the value changed under them.
               onFocus={(e) => {
                 setCorrectedUnits(null);
                 pinCaret(e.target);
@@ -311,24 +290,20 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
               onSelect={handleSelect}
               className="border-4 border-white font-bold transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
-                // Literally the same box as a preset or history row —
-                // same font, same padding, same fixed width — since this
-                // is the one every other box in the sidebar is sized to
-                // hold: 8 characters of HH:MM:SS.
+                // The same box as a preset or history row: this is the
+                // 8-character HH:MM:SS every other box is sized to hold.
                 ...LIST_ROW_BUTTON_STYLE,
-                // invisible while showing the hint's character count, and
-                // again while a correction flash is playing, so the
-                // decorative div underneath shows through in both cases —
-                // caretColor is set separately since it inherits from color
-                // and would otherwise vanish along with the text
+                // Transparent while showing the hint and during a
+                // correction flash, so the div underneath shows through.
+                // caretColor is set separately because it inherits from
+                // color and would vanish with the text.
                 color: digits === '' || correctedUnits ? 'transparent' : 'var(--app-ink)',
                 caretColor: 'var(--app-ink)',
                 backgroundColor: 'transparent',
                 position: 'relative',
                 zIndex: 1,
-                // centered, so the caret naturally lands right after the
-                // last typed digit (or the hint's last "S") instead of at
-                // the box's outer edge
+                // Centred, so the caret lands after the last typed digit
+                // rather than at the box's outer edge.
                 textAlign: 'center',
               }}
             />

@@ -1,5 +1,5 @@
-// localStorage access that never throws: a full, restricted, or corrupt
-// store degrades to the fallback instead of crashing the app
+// localStorage access that never throws. A full, restricted or corrupt
+// store degrades to the fallback instead of taking the app down.
 
 export function readJSON<T>(key: string, fallback: T): T {
   try {

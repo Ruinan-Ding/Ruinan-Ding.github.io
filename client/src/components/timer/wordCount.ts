@@ -1,33 +1,25 @@
-// Counting and capping for the word counter, kept out of the component
-// so both the numbers on screen and the guard on typing come from one
-// implementation — "what the counters would say" about text that hasn't
-// been accepted yet has to be measured exactly the way they say it.
+// Counting and capping for the word counter. Kept out of the component so
+// the numbers on screen and the guard on typing come from one place.
 
-// Ceiling for lines, words and chars alike, and the mark where a total
-// turns yellow on the way to it — far enough out to be a heads-up rather
-// than a surprise. These numbers are wider than an L/W/C box can hold at
-// its usual size, so the numbers shrink to fit rather than the boxes
-// growing (see countFontSize in WordCounter).
+// Ceiling for lines, words and chars alike, plus the mark where a total
+// turns yellow on the way to it. Both are wider than an L/W/C box holds at
+// its usual size, so the numbers shrink to fit (see countFontSize).
 export const COUNTER_MAX = 999999;
 export const COUNTER_WARN = 999000;
 
-// Grouped in threes, always the same way regardless of where the browser
-// thinks it is — this app writes its dates and times in en-US too.
+// en-US regardless of locale, matching the dates and times elsewhere.
 export function countLabel(value: number): string {
   return value.toLocaleString('en-US');
 }
-
 
 export interface CountStats {
   lineStats: { wordCount: number; charCount: number }[];
   totalLines: number;
   totalWords: number;
   totalChars: number;
-  // the same two totals with nothing filtered out, which is what the cap
-  // goes by. Returned from this one pass rather than asked for in a
-  // second one: both are wanted on every keystroke, the parts they share
-  // are most of the work, and this text is allowed to be a million
-  // characters long.
+  // The same two totals unfiltered, which is what the cap goes by. Counted
+  // in this pass rather than a second one: both are wanted on every
+  // keystroke and they share most of the work.
   rawWords: number;
   rawChars: number;
 }
@@ -41,13 +33,8 @@ export function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly
   const lineStats = lines.map((line) => {
     const trimmed = line.trim();
     const tokens = trimmed === '' ? [] : trimmed.split(/\s+/);
-    // alnumWordsOnly requires at least one letter/digit for a token to
-    // count as a word (so "$#" alone doesn't); off counts every
-    // whitespace-separated token. alnumCharsOnly restricts C to
-    // a-z/A-Z/0-9; off counts every character in the line, including
-    // spaces. The two are intentionally independent — with words-only
-    // off and chars-only on, a punctuation-only line like "$# @!" will
-    // show words > 0 with chars === 0. That's correct, not a bug.
+    // The two filters are independent by design: with words-only off and
+    // chars-only on, "$# @!" shows words > 0 and chars === 0.
     const alnumWords = alnumWordsOnly ? tokens.filter((word) => /[a-zA-Z0-9]/.test(word)).length : tokens.length;
     const alnumChars = alnumCharsOnly ? (line.match(/[a-zA-Z0-9]/g) || []).length : line.length;
     totalWords += alnumWords;
@@ -60,11 +47,9 @@ export function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly
   return {
     lineStats,
     totalLines: lines.length,
-    // summed from the same per-line numbers shown in the columns (rather
-    // than an independent scan over the whole text) so TOTAL always
-    // matches "add up the column" — an independent scan would also pick
-    // up the '\n' line separators once chars-only is off and every
-    // character in a line counts
+    // Summed from the per-line numbers the columns show, so TOTAL always
+    // matches adding up the column. A separate scan over the whole text
+    // would also count the '\n' separators once chars-only is off.
     totalWords,
     totalChars,
     rawWords,
@@ -72,40 +57,25 @@ export function countStats(text: string, alnumWordsOnly: boolean, alnumCharsOnly
   };
 }
 
-// The cap is judged on the unfiltered counts — every token, every
-// character — not on whatever the two alphanumeric-only switches are
-// currently showing. Judging it on the displayed numbers left a hole you
-// could drive a document through: with chars-only on, a line of "$$$$$"
-// counts as nothing, so nothing ever reached the ceiling and the text
-// could grow without limit. What the switches change is what you're
-// shown, not how much there is.
+// Judged on the unfiltered counts, not on what the alphanumeric-only
+// switches are showing. With chars-only on, a line of "$$$$$" displays as
+// nothing, so a cap read off the display would never be reached.
 export function isWithinCap(text: string): boolean {
   const { totalLines, rawWords, rawChars } = countStats(text, false, false);
   return totalLines <= COUNTER_MAX && rawWords <= COUNTER_MAX && rawChars <= COUNTER_MAX;
 }
 
-// What `next` should actually become, given the text it's replacing.
-// Anything that fits goes in whole; anything that doesn't gets cut where
-// it crosses the line rather than refused outright — paste a novel and
-// you keep the first COUNTER_MAX characters of it, which is what you'd
-// expect and what the alternative (nothing happens, no reason given)
-// isn't.
-//
-// The cut is made in the inserted run, not at the end of the result: a
-// paste can land in the middle of what's already there, and trimming the
-// tail would eat text the paste never touched.
+// What `next` should become, given the text it replaces. Anything that
+// fits goes in whole; anything that doesn't is cut where it crosses,
+// rather than refused with no explanation. The cut is made in the inserted
+// run, not at the end of the result, since a paste can land mid-text.
 export function capInsertion(prev: string, next: string): string {
-  // Which characters this edit inserted, and what it leaves behind if the
-  // insertion is refused — worked out from the common prefix and suffix
-  // of the two strings, because a textarea's change event doesn't say.
-  //
-  // This has to come first, before any decision about whether the edit
-  // fits. The length difference is NOT a measure of what went in: an edit
-  // that replaces a selection can insert far more than it grows the text
-  // by, and can even insert while shrinking it. Judging by length let a
-  // paste over a selection add thousands of lines at the line ceiling —
-  // a newline isn't a character, so neither "the result is shorter" nor
-  // "it only grew by n" says anything about how many lines arrived.
+  // Work out what was actually inserted from the common prefix and suffix.
+  // A textarea's change event doesn't say, and the length difference is
+  // not a substitute: an edit replacing a selection can insert far more
+  // than it grows the text by, and can insert while shrinking it. A
+  // newline is not a character, so neither "the result is shorter" nor "it
+  // only grew by n" bounds how many lines arrived.
   let start = 0;
   while (start < prev.length && start < next.length && prev[start] === next[start]) start++;
   let end = 0;
@@ -120,37 +90,29 @@ export function capInsertion(prev: string, next: string): string {
   const before = next.slice(0, start);
   const after = prev.slice(prev.length - end);
   const inserted = next.slice(start, next.length - end);
-  // The deletion half of an edit always goes through — otherwise text
-  // pasted in over the cap, or left over from before it existed, would be
-  // stuck there. Deleting can't raise any of the three counts, so this is
-  // always progress back toward legal.
+  // The deletion half always applies, or text pasted in over the cap would
+  // be stuck there. Deleting can't raise any of the three counts.
   const base = before + after;
   if (inserted === '') return base;
 
   const { totalLines, rawWords, rawChars } = countStats(base, false, false);
-  // Full: one of the three is already at the ceiling once this edit's own
-  // deletion is applied, so nothing more goes in. Judged here rather than
-  // by asking "would the result be legal?" — a text sitting exactly on
-  // the limit is legal and full at once, which is what let newlines
-  // through at the character limit forever: a line break isn't a
-  // character (see countStats — the split eats it), so the character
-  // count didn't move and every Enter was legal.
+  // At the ceiling once the deletion is applied, nothing more goes in.
+  // Asking "would the result be legal?" instead lets newlines through
+  // forever at the character limit: the split eats them, so the character
+  // count never moves.
   if (totalLines >= COUNTER_MAX || rawWords >= COUNTER_MAX || rawChars >= COUNTER_MAX) return base;
-  // What n inserted characters can add at most: n characters (a newline
-  // isn't one), n lines (if every one of them is a newline), and n + 1
-  // words (n new ones, plus splitting the word it landed in). If even the
-  // worst case fits, this is a keystroke that can't have crossed anything
-  // and there's nothing to work out — which matters because the check it
-  // skips is a pass over the whole text, on every keypress, and this text
-  // is allowed to be a million characters long.
+  // Worst case for n inserted characters: n chars, n lines (all newlines),
+  // and n + 1 words (n new, plus splitting the one it landed in). If that
+  // fits, skip the full re-count, which is a pass over text allowed to be
+  // a million characters long.
   const added = inserted.length;
   if (rawChars + added <= COUNTER_MAX && totalLines + added <= COUNTER_MAX && rawWords + added + 1 <= COUNTER_MAX) {
     return next;
   }
   if (isWithinCap(next)) return next;
 
-  // largest number of inserted characters that still fits; none of them
-  // fitting lands back on `base`, the edit's deletion and nothing else
+  // Largest number of inserted characters that still fits. None fitting
+  // lands back on `base`.
   let fits = 0;
   let most = inserted.length;
   while (fits < most) {

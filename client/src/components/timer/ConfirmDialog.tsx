@@ -10,8 +10,8 @@ interface ConfirmDialogProps {
   onDismiss: () => void;
   // dontAskAgain is the checkbox below: true means don't ask THIS
   // question again (see dialogKey for what counts as the same question).
-  // It only ever arrives via confirm — cancelling answers nothing, so
-  // there's nothing to remember.
+  // Only ever arrives via confirm: cancelling answers nothing, so there's
+  // nothing to remember.
   onConfirm: (dontAskAgain: boolean) => void;
 }
 
@@ -44,24 +44,22 @@ const getCopy = (dialog: DialogState) => {
     case 'switch': {
       const label = formatEntryLabel(dialog.data);
       switch (dialog.mode) {
-        // never run yet — nothing to lose, so this skips the "progress
-        // will be lost" warning the other two need
+        // Nothing to lose, so this skips the warning the other two need.
         case 'startFromIdle':
           return {
             title: 'START TIMER',
             description: `Start ${label}?`,
             action: 'START',
           };
-        // a timer was already counting when this was asked for.
         // "Progress" covers both directions: time left on a countdown, or
-        // time counted past zero by an alarm that's still running
+        // time counted past zero by an alarm still running.
         case 'switchRunning':
           return {
             title: 'SWITCH TIMER',
             description: `Switch to ${label}? It will start immediately, and current progress will be lost.`,
             action: 'SWITCH',
           };
-        // replaces a paused or stopped-mid-progress timer
+        // Replaces a paused or stopped-mid-progress timer.
         case 'loadOnly':
           return {
             title: 'SWITCH TIMER',
@@ -72,8 +70,8 @@ const getCopy = (dialog: DialogState) => {
     }
     case 'seek': {
       const label = formatEntryLabel(fromTotalSeconds(dialog.data.targetSeconds));
-      // idle: nothing running to resume into, so this sets a brand-new
-      // configured time instead of moving remaining time within a run
+      // Idle: nothing to resume into, so this sets a new configured time
+      // rather than moving remaining time within a run.
       if (dialog.data.mode === 'idle') {
         return {
           title: 'SET TIME',
@@ -93,8 +91,8 @@ const getCopy = (dialog: DialogState) => {
       const { unit, value, state } = dialog.data;
       return {
         title: 'ADJUST TIME',
-        // an unstarted timer has no run to restart — saying it would
-        // suggest this throws something away, and it doesn't
+        // An unstarted timer has no run to restart, and saying it would
+        // suggest this throws something away.
         description: state === 'unstarted'
           ? `Change ${unit} to ${value}? That's the time the timer will start from.`
           : `Change ${unit} to ${value}? The timer will restart from the new time.`,
@@ -113,10 +111,9 @@ const getCopy = (dialog: DialogState) => {
         description: "Clear all run history? This can't be undone.",
         action: 'CLEAR',
       };
-    // Presets ask, history doesn't: a preset is something you built and
-    // kept deliberately, and nothing puts it back. A history entry is
-    // just a record the app wrote for you, and running that time again
-    // writes another one.
+    // Presets warn harder than history: a preset is something you built
+    // deliberately and nothing puts it back, where a history entry is a
+    // record the app wrote and running that time again writes another.
     case 'clearPresets':
       return {
         title: 'CLEAR PRESETS',
@@ -154,26 +151,24 @@ const getCopy = (dialog: DialogState) => {
 };
 
 export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmDialogProps) {
-  // dialog.type resets to null the instant a choice is made, but Radix
-  // keeps the dialog mounted through its exit animation — hold on to the
-  // last real copy so the text doesn't blank out mid-fade
+  // dialog.type resets the instant a choice is made, but Radix keeps the
+  // dialog mounted through its exit animation, so the last real copy is
+  // held to stop the text blanking out mid-fade.
   const lastCopyRef = useRef<ReturnType<typeof getCopy>>(null);
   const currentCopy = getCopy(dialog);
   if (currentCopy) lastCopyRef.current = currentCopy;
   const copy = currentCopy ?? lastCopyRef.current;
 
-  // Unticked every time a dialog opens: this is a per-answer choice, and
-  // one dialog's ticked box must never carry into the next one. Keyed on
-  // the question rather than on open/closed so it also resets between two
-  // dialogs that follow each other without a gap.
+  // Unticked whenever a dialog opens: one dialog's ticked box must never
+  // carry into the next. Keyed on the question rather than open/closed, so
+  // it resets between two dialogs that follow each other with no gap.
   const [dontAskAgain, setDontAskAgain] = useState(false);
   const key = dialogKey(dialog);
   useEffect(() => {
     if (key !== null) setDontAskAgain(false);
   }, [key]);
-  // Nothing to offer for the two dialogs that can never be silenced (see
-  // dialogKey), so they render without the row entirely. Held through the
-  // exit animation like the copy above, so it doesn't pop out mid-fade.
+  // A dialog that can never be silenced renders without the row. Held
+  // through the exit animation like the copy above.
   const suppressibleRef = useRef(false);
   if (dialog.type !== null) suppressibleRef.current = key !== null;
 
@@ -182,19 +177,15 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
       <AlertDialogContent
         className="bg-black border-4 border-white"
         onKeyDown={(e) => {
-          // Space and Enter both confirm regardless of which button holds
-          // focus (Escape already dismisses via Radix). Radix focuses
-          // Cancel by default when the dialog opens, so without this,
-          // Enter would activate that focused Cancel button instead of
-          // confirming. Space is also the global start/pause shortcut, so
-          // stop the event here too — otherwise it keeps bubbling to that
-          // window listener, which would immediately re-trigger on the
-          // same keystroke once this closes the dialog.
-          // ...except while the "don't ask again" checkbox itself has
-          // focus, where Space is how you tick a checkbox. Without this
-          // it would confirm the dialog out from under someone reaching
-          // for the box by keyboard — the one place in this dialog where
-          // Space has to mean something else.
+          // Space and Enter confirm whichever button holds focus; Radix
+          // focuses Cancel on open, so without this Enter would activate
+          // that instead. Space is also the global start/pause shortcut,
+          // so the event is stopped here or it bubbles to that window
+          // listener and re-triggers on the same keystroke.
+          //
+          // Except on the "don't ask again" checkbox, where Space is how
+          // you tick it, and confirming would answer the dialog out from
+          // under someone reaching for the box by keyboard.
           if (e.code === 'Space' && (e.target as HTMLElement).closest('[data-dont-ask]')) return;
           if (e.code === 'Space' || e.key === 'Enter') {
             e.preventDefault();
@@ -207,14 +198,9 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           <AlertDialogTitle className="text-white text-2xl font-bold">{copy?.title}</AlertDialogTitle>
           <AlertDialogDescription className="text-white text-lg">{copy?.description}</AlertDialogDescription>
         </AlertDialogHeader>
-        {/* Its own row above the buttons rather than sharing theirs: the
-            dialog is only so wide, and squeezed in beside CANCEL/CONFIRM
-            it pushed one of them onto a second line. Same
-            square-with-a-dot checkbox as the CONFIRMATIONS toggle and the
-            word counter's own switches, so it reads as the same kind of
-            control. Deliberately worded as this one question, not all of
-            them: the CONFIRMATIONS button is what turns the whole lot
-            off. */}
+        {/* Its own row: beside CANCEL/CONFIRM it pushed one of them onto a
+            second line. Worded as this one question rather than all of
+            them, which is what the confirmations toggle is for. */}
         {suppressibleRef.current && (
           <button
             type="button"

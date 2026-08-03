@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 
-// Single shared AudioContext — browsers cap how many can exist
+// One shared context; browsers cap how many can exist.
 let audioContextInstance: AudioContext | null = null;
 
 const getAudioContext = (): AudioContext => {
@@ -15,14 +15,14 @@ const getAudioContext = (): AudioContext => {
   return audioContextInstance;
 };
 
-// Slider volume (0-1) -> oscillator gain. Quadratic so the low end is
-// usable, with a peak of 4: past gain 1 the sine clips into a square-ish
-// wave, which is genuinely the loudest output available
+// Slider volume (0-1) to oscillator gain. Quadratic so the low end is
+// usable, peaking at 4: past gain 1 the sine clips into a square-ish wave,
+// which is the loudest output actually available.
 const toGain = (volume: number) => Math.max(0.0001, 4 * volume * volume);
 
-// volume: 0-1, applied to every beep unless a call passes its own override
-// (used to preview a specific level from the volume slider). Returns a
-// stop function so a newer sound can cut this one off.
+// volume applies to every beep unless a call overrides it, which the
+// slider does to preview a level. Returns a stop function so a newer sound
+// can cut this one off.
 export const useBeep = (volume: number = 1) => {
   const volumeRef = useRef(volume);
   volumeRef.current = volume;

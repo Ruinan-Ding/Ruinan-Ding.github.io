@@ -12,8 +12,8 @@ export const fromTotalSeconds = (total: number): TimeParts => ({
   seconds: total % 60,
 });
 
-// Combine seconds + ms into one signed value before formatting, otherwise
-// the two parts double-count around the zero crossing
+// Combined into one signed value before formatting, or the two parts
+// double-count around the zero crossing.
 export const formatTime = (totalSeconds: number, ms: number = 0) => {
   const totalMs = totalSeconds * 1000 + ms;
   const absMs = Math.abs(totalMs);
@@ -41,7 +41,7 @@ export const formatEntryLabel = (entry: Pick<TimerEntry, 'hours' | 'minutes' | '
 
 export const presetDigits = (input: string) => input.replace(/[^0-9]/g, '');
 
-// Digits fill from the right, calculator-style: "130" -> 00h 01m 30s
+// Digits fill from the right, calculator-style: "130" is 00h 01m 30s.
 export const parsePresetDigits = (digits: string): TimeParts => {
   const padded = digits.padStart(6, '0');
   return {
@@ -51,14 +51,11 @@ export const parsePresetDigits = (digits: string): TimeParts => {
   };
 };
 
-// The same split with no clamping — literally what was typed. The
-// preset input shows this rather than the clamped parse, because digits
-// fill from the right: every digit of "990000" passes through the
-// seconds and minutes fields on its way to the hours, so clamping what's
-// displayed meant typing 99 hours showed "0:59", then "9:59", then
-// "59:59" — the field silently rewriting each keystroke, and no way to
-// see the 99 you were aiming for until the last digit landed. Nothing is
-// corrected until the entry is committed, and then only by asking.
+// The same split with no clamping: literally what was typed. Digits fill
+// from the right, so every digit of "990000" passes through the seconds
+// and minutes fields on its way to the hours. Clamping the display meant
+// typing 99 hours showed "0:59", then "9:59", then "59:59", rewriting
+// every keystroke. Nothing is corrected until commit, and then by asking.
 export const rawPresetDigits = (digits: string): TimeParts => {
   const padded = digits.padStart(6, '0');
   return {

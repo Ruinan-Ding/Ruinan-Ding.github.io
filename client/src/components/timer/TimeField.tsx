@@ -9,39 +9,30 @@ interface TimeFieldProps {
   placeholder: string;
   value: number;
   max: number;
-  // label above the digit box/arrows instead of beside them — a third of
-  // the width, at roughly 1.4x the height. Driven from Timer.tsx so all
-  // three fields switch together (see its own comment there).
+  // Label above the digit box rather than beside it: a third of the width
+  // at roughly 1.4x the height. Driven from Timer so all three switch
+  // together.
   stacked: boolean;
   onRequestChange: (value: number) => void;
 }
 
 const chevronButtonClass =
   'border-2 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed';
-// This panel sits beside the digits column in the same row, so it
-// shrinks first on a short window like every other non-digit control.
-// Floors dropped further than usual — in its stacked form (see below)
-// each field's label sits above its digit box/arrows, which makes the
-// panel taller, and it competes with the word counter for the same
-// leftover vertical space. Lower floors here give it real room to
-// shrink before that happens instead of collapsing entirely.
+// Lower floors than the app's other controls: the stacked form is the
+// taller one, and this panel competes with the word counter for the same
+// leftover height, so it needs room to shrink before it gets tucked away.
 const chevronButtonStyle = { padding: shrinkClamp(0.15, 0.4, 0.45, 0.375) };
 const FIELD_FONT_SIZE = shrinkClamp(0.75, 1.5, 1.7, 1.5);
 const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.7, 1.2, 1.35, 1.25), height: shrinkClamp(0.7, 1.2, 1.35, 1.25) };
 
-// Two-digit time input; digits enter from the right, calculator-style, and
-// nothing is clamped or applied until the edit commits (blur or Enter).
-// Caret behavior reaches the same end state as the custom preset input —
-// text stays centered, and the caret always sits at the end of the typed
-// digits (or the placeholder's length while empty) — but through a
-// different path: focus here always changes the displayed value (blank ->
-// placeholder), which useDigitEntry's own value-change effect already
-// re-pins on its own, so this field doesn't need the explicit onFocus
-// pinCaret call the preset input uses (whose value doesn't change on focus).
+// Two-digit time input. Digits enter from the right, calculator-style, and
+// nothing is clamped or applied until the edit commits on blur or Enter.
+//
+// Unlike the preset input, this one doesn't need an onFocus pinCaret:
+// focusing always changes the displayed value (blank to placeholder), and
+// useDigitEntry's value-change effect re-pins the caret for us.
 function TimeField({ label, placeholder, value, max, stacked, onRequestChange }: TimeFieldProps) {
   const clamp = (next: number) => Math.max(0, Math.min(max, next));
-  // shared by the chevrons and arrow-key stepping — the only difference is
-  // which base value they step from and how the result is applied
   const step = (base: number, direction: number) => clamp(base + direction);
 
   // null = not editing; '' = editing but untouched (placeholder shown)
@@ -50,28 +41,28 @@ function TimeField({ label, placeholder, value, max, stacked, onRequestChange }:
   const inputRef = useRef<HTMLInputElement>(null);
   const isEditing = digits !== null;
 
-  // while editing and empty, the real value matches the placeholder's
-  // character count (rendered invisible) purely so the caret lands right
-  // after it instead of in the middle of the empty box
+  // While editing and empty the value matches the placeholder's character
+  // count, drawn invisible, so the caret lands after it rather than in the
+  // middle of an empty box.
   const inputValue = isEditing ? (digits === '' ? placeholder : digits) : pad(value);
 
   const appendDigits = (text: string) => {
     const typed = text.replace(/\D/g, '');
-    // blocks further digits once at 2, rather than shifting the window
+    // Blocks further digits at 2 rather than shifting the window along.
     if (typed) setDigits((prev) => ((prev ?? '') + typed).slice(0, 2));
   };
 
   const { handleKeyDown, handlePaste, handleSelect } = useDigitEntry(inputRef, inputValue, {
     append: appendDigits,
     remove: () => setDigits((prev) => (prev ?? '').slice(0, -1)),
-    // committing is just blurring — handleBlur applies the digits
+    // Committing is blurring; handleBlur applies the digits.
     onCommit: () => inputRef.current?.blur(),
     onCancel: () => {
       cancelledRef.current = true;
       inputRef.current?.blur();
     },
-    // arrows step the pending entry — or the committed value, when nothing
-    // has been typed yet; the result commits on blur/Enter like typing
+    // Arrows step the pending entry, or the committed value if nothing has
+    // been typed yet. Either way it commits on blur/Enter like typing.
     onStep: (direction) => {
       setDigits((prev) => {
         const base = prev === null || prev === '' ? value : clamp(parseInt(prev, 10));
@@ -91,35 +82,17 @@ function TimeField({ label, placeholder, value, max, stacked, onRequestChange }:
   };
 
   return (
-    // Two forms, switched explicitly rather than by flex-wrap. Wrapping
-    // read well but never actually fired: every control in the timer row
-    // is clamped on min(vw, vh), so the digits column and this panel
-    // shrink together as the window narrows and the row doesn't truly
-    // run out of width until those clamps hit their floors — long after
-    // the layout has already dropped below the breakpoint that used to
-    // hide this panel outright. An explicit prop also switches all three
-    // fields at once, where wrapping could leave them mid-transition at
-    // different widths.
-    // Inline (the wide form): label beside the digit box/arrows, at a
-    // fixed 9ch — "SECONDS:", the longest of the three — so the boxes
-    // line up across the three fields despite their differing label
-    // lengths. Shortest form there is, so it's also what a vertically
-    // squeezed window falls back to.
-    // Stacked (the narrow form): label above, which is about a third of
-    // the width at ~1.4x the height. The 9ch goes with it — on its own
-    // line there's nothing to align against and it would just pad the
-    // panel back out.
-    // The inline form keeps flex-wrap anyway, as a fallback rather than
-    // as the mechanism: inside the 3-across grid (see .time-fields-box
-    // in index.css) the three tracks are equal 1fr, so on a row too
-    // narrow for three inline fields they reach min-content and all
-    // three wrap in step — which is what makes across fit at 1024,
-    // where the inline strip would need ~526px against ~349 available.
-    // The objection to wrapping as the primary mechanism stands: it's
-    // the equal grid tracks that make this switch in unison rather than
-    // one field at a time. min-w-min because index.css's blanket
-    // `.flex { min-width: 0 }` would otherwise let a track crush the
-    // field past its own min-content instead of wrapping it.
+    // Inline: label beside the digit box, at a fixed 9ch ("SECONDS:", the
+    // longest) so the boxes line up across all three fields. Stacked:
+    // label above, about a third of the width at ~1.4x the height. The
+    // 9ch goes with it, having nothing to align against on its own line.
+    //
+    // Switched by prop rather than flex-wrap so all three change together.
+    // The inline form keeps flex-wrap as a fallback: inside the 3-across
+    // grid (.time-fields-box in index.css) the tracks are equal 1fr, so
+    // when the row is too narrow they hit min-content and wrap in step.
+    // min-w-min because index.css's blanket `.flex { min-width: 0 }` would
+    // otherwise crush a field past min-content instead of wrapping it.
     <div
       className={`flex min-w-min ${stacked ? 'flex-col items-start' : 'flex-wrap items-center'}`}
       style={{ gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}

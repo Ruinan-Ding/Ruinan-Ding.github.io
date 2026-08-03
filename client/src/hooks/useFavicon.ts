@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 
-// Draws the timer state into the favicon: green triangle while running,
-// pulsing yellow bars when paused, pulsing red square when finished, and
-// a "WT" logo that writes itself stroke by stroke while idle
+// Draws the timer state into the favicon: a green triangle while running,
+// pulsing yellow bars when paused, a pulsing red square when finished, and
+// a "WT" logo that writes itself stroke by stroke while idle.
 
 interface FaviconState {
   isRunning: boolean;
@@ -15,8 +15,8 @@ interface FaviconState {
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
-// The idle "WT" logo as blocky polylines (64x64 canvas coordinates) so it
-// can be drawn stroke by stroke: the W first, then the T's bar and stem
+// Blocky polylines in 64x64 canvas coordinates, so the logo can be drawn
+// stroke by stroke: the W first, then the T's bar and stem.
 const WT_STROKES: [number, number][][] = [
   [[2, 14], [9, 50], [15, 26], [21, 50], [28, 14]],
   [[36, 14], [58, 14]],
@@ -28,7 +28,7 @@ const WT_TOTAL_LENGTH = WT_STROKES.reduce((total, stroke) => {
   }
   return total;
 }, 0);
-// one animation cycle: the writing portion, then a hold at the full logo
+// One cycle: the writing portion, then a hold at the full logo.
 const WT_DRAW_MS = 2200;
 const WT_CYCLE_MS = 3200;
 
@@ -40,7 +40,7 @@ export const useFavicon = (
   seconds: number,
   hours: number = 0
 ) => {
-  // ref carries the latest values into the redraw interval's callback
+  // Carries the latest values into the redraw interval's callback.
   const stateRef = useRef<FaviconState>({ isRunning, isPaused, isFinished, minutes, seconds, hours });
   stateRef.current = { isRunning, isPaused, isFinished, minutes, seconds, hours };
 
@@ -79,8 +79,8 @@ export const useFavicon = (
         ctx.fillStyle = '#f87171';
         ctx.fillRect(8, 8, 48, 48);
       } else if (shape === 'default') {
-        // the logo writes itself, spending the length budget stroke by
-        // stroke; the redraw interval advances it every 50ms
+        // Spends the length budget stroke by stroke; the redraw interval
+        // advances it every 50ms.
         ctx.strokeStyle = '#1a1a1a';
         ctx.lineWidth = 6;
         ctx.lineJoin = 'miter';
@@ -112,15 +112,14 @@ export const useFavicon = (
       const base = hours > 0
         ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
         : `${pad(minutes)}:${pad(seconds)}`;
-      // the values are magnitudes; overtime shows as negative in the tab
+      // The values are magnitudes; overtime shows as negative in the tab.
       return isFinished ? `-${base}` : base;
     };
 
-    // the running triangle is static and the idle logo's draw-in
-    // animation saturates once it finishes — this tracks what was last
-    // actually drawn so those cases can skip the canvas redraw + favicon
-    // re-encode once the pixels stop changing, instead of doing that work
-    // 20x/sec for an image that looks identical tick to tick
+    // The running triangle is static and the idle logo saturates once it
+    // finishes drawing, so this tracks what was last drawn and skips the
+    // canvas redraw and favicon re-encode once the pixels stop changing,
+    // rather than doing that work 20x a second for an identical image.
     let lastSignature: string | null = null;
 
     const updateFavicon = () => {
@@ -130,8 +129,8 @@ export const useFavicon = (
       let shape: 'triangle' | 'bars' | 'square' | 'default';
       let opacity = 1;
 
-      // paused wins over finished so a paused overtime alarm shows the
-      // pause bars, matching the on-page PAUSED status
+      // Paused wins over finished, so a paused overtime alarm shows the
+      // bars and matches the on-page PAUSED status.
       if (isPaused) {
         shape = 'bars';
         const cycleTime = 1000;
@@ -169,10 +168,9 @@ export const useFavicon = (
         favicon.rel = 'icon';
         document.head.appendChild(favicon);
       }
-      // index.html's static favicon (reused here rather than replaced)
-      // declares itself as SVG — correct for that initial image, but this
-      // hook overwrites the href with a canvas-rendered PNG below, so the
-      // type has to be corrected here too or it's just wrong the other way
+      // index.html's static favicon declares itself SVG, which is right
+      // for that initial image, but the href below is a canvas-rendered
+      // PNG, so the type has to be corrected with it.
       favicon.type = 'image/png';
       favicon.href = canvas.toDataURL();
     };

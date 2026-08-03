@@ -14,10 +14,9 @@ interface HistoryPanelProps {
   loaded: FlashTarget;
 }
 
-// Same shape as PresetRow, deliberately: a history entry is the same
-// kind of thing as a preset — a time you can load — so it gets the same
-// box at the same width and the same − beside it. Clear is still there
-// for emptying the whole list; this is for picking one off.
+// Deliberately the same shape as PresetRow: a history entry is the same
+// kind of thing as a preset, a time you can load, so it gets the same box
+// and the same − beside it.
 function HistoryRow({ entry, onSelect, onRemove, inserted, loaded }: {
   entry: TimerEntry;
   onSelect: (entry: TimerEntry) => void;
@@ -29,8 +28,8 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded }: {
   const fizz = useFizzRemove(useCallback(() => onRemove(entry.id), [onRemove, entry.id]));
 
   return (
-    // items-stretch, so the − button takes its height from the box
-    // beside it rather than from its own smaller font
+    // items-stretch so the − takes its height from the box beside it
+    // rather than its own smaller font.
     <div className="flex items-stretch flex-shrink-0" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
       <button
         onClick={fizz.start}
@@ -46,14 +45,10 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded }: {
         onClick={() => onSelect(entry)}
         disabled={fizz.isRemoving}
         onAnimationEnd={fizz.onAnimationEnd}
-        // border-4 like a preset's box, not the lighter border-2 it used
-        // to carry: LIST_ROW_BOX_WIDTH is a border-box width that budgets
-        // 8px of border, so a thinner border here would leave these boxes
-        // the same width but 4px shorter and 4px roomier inside than the
-        // ones above them.
-        // Label centered, like a preset's: these boxes are one fixed
-        // width for a label that varies in length, so left-aligned text
-        // in a column of them sat off to one side of its own box.
+        // border-4 like a preset's box: LIST_ROW_BOX_WIDTH is a border-box
+        // width budgeting 8px of border, so a thinner one here would leave
+        // these boxes the same width but shorter and roomier inside than
+        // the ones above. Label centred for the same reason it is there.
         className={`border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 whitespace-nowrap overflow-hidden ${fizz.isRemoving ? 'animate-removeFizz' : ''}`}
         style={LIST_ROW_BUTTON_STYLE}
       >
@@ -65,15 +60,11 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded }: {
 
 function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded }: HistoryPanelProps) {
   return (
-    // flex-shrink-0, like the presets panel above: neither list gives up
-    // height to the other any more. This one used to be flex-auto and so
-    // claimed the leftover space, which is what squeezed the presets into
-    // a box of their own with a second scrollbar. The sidebar is the one
-    // scroll region now (see Timer.tsx).
+    // flex-shrink-0 like the presets panel: neither list gives up height to
+    // the other. As flex-auto this claimed the leftover space, which is
+    // what squeezed the presets into a box with a second scrollbar.
     <div className="flex flex-col flex-shrink-0">
-      {/* margin/padding below on shrinkClamp rather than fixed
-          mb-4/pb-2/px-2/py-1 — same rigidity fix as PresetsPanel's own
-          spacing. */}
+      {/* Spacing on shrinkClamp rather than fixed Tailwind steps. */}
       <div
         className="flex justify-between items-center border-b-2 border-white flex-shrink-0"
         style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
@@ -89,9 +80,8 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded }
           </button>
         )}
       </div>
-      {/* No scrolling or overflow rules of its own any more — the sidebar
-          owns both (see Timer.tsx), including the overflow-x-hidden that
-          keeps a row a fraction of a pixel too wide from giving the column
+      {/* The sidebar owns the scrolling and the overflow-x-hidden that
+          stops a row a fraction of a pixel too wide from giving the column
           a horizontal bar to slide along. */}
       <div
         className="flex flex-col"

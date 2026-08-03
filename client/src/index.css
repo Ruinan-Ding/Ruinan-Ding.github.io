@@ -1,15 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* No `dark:` variant on purpose. This app's theming is the two variables
-   below, swapped by [data-theme='light'] — a `dark:` variant would be a
-   second, parallel theming system, and it behaved like one: index.html
-   used to carry a permanent class="dark", so shadcn's leftover
-   dark:border-input on the dialog's CANCEL button applied in BOTH themes
-   and, at (0,2,0), outranked the border-white the dialog itself asked
-   for. The button's border was drawn in --input, which resolves to the
-   dialog's own background. Deleted at all three sites rather than
-   rewired. */
+/* No `dark:` variant on purpose. Theming here is the two variables below,
+   swapped by [data-theme='light']; a `dark:` variant is a second, parallel
+   system and behaved like one. index.html carried a permanent
+   class="dark", so shadcn's dark:border-input applied in both themes and,
+   at (0,2,0), outranked the border-white the dialog asked for, drawing the
+   CANCEL button's border in the dialog's own background colour. */
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -32,30 +29,27 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   /* Overrides Tailwind's own --color-black/--color-white, so every
-     bg-black, text-white, border-white utility in the app follows these
-     two variables without touching a single className. The keyframes
-     below and the components' inline styles point at the same pair, so
-     the app has exactly two colors to set — which is what makes the
-     light theme below a two-line swap instead of a rewrite.
-     The utility names are the app's own vocabulary at this point:
-     bg-black means "the window color" and text-white means "whatever
-     reads on it", regardless of which is actually darker. */
+     bg-black, text-white and border-white utility follows these two
+     variables without touching a className. The keyframes below and the
+     components' inline styles point at the same pair, which is what makes
+     the light theme a two-line swap rather than a rewrite.
+     The utility names are the app's vocabulary at this point: bg-black
+     means "the window colour" and text-white means "whatever reads on
+     it", whichever is actually darker. */
   --color-black: var(--app-surface);
   --color-white: var(--app-ink);
 }
 
 :root {
-  /* Not pitch black: a flat #000 makes the white borders on every box
-     ring hard against it, and on OLED it's the panel actually switching
-     off rather than displaying a color. Lifting it a few points keeps
-     the same near-black look with the edges softened. */
+  /* Not pitch black: a flat #000 makes the white borders ring hard against
+     it, and on OLED it's the panel switching off rather than displaying a
+     colour. A few points up keeps the look and softens the edges. */
   --app-surface: #141414;
-  /* Not pure white either, for the mirror-image reason: this is a fill as
-     well as a text color — every hovered preset/history box, the dialogs'
-     action button — and a flat #fff filling a box glares against the
-     near-black around it. A hair off it reads as white in text and as
-     slightly grey where it covers real area. Same value the light theme
-     uses for its own surface, so the two themes are exact mirrors. */
+  /* Not pure white, for the mirror reason: this is a fill as well as a
+     text colour, and a flat #fff filling a box glares against the
+     near-black around it. A hair off reads as white in text and slightly
+     grey over real area. The light theme uses the same value for its
+     surface, so the two are exact mirrors. */
   --app-ink: #f4f4f4;
   --primary: var(--app-ink);
   --primary-foreground: var(--app-surface);
@@ -75,13 +69,10 @@
   --ring: var(--app-ink);
 }
 
-/* Light theme: the same two roles with their values swapped, set by the
-   sun/moon toggle (see Timer.tsx). Nothing else in the app changes —
+/* The same two roles with their values swapped. Nothing else changes:
    every window, box, border and label already draws from this pair, and
-   the green/yellow/red state colors deliberately stay put so a running
-   timer, a paused one and a ringing one read the same either way.
-   Not pure white for the surface, same reasoning as the dark side: flat
-   #fff against black borders is harsher than a hair off it. */
+   the green/yellow/red state colours stay put so a running, paused or
+   ringing timer reads the same either way. */
 :root[data-theme='light'] {
   --app-surface: #f4f4f4;
   --app-ink: #141414;
@@ -107,10 +98,8 @@
   }
 }
 
-/* Pulsing glow on the "check out my website" link, drawing the eye
-   without being as urgent as the alarm/pause flashes. Pink rather than
-   the timer's own green/yellow/red so it never reads as a state color
-   and never blends into the window's own green run-start flash */
+/* Pink rather than one of the timer's own colours, so it never reads as a
+   state and never blends into the window's green run flash. */
 @keyframes linkGlow {
   0%, 100% {
     box-shadow: 0 0 2px 0 rgba(255, 128, 191, 0.5);
@@ -133,15 +122,13 @@
   }
 }
 
-/* Running: flash bright green, fade the window to black within 5s, then
-   snap the text to that same green at the 5s mark. Small text sitting
-   directly on the window fades black -> white during the window fade so
-   it stays readable at both ends (via the --glow-from custom property);
-   the digits hold white through it, since they don't set --glow-from and
-   the keyframes fall back to white. Each fade exists as two identical A/B
-   copies: starting a fresh countdown while the window is already green
-   (reset, preset switch, time change mid-run) swaps between them, since
-   only an animation-name change restarts a finished CSS animation */
+/* Running: flash green, fade the window to black over 5s, then snap the
+   text to that same green. Text sitting on the window fades black to white
+   through it via --glow-from so it stays readable at both ends; the digits
+   don't set --glow-from and hold the keyframes' white fallback.
+   Two identical A/B copies of each fade, because only an animation-name
+   change restarts a finished CSS animation, and a fresh countdown can
+   start while the window is already green. */
 @keyframes runFadeA {
   from {
     background-color: #22c55e;
@@ -188,19 +175,17 @@
   animation: pauseFlash 2s ease-in-out infinite;
 }
 
-/* Same window flash, but for a paused timer with the alarm repeat off:
-   3 cycles then stops (forwards holds the last, black, keyframe) instead
-   of flashing forever — the animationend event that fires when it settles
-   is what triggers the digits' fade to yellow (see Timer.tsx) */
+/* Paused with repeat off: three cycles then stop, forwards holding the
+   last keyframe. The animationend that fires when it settles is what
+   triggers the digits' fade to yellow. */
 .animate-pauseFlashLimited {
   animation: pauseFlash 2s ease-in-out 3 forwards;
 }
 
-/* Drain-bar variants that run out of step with the window's own flash so
-   the bar never blends into it: paused fades yellow -> black, then snaps
-   straight back to yellow to fade again (a sawtooth, not the window's own
-   back-and-forth pauseFlash) at a quarter of the window's rate; ringing
-   snaps red <-> black in time with the beep ticks (250ms on, 250ms off) */
+/* Bar variants deliberately out of step with the window's flash, so the
+   bar never blends into it. Paused is a sawtooth at a quarter of the
+   window's rate rather than its back-and-forth; ringing snaps red to black
+   in time with the beeps. */
 @keyframes pauseFlashBar {
   from {
     background-color: oklch(0.8 0.2 85);
@@ -227,10 +212,9 @@
   animation: alarmFlashBar 0.5s linear infinite;
 }
 
-/* One-shot "this just happened" cues on preset/history cards: yellow for
-   a fresh insert, green for loading an existing one back into the timer.
-   forwards holds the end color so nothing needs to remove the class once
-   it's done. */
+/* One-shot cues on the list rows: yellow for a fresh insert, green for
+   loading one back into the timer. forwards holds the end colour, so
+   nothing has to remove the class afterwards. */
 @keyframes insertFlashYellow {
   from {
     background-color: #eab308;
@@ -257,11 +241,9 @@
   animation: loadFlashGreen 1.2s ease-out forwards;
 }
 
-/* Third of the same set: red for "you already have this one". Adding a
-   preset that matches an existing time doesn't add a second copy — it
-   points at the one that's already there. Red rather than the insert's
-   yellow because nothing was inserted; it's the same colour the counters
-   and the alarm use for "this is why nothing happened". */
+/* Third of the same set: red for "you already have this one". Red rather
+   than the insert's yellow because nothing was inserted, and it's the
+   colour the counters and the alarm already use for a refusal. */
 @keyframes duplicateFlashRed {
   from {
     background-color: #ef4444;
@@ -275,12 +257,10 @@
   animation: duplicateFlashRed 1.2s ease-out forwards;
 }
 
-/* Deleting a preset or history entry: the row goes red first — long
-   enough to register as "this one, gone" rather than a flicker — then
-   fizzes out, fading while it shrinks and drifts left toward the minus
-   button that killed it. The row is only unmounted once this finishes
-   (see useFizzRemove), so the list doesn't reflow out from under the
-   animation. forwards holds the last frame through that gap. */
+/* The row holds red long enough to register as "this one, gone" rather
+   than a flicker, then fizzes out toward the minus button that killed it.
+   It only unmounts once this finishes, so the list doesn't reflow out from
+   under the animation; forwards holds the last frame through that gap. */
 @keyframes removeFizz {
   0% {
     background-color: #ef4444;
@@ -308,12 +288,10 @@
   animation: removeFizz 0.5s ease-in forwards;
 }
 
-/* The wall clock's answer to being clicked: "24H" or "12H" sits over the
-   time it just changed, holds long enough to read, then fades off it. It
-   covers the time rather than replacing it (see the clock in Timer.tsx),
-   so fading this out IS the time coming back — one animation for both
-   halves of the swap. Same 1.2s the rest of the app's one-shot cues run
-   at, and the hold is most of it: the fade is the tail, not the point. */
+/* "24H" or "12H" sits over the time it just changed, holds long enough to
+   read, then fades off it. It covers the time rather than replacing it, so
+   fading it out is the time coming back: one animation for both halves of
+   the swap. The hold is most of the 1.2s; the fade is the tail. */
 @keyframes hourFormatFizz {
   0%, 55% {
     opacity: 1;
@@ -327,11 +305,9 @@
   animation: hourFormatFizz 1.2s ease-in forwards;
 }
 
-/* Same "this just happened" cue for bare text sitting on the window
-   rather than inside a boxed card — the HH/MM/SS segments of the
-   countdown itself: green for an increase, red for a decrease, both
-   fading to white (their resting color) since there's no background to
-   fade to. */
+/* The same cue for bare text rather than a boxed row: the countdown's own
+   segments. Green for an increase, red for a decrease, both fading back to
+   their resting colour since there's no background to fade. */
 @keyframes increaseFlashGreenText {
   from {
     color: #22c55e;
@@ -358,12 +334,10 @@
   animation: decreaseFlashRedText 1.2s ease-out forwards;
 }
 
-/* Same one-shot text cue for a preset entry that was just corrected on
-   commit (99:99:99 -> 99:59:59): yellow rather than the green/red pair
-   above, because a correction is neither an increase nor a decrease —
-   it's the field telling you it changed what you typed. Animations
-   outrank inline styles in the cascade, which is what lets this show
-   through the input's own inline color. */
+/* For a preset corrected at commit, 99:99:99 to 99:59:59. Yellow rather
+   than the green/red pair above, since a correction is neither an increase
+   nor a decrease. Animations outrank inline styles in the cascade, which
+   is what lets this show through the input's own inline colour. */
 @keyframes correctFlashYellowText {
   from {
     color: #eab308;
@@ -377,12 +351,10 @@
   animation: correctFlashYellowText 1.2s ease-out forwards;
 }
 
-/* Paused + repeat off, once the window's own 3-cycle flash settles: the
-   digits wave between the state color and a dark gray (kept well off pure
-   black so it stays visible against the background, not near-invisible)
-   rather than sitting solid. Negative time (overtime) always shows the
-   red wave over the yellow one, regardless of whether the ring itself
-   ever finished. */
+/* Once the window's own flash settles, the digits wave between the state
+   colour and a dark grey rather than sitting solid. The grey is kept well
+   off pure black so it stays visible against the background. Overtime
+   always shows the red wave over the yellow one. */
 @keyframes waveYellowText {
   0%, 100% {
     color: #3a3a3a;
@@ -432,31 +404,26 @@
   }
 }
 
-/* HOURS/MINUTES/SECONDS panel, wide-and-short form: the three fields sit
-   side by side instead of stacked, which is about a third the height at
-   roughly three times the width. That's the trade the timer row actually
-   wants when it's short — at lg it always has spare width (the sidebar
-   is a fixed width and the digits column is capped at 44rem) and never
-   spare height, so the panel used to hide on short windows while the
-   room it needed sat unused beside it.
-   Applied by container query alone: once the row it lives in is shorter
-   than this panel's own worst-case stacked footprint (~204px of box plus
-   up to 57px of top margin clearing the header buttons — 17.5rem rounds
-   that up). The row is a size container from sm up (see isRowLayout in
-   Timer.tsx), which is also the only range the panel is rendered in, so
-   there's no second, breakpoint-based copy of this rule to keep in step
-   with it.
-   minmax(min-content, 1fr) tracks, NOT Tailwind's grid-cols-3: that
-   emits minmax(0, 1fr), which floors every track at zero, and the fields
-   carry min-w-min, so they'd overflow their tracks and overlap. Against
-   min-content the tracks instead shrink to each field's own narrowest
-   form — at which point the field's flex-wrap stacks its box and arrows
-   under its label, and three stacked fields side by side still fit the
-   ~350px this panel gets at 1024px wide, where the full-width strip
-   (~526px) does not.
-   Unlayered on purpose: it has to beat the Tailwind flex utilities that
-   are on the same element, and unlayered declarations outrank every
-   @layer. */
+/* The wide-and-short form of the HOURS/MINUTES/SECONDS panel: three
+   fields side by side, about a third the height at three times the width.
+   That's the trade a short row wants. At lg the row always has spare width
+   (fixed sidebar, digits capped at 44rem) and never spare height, so
+   without this the panel hid on short windows while the room it needed sat
+   unused beside it.
+   The threshold is this panel's worst-case stacked footprint: ~204px of
+   box plus up to 57px of top margin, which 17.5rem rounds up. The row is a
+   size container from sm up, which is also the only range the panel is
+   rendered in, so there's no breakpoint-based copy of this to keep in
+   step.
+   minmax(min-content, 1fr), not Tailwind's grid-cols-3, which emits
+   minmax(0, 1fr) and floors every track at zero: the fields carry
+   min-w-min and would overflow their tracks and overlap. Against
+   min-content the tracks shrink to each field's narrowest form, where its
+   flex-wrap stacks the box and arrows under the label, and three of those
+   still fit the ~350px this panel gets at 1024px wide where the
+   full-width strip (~526px) does not.
+   Unlayered on purpose: it has to beat the Tailwind flex utilities on the
+   same element, and unlayered declarations outrank every @layer. */
 @container timer-row (max-height: 17.5rem) {
   .time-fields-box {
     display: grid;

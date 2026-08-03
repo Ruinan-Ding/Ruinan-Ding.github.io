@@ -3,10 +3,9 @@ import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
 
 import { cn } from '@/lib/utils';
 
-// Shared button chrome for the two dialog actions below — inlined rather
-// than routed through class-variance-authority/a Button component, since
-// this is the only place in the app either is used, and only for these
-// two fixed variants.
+// Inlined rather than routed through class-variance-authority or a Button
+// component, since this is the only place either would be used and only
+// for these two fixed variants.
 const DIALOG_BUTTON_CLASS = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-9 px-4 py-2 has-[>svg]:px-3";
 
 function AlertDialog({
@@ -28,15 +27,13 @@ function AlertDialogOverlay({
   return (
     <AlertDialogPrimitive.Overlay
       className={cn(
-        // z-[80]: above every other overlay in the app (word counter
-        // fullscreen is z-[60], the header icon clusters are z-[70]) —
-        // a modal dialog must never end up visually buried under one of
-        // those while still blocking interaction with everything else
-        // A literal black scrim, not bg-black/50 — that utility follows
-        // the app's own --app-surface (see index.css), so under the light
-        // theme it turned into a white veil that washed the page out
-        // instead of dimming it. A scrim's whole job is "everything
-        // behind this is inactive", which is darker in both themes.
+        // z-[80], above every other overlay: word counter fullscreen is
+        // z-[60] and the header clusters are z-[70], and a modal must
+        // never end up buried under one while still blocking interaction.
+        // A literal black scrim rather than bg-black/50, which follows
+        // --app-surface and so turned into a white veil under the light
+        // theme. A scrim means "everything behind this is inactive",
+        // which is darker in both themes.
         'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[80] bg-[rgba(0,0,0,0.5)]',
         className
       )}
@@ -117,9 +114,9 @@ function AlertDialogCancel({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Cancel>) {
   return (
     <AlertDialogPrimitive.Cancel
-      // no dark: variants: this app has one theme system (see index.css),
-      // and these were overriding the border and hover colors the dialog
-      // passes in through className rather than defaulting under them
+      // No dark: variants. This app has one theme system, and those
+      // overrode the border and hover colours the dialog passes in through
+      // className rather than defaulting under them.
       className={cn(DIALOG_BUTTON_CLASS, 'border bg-transparent shadow-xs hover:bg-accent', className)}
       {...props}
     />

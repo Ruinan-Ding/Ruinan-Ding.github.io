@@ -13,23 +13,21 @@ interface DigitEntryHandlers {
   onStep?: (direction: 1 | -1) => void;
 }
 
-// Shared plumbing for the calculator-style digit inputs (the HH/MM/SS
-// fields and the preset input): digits enter from the right, the caret
-// stays pinned at the end, and every entry path funnels into the same
-// append/remove pair.
+// Shared plumbing for the calculator-style digit inputs: digits enter from
+// the right, the caret stays pinned at the end, and every entry path
+// funnels into the same append/remove pair.
 //
-// Physical keys are handled on keydown. Everything else — soft keyboards
-// that send key='Unidentified', paste, drop — arrives through a NATIVE
-// beforeinput listener: React's synthetic onBeforeInput is synthesized from
-// textInput/keypress and never fires for deletions (nor for paste in
-// Firefox), so it can't cover these. onPaste stays as a fallback for
-// engines without native beforeinput support.
+// Physical keys are handled on keydown. Soft keyboards sending
+// key='Unidentified', paste and drop arrive through a native beforeinput
+// listener instead: React's synthetic onBeforeInput is synthesised from
+// textInput/keypress and never fires for deletions, nor for paste in
+// Firefox. onPaste stays as a fallback for engines without beforeinput.
 export function useDigitEntry(
   inputRef: React.RefObject<HTMLInputElement | null>,
   value: string,
   handlers: DigitEntryHandlers
 ) {
-  // the native listener registers once; the ref keeps its handlers fresh
+  // The native listener registers once; this keeps its handlers fresh.
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
 
@@ -37,7 +35,7 @@ export function useDigitEntry(
     const el = inputRef.current;
     if (!el) return;
     const handleBeforeInput = (e: InputEvent) => {
-      // composition edits settle through the controlled value instead
+      // Composition edits settle through the controlled value instead.
       if (e.isComposing) return;
       e.preventDefault();
       if (e.inputType.startsWith('delete')) {
@@ -51,7 +49,7 @@ export function useDigitEntry(
     return () => el.removeEventListener('beforeinput', handleBeforeInput);
   }, [inputRef]);
 
-  // keep the caret parked at the end as the value changes
+  // Keeps the caret parked at the end as the value changes.
   useEffect(() => {
     const el = inputRef.current;
     if (el && document.activeElement === el) {
@@ -59,8 +57,8 @@ export function useDigitEntry(
     }
   }, [inputRef, value]);
 
-  // digits enter from the right, so the caret always belongs at the end;
-  // onSelect catches every way it could move (click, drag, arrow keys)
+  // Digits enter from the right, so the caret belongs at the end. onSelect
+  // catches every way it could move: click, drag, arrow keys.
   const pinCaret = (el: HTMLInputElement) => {
     const end = el.value.length;
     if (el.selectionStart !== end || el.selectionEnd !== end) {
@@ -70,8 +68,8 @@ export function useDigitEntry(
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      // preventDefault, or the same key press can activate whatever button
-      // a confirmation dialog focuses as it opens
+      // Or the same keypress activates whatever button a confirmation
+      // dialog focuses as it opens.
       e.preventDefault();
       handlersRef.current.onCommit?.();
       return;
@@ -81,7 +79,7 @@ export function useDigitEntry(
       return;
     }
     if (e.key === 'Backspace' || e.key === 'Delete') {
-      // modifiers included — Ctrl+Backspace still deletes a digit
+      // Modifiers included, so Ctrl+Backspace still deletes one digit.
       e.preventDefault();
       handlersRef.current.remove();
       return;
@@ -91,8 +89,8 @@ export function useDigitEntry(
       handlersRef.current.onStep?.(e.key === 'ArrowUp' ? 1 : -1);
       return;
     }
-    // remaining shortcuts (Ctrl+V/C/A) keep their defaults — cancelling
-    // the keydown would also cancel the paste it triggers
+    // Ctrl+V/C/A keep their defaults: cancelling the keydown would cancel
+    // the paste it triggers.
     if (e.ctrlKey || e.metaKey) return;
     if (/^\d$/.test(e.key)) {
       e.preventDefault();
