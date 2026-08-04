@@ -15,7 +15,7 @@ import TimeField from './TimeField';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES } from './constants';
 import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
-import { shrinkClamp } from './responsive';
+import { fitClamp, shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
@@ -1384,19 +1384,28 @@ export default function Timer() {
       ? (isPaused ? 'PAUSED' : 'RUNNING')
       : (seconds === configuredTotalSeconds ? 'READY' : 'STOPPED');
 
-  // Clamped on min(vw, vh) rather than vw alone, so a short window shrinks
-  // these instead of the digits. The digits clamp on vw only, which is
-  // what gives them priority over everything else in this column.
+  // Sized against the digits column they sit in (fitClamp, so cqi) rather
+  // than the viewport. On min(vw, vh) the vh term binds on any landscape
+  // window, so narrowing it left these three at a fixed size until the
+  // window was narrower than it was tall, and then dropped them straight
+  // onto their floor. Against the column they give way steadily as it
+  // does.
+  //
+  // The coefficients are set so that at the column's full 44rem these come
+  // out the size they always were on a roomy window, and shrink from
+  // there. Three of them plus two gaps have to fit 100cqi, which 20.4 x 3
+  // leaves room to spare on, and the floors keep the widest label, RESUME,
+  // in a box that's still comfortably clickable.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${shrinkClamp(0.65, 1.4, 1.5, 1.4)} ${shrinkClamp(1.3, 2.75, 3.1, 2.75)}`,
-    fontSize: shrinkClamp(1, 1.95, 2.4, 1.65),
+    padding: `${fitClamp(0.5, 1.75, 1.4)} ${fitClamp(0.6, 3.55, 2.75)}`,
+    fontSize: fitClamp(0.9, 2.8, 1.65),
     borderColor: color,
     color,
     // A surface-coloured chip keeps the borders readable on the coloured
     // window behind them.
     backgroundColor: 'var(--app-surface)',
-    minWidth: shrinkClamp(7, 16.5, 17.5, 11.25),
+    minWidth: fitClamp(4.5, 20.4, 11.25),
   });
   // The same buttons scaled to a single header row, for the word counter's
   // fullscreen view, which covers the real ones.
