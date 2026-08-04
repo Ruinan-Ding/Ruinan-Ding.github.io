@@ -212,15 +212,16 @@
   animation: alarmFlashBar 0.5s linear infinite;
 }
 
-/* One-shot cues on the list rows, in the app's three state colours:
-   green for a row that went in or was loaded, yellow for one that went in
-   with the list filling up, red for one that hit the ceiling or was
-   refused as a duplicate. forwards holds the end colour, so nothing has to
-   remove the class afterwards.
-   One keyframe per colour rather than per meaning — five names for three
-   fades was five places to change a colour. Replay doesn't depend on the
-   name being unique either: useDomFlash removes the class, forces a
-   reflow and re-adds it, which restarts the animation regardless. */
+/* One-shot cues on the list rows: yellow for a row that went in, green for
+   one loaded back into the timer, red for one refused as a duplicate.
+   forwards holds the end colour, so nothing has to remove the class
+   afterwards.
+   How full a list is getting is said by its x/max counter instead, which
+   stays on screen rather than fading after 1.2s.
+   One keyframe per colour rather than per meaning: fewer places to change
+   a colour. Replay doesn't depend on the name being unique either —
+   useDomFlash removes the class, forces a reflow and re-adds it, which
+   restarts the animation regardless. */
 @keyframes rowFlashGreen {
   from {
     background-color: #22c55e;
@@ -248,16 +249,14 @@
   }
 }
 
-.animate-insertFlash,
+.animate-insertFlash {
+  animation: rowFlashYellow 1.2s ease-out forwards;
+}
+
 .animate-loadFlash {
   animation: rowFlashGreen 1.2s ease-out forwards;
 }
 
-.animate-insertWarnFlash {
-  animation: rowFlashYellow 1.2s ease-out forwards;
-}
-
-.animate-insertFullFlash,
 .animate-duplicateFlash {
   animation: rowFlashRed 1.2s ease-out forwards;
 }

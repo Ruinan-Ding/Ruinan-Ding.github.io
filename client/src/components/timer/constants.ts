@@ -158,10 +158,17 @@ export const MAX_SECONDS = 59;
 // scrollable height rather than squeezing the other one.
 export const MAX_PRESETS = 100;
 export const MAX_HISTORY = 20;
-// Where a new history row starts warning that the list is filling up. Past
-// it the insert flashes yellow instead of green, and at the ceiling red,
-// where the oldest row is being dropped to make room.
+// Where each list's x/max counter starts warning. Yellow from here up to
+// one below the ceiling, red at it: for presets that's the point nothing
+// more goes in, for history the point each new row costs the oldest one
+// its place.
+export const PRESETS_WARN = 95;
 export const HISTORY_WARN = 15;
+
+// The same yellow-then-red pair the counters and the alarm use elsewhere.
+// undefined leaves the counter its inherited colour.
+export const countColor = (count: number, warn: number, max: number) =>
+  count >= max ? '#ef4444' : count >= warn ? '#eab308' : undefined;
 
 // One size for both sidebar headings. They were on different vw/vh
 // coefficients, so HISTORY rendered smaller than PRESETS at most sizes.

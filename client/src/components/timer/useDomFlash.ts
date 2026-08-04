@@ -4,14 +4,7 @@ import { FLASH_DURATION_MS } from './useFlashOnToken';
 
 // Cleared before applying a new one, so switching kinds mid-fade doesn't
 // leave two animation values fighting on the same element.
-const ALL_FLASH_CLASSES = [
-  'animate-insertFlash',
-  'animate-insertWarnFlash',
-  'animate-insertFullFlash',
-  'animate-loadFlash',
-  'animate-duplicateFlash',
-  'animate-correctFlashText',
-];
+const ALL_FLASH_CLASSES = ['animate-insertFlash', 'animate-loadFlash', 'animate-duplicateFlash', 'animate-correctFlashText'];
 
 // Replays a CSS animation that may still be running. Toggling a
 // React-driven className isn't enough: the browser can coalesce the two
@@ -43,23 +36,14 @@ export function useDomFlash(ref: React.RefObject<HTMLElement | null>, flashKey: 
 // Resolves which flash applies to a list row and returns the ref to hang
 // on its button. Where two target the same id the newer intent wins:
 // duplicate over load, load over insert.
-//
-// insertClass is which of the three tones an insert gets, which the caller
-// decides from how full the list now is.
-export function useEntryFlash(
-  id: string,
-  inserted: FlashTarget,
-  loaded: FlashTarget,
-  duplicate: FlashTarget = null,
-  insertClass = 'animate-insertFlash',
-) {
+export function useEntryFlash(id: string, inserted: FlashTarget, loaded: FlashTarget, duplicate: FlashTarget = null) {
   const ref = useRef<HTMLButtonElement>(null);
   const flash = duplicate?.id === id
     ? { key: `duplicate:${duplicate.token}`, className: 'animate-duplicateFlash' }
     : loaded?.id === id
       ? { key: `load:${loaded.token}`, className: 'animate-loadFlash' }
       : inserted?.id === id
-        ? { key: `insert:${inserted.token}:${insertClass}`, className: insertClass }
+        ? { key: `insert:${inserted.token}`, className: 'animate-insertFlash' }
         : { key: null, className: '' };
   useDomFlash(ref, flash.key, flash.className);
   return ref;

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_HEADING_FONT_SIZE } from './constants';
+import { countColor, LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS, PRESETS_WARN, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_HEADING_FONT_SIZE } from './constants';
 import { formatEntryLabel, isPresetOutOfRange, pad, parsePresetDigits, presetDigits, presetDigitsFromParts, rawPresetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
@@ -198,7 +198,15 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
       >
         <span className="flex items-baseline gap-1.5 min-w-0">
           <h2 className="text-white font-bold" style={{ fontSize: SIDEBAR_HEADING_FONT_SIZE }}>PRESETS</h2>
-          <span className="text-white opacity-60 font-bold whitespace-nowrap" style={{ fontSize: SIDEBAR_COUNT_FONT_SIZE }}>
+          <span
+            className="text-white font-bold whitespace-nowrap"
+            style={{
+              fontSize: SIDEBAR_COUNT_FONT_SIZE,
+              color: countColor(presets.length, PRESETS_WARN, MAX_PRESETS),
+              opacity: countColor(presets.length, PRESETS_WARN, MAX_PRESETS) ? 1 : 0.6,
+            }}
+            title={presets.length >= MAX_PRESETS ? `Preset limit reached (${MAX_PRESETS})` : undefined}
+          >
             {presets.length}/{MAX_PRESETS}
           </span>
         </span>
