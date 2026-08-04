@@ -6,7 +6,7 @@ export default function NotFound() {
 
   return (
     <div
-      className="min-h-screen w-full flex items-center justify-center bg-black"
+      className="min-h-dvh w-full flex items-center justify-center bg-black"
       style={{ fontFamily: "'IBM Plex Mono', monospace" }}
     >
       <div className="w-full max-w-lg mx-4 border-4 border-white p-8 text-center">

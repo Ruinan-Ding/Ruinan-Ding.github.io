@@ -444,3 +444,18 @@
     align-items: start;
   }
 }
+
+/* iOS Safari zooms the whole page in when a focused form control's
+   font-size is under 16px, which fights every clamp() in this app tuned to
+   fit the viewport exactly. Scoped to no-hover/coarse-pointer rather than a
+   width breakpoint: a narrow desktop window has no pinch-zoom to trigger,
+   so it keeps the smaller clamped sizes. !important beats the inline
+   font-size these controls set. Applied to a control and any decorative
+   element that has to track its size (word counter's row-rule overlay, the
+   time/preset fields' placeholder text) so they don't drift out of step
+   with it once the size changes. */
+@media (hover: none) and (pointer: coarse) {
+  .zoom-safe-text {
+    font-size: 16px !important;
+  }
+}

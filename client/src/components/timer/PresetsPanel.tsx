@@ -254,7 +254,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
                 value, so per-segment colouring has to happen out here.
                 No letter-spacing on either, since the two have to render
                 the same 8 characters at the same width. */}
-            <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: LIST_ROW_BUTTON_STYLE.fontSize, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+            <div className="zoom-safe-text" style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', fontFamily: "'IBM Plex Mono', monospace", fontSize: LIST_ROW_BUTTON_STYLE.fontSize, color: '#888888', pointerEvents: 'none', zIndex: 0, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
               {displayValue === '' && 'HH:MM:SS'}
               {correctedUnits && labelSegments(rawPresetDigits(digits)).map((segment, index) => (
                 <span key={segment.unit}>
@@ -288,7 +288,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
                 pinCaret(e.target);
               }}
               onSelect={handleSelect}
-              className="border-4 border-white font-bold transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="border-4 border-white font-bold transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed zoom-safe-text"
               style={{
                 // The same box as a preset or history row: this is the
                 // 8-character HH:MM:SS every other box is sized to hold.

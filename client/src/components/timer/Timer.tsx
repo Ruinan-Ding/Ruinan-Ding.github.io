@@ -1717,7 +1717,7 @@ export default function Timer() {
   return (
     <div
       ref={windowRef}
-      className={`h-screen flex overflow-hidden ${isAlarmRinging ? '' : 'transition-colors duration-200'} ${
+      className={`h-dvh flex overflow-hidden ${isAlarmRinging ? '' : 'transition-colors duration-200'} ${
         seconds < 0
           ? isPaused
             ? pauseFlashClass
@@ -1937,7 +1937,7 @@ export default function Timer() {
               // CLOCK_FONT_SIZE so it tracks the same way.
               style={{
                 fontSize: isRowLayout
-                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5vh) - max(3rem, min(5vw, 5.4vh))) / 1.75)), 7.5rem)'
+                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5dvh) - max(3rem, min(5vw, 5.4dvh))) / 1.75)), 7.5rem)'
                   // No queryable container below sm, so the two
                   // measurements are replaced by estimates: the row gets
                   // about half the viewport height, and ~15rem of that goes
@@ -1946,7 +1946,11 @@ export default function Timer() {
                   // overflow a row that clips, slicing the buttons in half.
                   // On a tall narrow window the vw term wins anyway, so
                   // this costs nothing where height isn't scarce.
-                  : 'clamp(1.2rem, min(10.5vw, calc((50vh - 17.6rem - max(3rem, min(5vw, 5.4vh))) / 1.75)), 7.5rem)',
+                  //
+                  // dvh, not vh: vh is pinned to the large/static viewport
+                  // and would hold the digits at a size sized for more room
+                  // than a phone with its address bar showing actually has.
+                  : 'clamp(1.2rem, min(10.5vw, calc((50dvh - 17.6rem - max(3rem, min(5vw, 5.4dvh))) / 1.75)), 7.5rem)',
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}

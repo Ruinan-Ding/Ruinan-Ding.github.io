@@ -513,7 +513,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             <div ref={rowsRef} aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
               {/* Set here so each row's 1.6em height equals a textarea
                   line box exactly. */}
-              <div style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: COUNTER_LINE_HEIGHT, paddingTop: COUNTER_PADDING, paddingBottom: COUNTER_PADDING }}>
+              <div className="zoom-safe-text" style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: COUNTER_LINE_HEIGHT, paddingTop: COUNTER_PADDING, paddingBottom: COUNTER_PADDING }}>
                 {lineStats.map((stat, idx) => (
                   <div key={idx} className="flex items-stretch" style={{ height: `${COUNTER_LINE_HEIGHT}em`, borderBottom: rowDivider(idx) }}>
                     {/* font-size goes on the number, not the row, so a
@@ -548,7 +548,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 if (rowsRef.current && textareaRef.current) rowsRef.current.scrollTop = textareaRef.current.scrollTop;
               }}
               placeholder="Start typing..."
-              className="absolute inset-y-0 bg-transparent text-white font-bold outline-none overflow-auto"
+              className="absolute inset-y-0 bg-transparent text-white font-bold outline-none overflow-auto zoom-safe-text"
               style={{
                 left: `calc(${COUNTER_COLUMN_WIDTH} + ${COUNTER_GAP})`,
                 right: 0,

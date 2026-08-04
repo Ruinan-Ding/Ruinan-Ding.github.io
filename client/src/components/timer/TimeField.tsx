@@ -107,7 +107,7 @@ function TimeField({ label, placeholder, value, max, stacked, onRequestChange }:
         <div className="relative flex-shrink-0" style={{ width: 'clamp(2.5rem, 6vw, 4rem)' }}>
           {digits === '' && (
             <div
-              className="absolute inset-0 flex items-center justify-center font-bold pointer-events-none"
+              className="absolute inset-0 flex items-center justify-center font-bold pointer-events-none zoom-safe-text"
               // Mixed off --app-ink, not a literal white: on the light
               // theme's near-white surface the hint was invisible.
               style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: FIELD_FONT_SIZE, color: 'color-mix(in oklab, var(--app-ink) 40%, transparent)' }}
@@ -128,7 +128,7 @@ function TimeField({ label, placeholder, value, max, stacked, onRequestChange }:
             onPaste={handlePaste}
             onSelect={handleSelect}
             onChange={() => {}}
-            className="bg-black border-4 border-white font-bold text-center outline-none w-full"
+            className="bg-black border-4 border-white font-bold text-center outline-none w-full zoom-safe-text"
             style={{
               fontFamily: "'IBM Plex Mono', monospace",
               fontSize: FIELD_FONT_SIZE,
