@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { pad } from '@/components/timer/format';
 
 // Draws the timer state into the favicon: a green triangle while running,
 // pulsing yellow bars when paused, a pulsing red square when finished, and
@@ -12,8 +13,6 @@ interface FaviconState {
   seconds: number;
   hours: number;
 }
-
-const pad = (value: number) => String(value).padStart(2, '0');
 
 // Blocky polylines in 64x64 canvas coordinates, so the logo can be drawn
 // stroke by stroke: the W first, then the T's bar and stem.

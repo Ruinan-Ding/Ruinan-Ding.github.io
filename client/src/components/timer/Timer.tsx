@@ -69,6 +69,17 @@ const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: 
 // this a bad entry renders as "abc:NaN" and, once clicked, sets the
 // countdown to NaN, which it never leaves since every comparison the tick
 // makes against NaN is false.
+// Repaired rather than rejected, because the time is the part worth
+// keeping and an older save can be missing the rest. A row with no id
+// keys the same as every other row without one, so React reuses the wrong
+// node for a flash and one delete takes all of them at once; a timestamp
+// that isn't a number throws inside Intl on its way to the screen.
+const normalizeEntry = (p: TimerEntry): TimerEntry => ({
+  ...p,
+  id: typeof p.id === 'string' && p.id !== '' ? p.id : uniqueId(),
+  timestamp: typeof p.timestamp === 'number' && Number.isFinite(p.timestamp) ? p.timestamp : 0,
+});
+
 const isValidEntry = (p: unknown): p is TimerEntry => {
   if (typeof p !== 'object' || p === null) return false;
   const entry = p as Partial<TimerEntry>;
@@ -91,7 +102,7 @@ export default function Timer() {
       saved: (savedState && typeof savedState === 'object' ? savedState : {}) as Record<string, unknown>,
       // Filtered, not cast: one bad row at a time rather than
       // all-or-nothing, since history has no defaults to fall back to.
-      history: Array.isArray(savedHistory) ? savedHistory.filter(isValidEntry) : [],
+      history: Array.isArray(savedHistory) ? savedHistory.filter(isValidEntry).map(normalizeEntry) : [],
     };
   }, []);
   const savedNumber = (key: string, fallback: number) =>
@@ -149,7 +160,7 @@ export default function Timer() {
     if (!Array.isArray(parsed) || !parsed.every(isValidEntry)) return DEFAULT_PRESETS;
     // older saves packed hours into minutes
     return parsed.map((p) => ({
-      ...p,
+      ...normalizeEntry(p),
       hours: (p.hours ?? 0) + Math.floor(p.minutes / 60),
       minutes: p.minutes % 60,
     }));
@@ -526,12 +537,12 @@ export default function Timer() {
       const saved = readJSON<Record<string, unknown>>(STORAGE_KEYS.timerState, {});
       writeJSON(STORAGE_KEYS.timerState, { ...saved, milliseconds: persistedTimeRef.current.milliseconds });
     };
+    // pagehide alone: it fires on every navigation away, bfcache included,
+    // so the beforeunload beside it saved nothing and cost the page its
+    // bfcache eligibility in Safari — going back reloaded the app cold
+    // rather than restoring it.
     window.addEventListener('pagehide', flushMilliseconds);
-    window.addEventListener('beforeunload', flushMilliseconds);
-    return () => {
-      window.removeEventListener('pagehide', flushMilliseconds);
-      window.removeEventListener('beforeunload', flushMilliseconds);
-    };
+    return () => window.removeEventListener('pagehide', flushMilliseconds);
   }, []);
 
   // Confirming with Space closes the dialog without a Radix close event,
@@ -971,9 +982,10 @@ export default function Timer() {
     setPresets((prev) => [...prev, { id, ...parts, timestamp: 0 }]);
     setInsertedPreset((prev) => bumpFlash(prev, id));
     // Adding a time is a request to use it, so it runs. An unstarted timer
-    // has nothing on the clock to lose and just goes; every other state
-    // does, so it asks first, in the same words and with the same
-    // "don't ask again" scope as picking the row out of the list would.
+    // has nothing on the clock to lose and just goes, which is the one
+    // place this differs from clicking the row afterwards; every other
+    // state has something to lose, so it asks first, in the same words and
+    // with the same "don't ask again" scope as the row would.
     // An out-of-range entry never reaches here: the panel sends it to the
     // correction dialog first, and only a corrected time is added.
     if (timerStateKind() === 'unstarted') {
