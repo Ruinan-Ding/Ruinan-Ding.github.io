@@ -457,7 +457,13 @@
    font-size these controls set. Applied to a control and any decorative
    element that has to track its size (word counter's row-rule overlay, the
    time/preset fields' placeholder text) so they don't drift out of step
-   with it once the size changes. */
+   with it once the size changes.
+
+   The control, though, not the box around it. The clock's zone picker wore
+   this on its wrapper, which dragged the visible offset up to 16px beside
+   a clock time that floors at 9.6px; on the <select> itself — a
+   transparent overlay whose text nobody sees — it stops the zoom and
+   changes nothing else. */
 @media (hover: none) and (pointer: coarse) {
   .zoom-safe-text {
     font-size: 16px !important;

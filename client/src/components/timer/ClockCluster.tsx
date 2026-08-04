@@ -93,7 +93,7 @@ function ClockCluster({
 
   // What the clock is on, plus the picker that changes it.
   const zoneBox = (
-    <span className="inline-flex items-center flex-shrink-0 zoom-safe-text" style={{ fontSize: `max(0.5rem, calc(${fontSize} * 0.7))` }}>
+    <span className="inline-flex items-center flex-shrink-0" style={{ fontSize: `max(0.5rem, calc(${fontSize} * 0.7))` }}>
       {/* A native select gets 400-odd options and type-to-find for free,
           but draws the selected option's own text, so the closed box and
           the open list would have to read the same. Drawing the select's
@@ -114,7 +114,14 @@ function ClockCluster({
           // RangeError on every render from then on, taking the page with
           // it rather than just the clock.
           onChange={(e) => { if (TIME_ZONES.includes(e.target.value)) onTimeZoneChange(e.target.value); }}
-          className="absolute inset-0 w-full h-full cursor-pointer appearance-none border-0"
+          // zoom-safe-text belongs on the control, not the box around it.
+          // This one is a transparent overlay stretched to its parent, so
+          // 16px changes nothing you can see — the offset beside it is a
+          // sibling span, and the box is sized by the parent. On the
+          // wrapper it forced the visible offset to 16px too, against a
+          // clock time that floors at 9.6px on a phone: two boxes meant to
+          // read as a matching pair, one of them nearly twice the other.
+          className="absolute inset-0 w-full h-full cursor-pointer appearance-none border-0 zoom-safe-text"
           // Transparent, not hidden: the browser draws the popup from
           // these same styles and it has to stay readable. The colors go
           // back on the options.
