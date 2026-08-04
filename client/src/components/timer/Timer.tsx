@@ -1016,8 +1016,9 @@ export default function Timer() {
   // on exactly those two, which keeps the identity stable for the panel's
   // memo() and rebuilds the formatters only when they actually move.
   //
-  // Entries saved before this existed, and any hand-edited one, carry
-  // timestamp 0. Those get nothing rather than a row dated 1970.
+  // recordHistory always stamps Date.now(), so a real run can't produce 0.
+  // The guard is for storage that's been corrupted or hand-edited, which
+  // would otherwise render as 01/01/1970.
   const formatHistoryStamp = useMemo(() => {
     const time = new Intl.DateTimeFormat('en-US', {
       timeZone,
@@ -1026,7 +1027,7 @@ export default function Timer() {
       minute: '2-digit',
       second: '2-digit',
     });
-    const date = new Intl.DateTimeFormat('en-US', { timeZone, day: '2-digit', month: '2-digit', year: 'numeric' });
+    const date = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
     return (timestamp: number) =>
       timestamp > 0 ? `${time.format(timestamp)} ${formatDateParts(date, timestamp)}` : '';
   }, [timeZone, is24Hour]);
