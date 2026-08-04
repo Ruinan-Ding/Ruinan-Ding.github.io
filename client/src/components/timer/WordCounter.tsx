@@ -564,7 +564,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           </div>
         </div>
         <div className="flex justify-between items-start px-3 pb-1 gap-4" style={{ fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}>
-          <div className="text-white font-bold flex flex-col gap-0">
+          {/* flex-shrink-0: the boxes below are a fixed COUNTER_COLUMN_WIDTH,
+              but index.css's blanket `.flex { min-width: 0 }` lets this
+              column shrink under them, and on a narrow window it did — down
+              to 40px against a 96px grid, which then overflowed into the
+              legend beside it. */}
+          <div className="text-white font-bold flex flex-col gap-0 flex-shrink-0">
             <div className="text-white mb-0.5" style={{ fontSize: shrinkClamp(0.35, 0.8, 0.9, 0.55) }}>TOTAL</div>
             {/* Yellow approaching the cap, red at it, matching the timer's
                 own warning colours. A full total shows the number that's
