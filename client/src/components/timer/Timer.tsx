@@ -1028,8 +1028,11 @@ export default function Timer() {
       second: '2-digit',
     });
     const date = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+    // Returned in two pieces rather than one string: the panel puts them
+    // on their own lines, and the line it breaks at should be chosen here
+    // rather than left to wherever the text happens to wrap.
     return (timestamp: number) =>
-      timestamp > 0 ? `${time.format(timestamp)} ${formatDateParts(date, timestamp)}` : '';
+      timestamp > 0 ? { time: time.format(timestamp), date: formatDateParts(date, timestamp) } : null;
   }, [timeZone, is24Hour]);
 
   // Memoized rather than written inline at the panels below. An inline
