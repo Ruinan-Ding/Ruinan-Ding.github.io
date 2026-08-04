@@ -7,7 +7,10 @@ import type { DialogState } from './types';
 
 interface ConfirmDialogProps {
   dialog: DialogState;
-  onDismiss: () => void;
+  // Carries the checkbox too. Cancelling answers nothing so it arrives
+  // false there, but an acknowledgement's ESC is the same act as its OK —
+  // the button says so — and it has to remember the same tick.
+  onDismiss: (dontAskAgain: boolean) => void;
   // dontAskAgain is the checkbox below: true means don't ask THIS
   // question again (see dialogKey for what counts as the same question).
   // Only ever arrives via confirm: cancelling answers nothing, so there's
@@ -181,7 +184,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   if (dialog.type !== null) acknowledgeRef.current = isAcknowledgement(dialog);
 
   return (
-    <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss()}>
+    <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss(dontAskAgain)}>
       <AlertDialogContent
         className="bg-black border-4 border-white"
         onKeyDown={(e) => {
@@ -244,7 +247,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           ) : (
             <>
               <AlertDialogCancel
-                onClick={onDismiss}
+                onClick={() => onDismiss(false)}
                 className="border-4 border-white text-white font-bold px-6 py-3 hover:bg-white hover:text-black"
               >
                 CANCEL <span className="opacity-60 font-normal">(ESC)</span>

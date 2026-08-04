@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { countColor, HISTORY_WARN, LIST_ROW_BUTTON_STYLE, LIST_ROW_FONT_SIZE, LIST_ROW_REMOVE_BUTTON_STYLE, LIST_ROW_REMOVE_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_HEADING_FONT_SIZE } from './constants';
+import { countColor, HISTORY_WARN, MAX_HISTORY, LIST_ROW_BUTTON_STYLE, LIST_ROW_FONT_SIZE, LIST_ROW_REMOVE_BUTTON_STYLE, LIST_ROW_REMOVE_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_HEADING_FONT_SIZE } from './constants';
 import { formatEntryLabel } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimerEntry } from './types';
@@ -39,7 +39,6 @@ interface HistoryPanelProps {
   // 12/24 setting, split into the two lines it prints on. Null for an
   // entry with no usable timestamp.
   formatStamp: (timestamp: number) => { time: string; date: string } | null;
-  max: number;
 }
 
 // Deliberately the same shape as PresetRow: a history entry is the same
@@ -103,7 +102,8 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp }
   );
 }
 
-function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, formatStamp, max }: HistoryPanelProps) {
+function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, formatStamp }: HistoryPanelProps) {
+  const warnColor = countColor(history.length, HISTORY_WARN, MAX_HISTORY);
   return (
     // flex-shrink-0 like the presets panel: neither list gives up height to
     // the other. As flex-auto this claimed the leftover space, which is
@@ -120,12 +120,12 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
             className="text-white font-bold whitespace-nowrap"
             style={{
               fontSize: SIDEBAR_COUNT_FONT_SIZE,
-              color: countColor(history.length, HISTORY_WARN, max),
-              opacity: countColor(history.length, HISTORY_WARN, max) ? 1 : 0.6,
+              color: warnColor,
+              opacity: warnColor ? 1 : 0.6,
             }}
-            title={history.length >= max ? `Full — each new run drops the oldest entry` : undefined}
+            title={history.length >= MAX_HISTORY ? `Full — each new run drops the oldest entry` : undefined}
           >
-            {history.length}/{max}
+            {history.length}/{MAX_HISTORY}
           </span>
         </span>
         {history.length > 0 && (

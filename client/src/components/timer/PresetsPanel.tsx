@@ -110,6 +110,9 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   const [digits, setDigits] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
+  // Once, not once per style property: the colour and the opacity beside it
+  // are the same decision and have to stay the same answer.
+  const warnColor = countColor(presets.length, PRESETS_WARN, MAX_PRESETS);
 
   // Shows exactly what was typed, out of range and all. Correcting happens
   // once, at commit, and only after asking.
@@ -202,8 +205,8 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
             className="text-white font-bold whitespace-nowrap"
             style={{
               fontSize: SIDEBAR_COUNT_FONT_SIZE,
-              color: countColor(presets.length, PRESETS_WARN, MAX_PRESETS),
-              opacity: countColor(presets.length, PRESETS_WARN, MAX_PRESETS) ? 1 : 0.6,
+              color: warnColor,
+              opacity: warnColor ? 1 : 0.6,
             }}
             title={presets.length >= MAX_PRESETS ? `Preset limit reached (${MAX_PRESETS})` : undefined}
           >

@@ -45,7 +45,7 @@ class ErrorBoundary extends Component<Props, State> {
                 which is where componentDidCatch now puts it. */}
             <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
               <pre className="text-sm text-muted-foreground whitespace-break-spaces">
-                {this.state.error?.message}
+                {this.state.error?.message || String(this.state.error)}
               </pre>
             </div>
 

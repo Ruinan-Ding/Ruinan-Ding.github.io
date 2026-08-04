@@ -74,11 +74,19 @@ const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: 
 // keys the same as every other row without one, so React reuses the wrong
 // node for a flash and one delete takes all of them at once; a timestamp
 // that isn't a number throws inside Intl on its way to the screen.
+// 8.64e15 is the far end of what a Date can hold. Finite wasn't enough:
+// 1e16 is a finite number and still throws inside Intl, which is the
+// crash this line exists to stop.
+const MAX_TIMESTAMP = 8.64e15;
 const normalizeEntry = (p: TimerEntry): TimerEntry => ({
   ...p,
   id: typeof p.id === 'string' && p.id !== '' ? p.id : uniqueId(),
-  timestamp: typeof p.timestamp === 'number' && Number.isFinite(p.timestamp) ? p.timestamp : 0,
+  timestamp: typeof p.timestamp === 'number' && Math.abs(p.timestamp) <= MAX_TIMESTAMP ? p.timestamp : 0,
 });
+
+// Which controls own a keystroke, by kind of key. See the window listener.
+const TYPES_INTO = 'input, textarea, select, [contenteditable]';
+const SPACE_ACTIVATES = `${TYPES_INTO}, button, a, [role="button"]`;
 
 const isValidEntry = (p: unknown): p is TimerEntry => {
   if (typeof p !== 'object' || p === null) return false;
@@ -537,12 +545,20 @@ export default function Timer() {
       const saved = readJSON<Record<string, unknown>>(STORAGE_KEYS.timerState, {});
       writeJSON(STORAGE_KEYS.timerState, { ...saved, milliseconds: persistedTimeRef.current.milliseconds });
     };
-    // pagehide alone: it fires on every navigation away, bfcache included,
-    // so the beforeunload beside it saved nothing and cost the page its
-    // bfcache eligibility in Safari — going back reloaded the app cold
-    // rather than restoring it.
+    // pagehide rather than beforeunload: it fires on every navigation away,
+    // bfcache included, where beforeunload saved nothing and cost the page
+    // its bfcache eligibility in Safari — going back reloaded the app cold.
+    //
+    // visibilitychange beside it because pagehide never fires for a tab the
+    // phone discards while it sits in the background, which is how a mobile
+    // session usually ends. Hiding is the last moment there is.
+    const flushOnHide = () => { if (document.visibilityState === 'hidden') flushMilliseconds(); };
     window.addEventListener('pagehide', flushMilliseconds);
-    return () => window.removeEventListener('pagehide', flushMilliseconds);
+    document.addEventListener('visibilitychange', flushOnHide);
+    return () => {
+      window.removeEventListener('pagehide', flushMilliseconds);
+      document.removeEventListener('visibilitychange', flushOnHide);
+    };
   }, []);
 
   // Confirming with Space closes the dialog without a Radix close event,
@@ -719,14 +735,14 @@ export default function Timer() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Space' && e.code !== 'KeyS' && e.code !== 'KeyR') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // Anything focused that wants these keys itself keeps them. Fields
-      // were the obvious case, but they aren't the only one: SPACE opens a
-      // <select> and presses a button, and a letter jumps a <select> to its
-      // next matching option. Guarding fields alone, this swallowed all of
-      // that — SPACE on the zone picker started the timer instead of
-      // opening it, and S there opened the stop dialog rather than reaching
-      // Seoul. Buttons were unusable by keyboard for the same reason.
-      if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, button, a, [contenteditable], [role="button"]')) return;
+      // Anything focused that wants the key itself keeps it, and which
+      // controls those are depends on the key. SPACE presses whatever is
+      // focused, so every activatable control claims it. A letter only
+      // gets typed — into a field, or into a <select>'s type-ahead — and
+      // buttons do nothing with one, so blocking S and R on buttons too
+      // killed both shortcuts for anyone who had just clicked something,
+      // which is everyone: click START and R stopped resetting.
+      if ((e.target as HTMLElement | null)?.closest?.(e.code === 'Space' ? SPACE_ACTIVATES : TYPES_INTO)) return;
       if (keyActionRef.current(e.code)) {
         e.preventDefault();
       }
@@ -1262,15 +1278,16 @@ export default function Timer() {
   // Dismissing an 'adjust' has no edit to undo, since nothing was applied,
   // but the once-per-state prompt has to re-arm or the next adjustment in
   // that state would apply silently.
-  const handleDialogDismiss = () => {
+  const handleDialogDismiss = (dontAskAgain = false) => {
     if (!justConfirmedRef.current && dialog.type === 'adjust') {
       askedAdjustInStatesRef.current.delete(dialog.data.state);
     }
     // An acknowledgement states what happened, so ESC has to leave the same
-    // result behind as OK. Anything else and the text would be a lie for
-    // whoever dismissed it that way.
+    // result behind as OK — the ticked box included. Anything else and the
+    // text would be a lie for whoever dismissed it that way, and the
+    // preference they just set would go with it.
     if (!justConfirmedRef.current && isAcknowledgement(dialog)) {
-      handleDialogConfirm(false);
+      handleDialogConfirm(dontAskAgain);
       return;
     }
     justConfirmedRef.current = false;
@@ -1855,7 +1872,7 @@ export default function Timer() {
             inserted={insertedHistory}
             loaded={loadedEntry}
             formatStamp={formatHistoryStamp}
-            max={MAX_HISTORY}
+
           />
         </div>
       )}

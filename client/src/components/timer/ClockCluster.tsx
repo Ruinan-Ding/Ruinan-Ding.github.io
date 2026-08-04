@@ -6,6 +6,23 @@ import { formatDateParts, offsetLabel } from './format';
 // themselves: the popup is the browser's, drawn from these.
 const OPTION_STYLE = { color: 'var(--app-ink)', backgroundColor: 'var(--app-surface)' };
 
+// shortOffset is the newest thing in this file, and an engine that doesn't
+// know the value throws rather than ignoring it — inside a formatter built
+// during render, which takes the whole app down on load rather than the
+// clock. Older engines fall back to the short name, which offsetLabel
+// turns into the same number for most zones and an abbreviation for the
+// rest. Guarded the way the zone list already is in constants.
+const zoneFormatter = (timeZone: string) => {
+  for (const timeZoneName of ['shortOffset', 'short'] as const) {
+    try {
+      return new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName });
+    } catch {
+      // engine predates this option value
+    }
+  }
+  return null;
+};
+
 interface ClockClusterProps {
   // Everything inside is em-based, so this scales the whole cluster. The
   // word counter's fullscreen row uses a smaller copy than the main view.
@@ -62,17 +79,17 @@ function ClockCluster({
       second: '2-digit',
     }),
     date: new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }),
-    zone: new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' }),
+    zone: zoneFormatter(timeZone),
   }), [timeZone, is24Hour]);
   // "-4", "+9", "+5:30". shortOffset rather than the short name, so this is
   // always a number instead of "EDT" for some zones and "GMT+9" for others,
   // and it's the shortest thing that still identifies the zone. Formatted
   // live rather than looked up, so it follows the daylight-saving
   // changeover on its own.
-  const zoneOffset = useMemo(
-    () => offsetLabel(clock.zone.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? ''),
-    [clock, nowMs],
-  );
+  // Not memoised: nowMs is in the key and moves every second, so the memo
+  // never once bailed out and only added bookkeeping around a call that is
+  // cheaper than the bookkeeping.
+  const zoneOffset = offsetLabel(clock.zone?.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? '');
 
   // What the clock is on, plus the picker that changes it.
   const zoneBox = (
