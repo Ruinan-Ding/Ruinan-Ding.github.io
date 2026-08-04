@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { TIME_ZONES, ZONES_BY_REGION } from './constants';
+import { formatDateParts, offsetLabel } from './format';
 
 // The select's own text is transparent, so its options carry their colors
 // themselves: the popup is the browser's, drawn from these.
@@ -13,7 +14,9 @@ interface ClockClusterProps {
   // they persist. Only the current instant is local.
   timeZone: string;
   is24Hour: boolean;
-  zoneAbbrs: Record<string, string>;
+  // zone id -> offset label, for the picker. Built in Timer because it
+  // costs an Intl.DateTimeFormat per zone and both clocks share it.
+  zoneOffsets: Record<string, string>;
   isHourFormatFlashing: boolean;
   onHourFormatClick: () => void;
   onTimeZoneChange: (zone: string) => void;
@@ -29,7 +32,7 @@ export default function ClockCluster({
   fontSize,
   timeZone,
   is24Hour,
-  zoneAbbrs,
+  zoneOffsets,
   isHourFormatFlashing,
   onHourFormatClick,
   onTimeZoneChange,
@@ -40,8 +43,11 @@ export default function ClockCluster({
     return () => clearInterval(id);
   }, []);
   // Three formatters rather than one dateStyle/timeStyle pair, which puts
-  // the date first. The time omits the zone name because the box below it
-  // already says "EDT"; the third formatter is what that box reads.
+  // the date first. The time omits the zone because the box below it
+  // carries the offset; the third formatter is what that box reads.
+  //
+  // The date is 2-digit day and month so formatDateParts can lay it out as
+  // dd/mm/yyyy, which no en-US pattern gives on its own.
   const clock = useMemo(() => ({
     time: new Intl.DateTimeFormat('en-US', {
       timeZone,
@@ -50,13 +56,16 @@ export default function ClockCluster({
       minute: '2-digit',
       second: '2-digit',
     }),
-    date: new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
-    zone: new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' }),
+    date: new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }),
+    zone: new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' }),
   }), [timeZone, is24Hour]);
-  // "EDT", "GMT+9". Formatted live rather than looked up, so it follows
-  // the daylight-saving changeover on its own.
-  const zoneAbbr = useMemo(
-    () => clock.zone.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? '',
+  // "-4", "+9", "+5:30". shortOffset rather than the short name, so this is
+  // always a number instead of "EDT" for some zones and "GMT+9" for others,
+  // and it's the shortest thing that still identifies the zone. Formatted
+  // live rather than looked up, so it follows the daylight-saving
+  // changeover on its own.
+  const zoneOffset = useMemo(
+    () => offsetLabel(clock.zone.formatToParts(nowMs).find((part) => part.type === 'timeZoneName')?.value ?? ''),
     [clock, nowMs],
   );
 
@@ -66,15 +75,15 @@ export default function ClockCluster({
       {/* A native select gets 400-odd options and type-to-find for free,
           but draws the selected option's own text, so the closed box and
           the open list would have to read the same. Drawing the select's
-          text transparent and painting the abbreviation and caret over it
-          lets them differ: "EDT" in a box exactly that wide, city names
-          with abbreviations in the list. The value is the zone id
+          text transparent and painting the offset and caret over it lets
+          them differ: just "-4" in a box exactly that wide, city names
+          with their offsets in the list. The value is the zone id
           throughout. */}
       <span
         className="relative inline-flex items-center gap-1 border-2 font-bold flex-shrink-0 self-center focus-within:ring-1"
         style={{ borderColor: 'currentColor', backgroundColor: 'var(--app-surface)', fontFamily: "'IBM Plex Mono', monospace", padding: '0 0.25em' }}
       >
-        <span className="whitespace-nowrap">{zoneAbbr || timeZone}</span>
+        <span className="whitespace-nowrap">{zoneOffset}</span>
         <span aria-hidden style={{ lineHeight: 1 }}>▾</span>
         <select
           value={timeZone}
@@ -95,7 +104,7 @@ export default function ClockCluster({
             <optgroup key={region} label={region} style={OPTION_STYLE}>
               {zones.map(({ zone, label }) => (
                 <option key={zone} value={zone} style={OPTION_STYLE}>
-                  {zoneAbbrs[zone] ? `${label} (${zoneAbbrs[zone]})` : label}
+                  {zoneOffsets[zone] ? `${label} (${zoneOffsets[zone]})` : label}
                 </option>
               ))}
             </optgroup>
@@ -138,7 +147,7 @@ export default function ClockCluster({
         {zoneBox}
       </span>
       <span className="opacity-80 whitespace-nowrap leading-tight" style={{ letterSpacing: '0.05em' }}>
-        {clock.date.format(nowMs)}
+        {formatDateParts(clock.date, nowMs)}
       </span>
     </div>
   );

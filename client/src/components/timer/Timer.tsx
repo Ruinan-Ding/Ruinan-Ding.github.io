@@ -14,7 +14,7 @@ import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES } from './constants';
-import { formatEntryLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
+import { formatDateParts, formatEntryLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { fitClamp, shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
@@ -202,27 +202,27 @@ export default function Timer() {
     window.clearTimeout(hourFormatFlashRef.current);
     hourFormatFlashRef.current = window.setTimeout(() => setIsHourFormatFlashing(false), FLASH_DURATION_MS);
   };
-  // Abbreviations for every zone, so the picker reads "New York (EDT)"
-  // rather than leaving you to work out which of the twelve Americas
-  // saying EST is yours. Needs an Intl.DateTimeFormat per zone and 418 of
-  // them measured 123ms, so it waits for an idle moment after first paint.
-  // Until then the list shows plain city names.
-  const [zoneAbbrs, setZoneAbbrs] = useState<Record<string, string>>({});
+  // The offset for every zone, so the picker reads "New York (-4)" rather
+  // than leaving you to work out which of the twelve Americas is yours
+  // from a city name alone. Needs an Intl.DateTimeFormat per zone and 418
+  // of them measured 123ms, so it waits for an idle moment after first
+  // paint. Until then the list shows plain city names.
+  const [zoneOffsets, setZoneOffsets] = useState<Record<string, string>>({});
   useEffect(() => {
     const build = () => {
       const at = Date.now();
-      const abbrs: Record<string, string> = {};
+      const offsets: Record<string, string> = {};
       for (const zone of TIME_ZONES) {
         try {
-          const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'short' }).formatToParts(at);
-          const abbr = parts.find((part) => part.type === 'timeZoneName')?.value;
-          if (abbr) abbrs[zone] = abbr;
+          const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(at);
+          const raw = parts.find((part) => part.type === 'timeZoneName')?.value;
+          if (raw) offsets[zone] = offsetLabel(raw);
         } catch {
           // a zone the engine lists but won't format: it just keeps its
           // plain city name, same as before this ran
         }
       }
-      setZoneAbbrs(abbrs);
+      setZoneOffsets(offsets);
     };
     if (typeof window.requestIdleCallback === 'function') {
       const id = window.requestIdleCallback(build);
@@ -1011,6 +1011,26 @@ export default function Timer() {
     setHistory((prev) => prev.filter((entry) => entry.id !== id));
   }, []);
 
+  // When each history entry was recorded, read in the clock's own zone and
+  // 12/24 setting so the list re-reads whenever either changes. Memoized
+  // on exactly those two, which keeps the identity stable for the panel's
+  // memo() and rebuilds the formatters only when they actually move.
+  //
+  // Entries saved before this existed, and any hand-edited one, carry
+  // timestamp 0. Those get nothing rather than a row dated 1970.
+  const formatHistoryStamp = useMemo(() => {
+    const time = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: !is24Hour,
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const date = new Intl.DateTimeFormat('en-US', { timeZone, day: '2-digit', month: '2-digit', year: 'numeric' });
+    return (timestamp: number) =>
+      timestamp > 0 ? `${time.format(timestamp)} ${formatDateParts(date, timestamp)}` : '';
+  }, [timeZone, is24Hour]);
+
   // Memoized rather than written inline at the panels below. An inline
   // arrow is a new identity every render, and these were the last unstable
   // props either panel took: one is enough to stop memo() ever bailing
@@ -1546,7 +1566,7 @@ export default function Timer() {
       fontSize={fontSize}
       timeZone={timeZone}
       is24Hour={is24Hour}
-      zoneAbbrs={zoneAbbrs}
+      zoneOffsets={zoneOffsets}
       isHourFormatFlashing={isHourFormatFlashing}
       onHourFormatClick={handleHourFormatClick}
       onTimeZoneChange={setTimeZone}
@@ -1778,6 +1798,7 @@ export default function Timer() {
             onClear={handleRequestClearHistory}
             inserted={insertedHistory}
             loaded={loadedEntry}
+            formatStamp={formatHistoryStamp}
           />
         </div>
       )}

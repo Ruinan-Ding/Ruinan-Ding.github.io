@@ -3,6 +3,23 @@ import type { TimeParts, TimerEntry } from './types';
 
 export const pad = (value: number) => String(value).padStart(2, '0');
 
+// Intl's shortOffset reads "GMT-4", "GMT+5:30", or bare "GMT" at zero.
+// The sign and the number are the whole point here, so the prefix goes and
+// zero gets written out rather than left blank.
+export const offsetLabel = (shortOffset: string) => {
+  const offset = shortOffset.replace('GMT', '');
+  return offset === '' ? '+0' : offset;
+};
+
+// dd/mm/yyyy, assembled from parts rather than trusted to a locale's own
+// ordering: en-US would put the month first and the app formats everything
+// else in en-US. The weekday stays in front of it.
+export const formatDateParts = (formatter: Intl.DateTimeFormat, at: number) => {
+  const parts = Object.fromEntries(formatter.formatToParts(at).map((p) => [p.type, p.value]));
+  const date = `${parts.day}/${parts.month}/${parts.year}`;
+  return parts.weekday ? `${parts.weekday}, ${date}` : date;
+};
+
 export const toTotalSeconds = ({ hours, minutes, seconds }: TimeParts) =>
   hours * 3600 + minutes * 60 + seconds;
 
