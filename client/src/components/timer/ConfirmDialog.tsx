@@ -222,25 +222,38 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             Don't ask this again
           </button>
         )}
+        {/* Held through the exit animation like the copy, or the buttons
+            would swap over mid-fade. */}
         <div className="flex gap-4 justify-end items-center">
-          {/* An acknowledgement has nothing to cancel — what it reports has
-              already been decided — so it gets the one button. Held through
-              the exit animation like the copy, or CANCEL would pop back in
-              mid-fade. */}
-          {!acknowledgeRef.current && (
+          {acknowledgeRef.current ? (
+            // One button, and it's the Cancel element rather than the
+            // Action on purpose: Radix focuses Cancel when the dialog
+            // opens, and with no Cancel to find it focuses nothing at all,
+            // which left SPACE and ESC going to the page behind the dialog.
+            // Nothing is lost by it being Cancel, since an acknowledgement
+            // has nothing to decline and all three do the same thing.
             <AlertDialogCancel
-              onClick={onDismiss}
-              className="border-4 border-white text-white font-bold px-6 py-3 hover:bg-white hover:text-black"
+              onClick={() => onConfirm(dontAskAgain)}
+              className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
             >
-              CANCEL <span className="opacity-60 font-normal">(ESC)</span>
+              {copy?.action} <span className="opacity-60 font-normal">(SPACE / ESC)</span>
             </AlertDialogCancel>
+          ) : (
+            <>
+              <AlertDialogCancel
+                onClick={onDismiss}
+                className="border-4 border-white text-white font-bold px-6 py-3 hover:bg-white hover:text-black"
+              >
+                CANCEL <span className="opacity-60 font-normal">(ESC)</span>
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => onConfirm(dontAskAgain)}
+                className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
+              >
+                {copy?.action} <span className="opacity-60 font-normal">(SPACE)</span>
+              </AlertDialogAction>
+            </>
           )}
-          <AlertDialogAction
-            onClick={() => onConfirm(dontAskAgain)}
-            className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
-          >
-            {copy?.action} <span className="opacity-60 font-normal">(SPACE)</span>
-          </AlertDialogAction>
         </div>
       </AlertDialogContent>
     </AlertDialog>

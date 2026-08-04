@@ -82,8 +82,13 @@ export const rawPresetDigits = (digits: string): TimeParts => {
   };
 };
 
+// Leading zeroes stripped, since this feeds the typed-digit string and the
+// field takes six. Padded, 1:05 came back as "000105", which is already
+// six, and every keystroke after that was dropped on the floor: leaving
+// the field and coming back left it looking editable and jammed. One digit
+// always survives, so 0:00 stays something rather than an empty box.
 export const presetDigitsFromParts = ({ hours, minutes, seconds }: TimeParts) =>
-  `${pad(hours)}${pad(minutes)}${pad(seconds)}`;
+  `${pad(hours)}${pad(minutes)}${pad(seconds)}`.replace(/^0+(?=\d)/, '');
 
 export const isPresetOutOfRange = (digits: string) => {
   const raw = rawPresetDigits(digits);
