@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { TIME_ZONES, ZONES_BY_REGION } from './constants';
 import { formatDateParts, offsetLabel } from './format';
 
@@ -28,7 +28,12 @@ interface ClockClusterProps {
 // Separate from Timer so the once-a-second tick re-renders this and
 // nothing else. Held in Timer it re-rendered the whole app, word counter
 // included, which draws a row per line of text.
-export default function ClockCluster({
+//
+// memo() at the bottom guards the other direction, which splitting the
+// file alone did nothing about: Timer re-renders every TICK_MS while a
+// timer runs, and each one reconciled the picker's ~400 <option>s. Every
+// prop has to stay stable for that to hold — see handleHourFormatClick.
+function ClockCluster({
   fontSize,
   timeZone,
   is24Hour,
@@ -152,3 +157,5 @@ export default function ClockCluster({
     </div>
   );
 }
+
+export default memo(ClockCluster);

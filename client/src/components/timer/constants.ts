@@ -36,13 +36,20 @@ export const HEADER_CORNER_RESERVE = `calc(3 * ${HEADER_BUTTON_SIZE.width} + 48p
 // and the HH:MM:SS input. Boxes that differ by a character or two read as
 // ragged, and the widest is a fixed 8 characters that can't shrink anyway.
 // Padding is em-based so it keeps pace as the label shrinks.
-export const LIST_ROW_FONT_SIZE = shrinkClamp(0.9, 2.2, 2.8, 1.75);
+// Written out rather than through shrinkClamp because the floor is a CSS
+// variable: touch devices lift it to 16px, where iOS stops zooming in on a
+// focused field. See --list-row-floor in index.css.
+export const LIST_ROW_FONT_SIZE = 'clamp(var(--list-row-floor), min(2.2vw, 2.8dvh), 1.75rem)';
 
 // "99:59:59" is 8 glyphs at this font's 0.6em advance plus 0.3em of side
 // padding. The +10px is border-4 (8px) plus 2px of slack, since em widths
 // land on fractions and an exact fit is no fit at all.
+// Off LIST_ROW_FONT_SIZE rather than the element's own em, which is the
+// same number until something overrides one box's font-size and that box
+// silently becomes a different width from the rest of the column. The
+// sidebar reserves this width once, from this same expression.
 const LIST_ROW_LABEL_EM = 5.4;
-export const LIST_ROW_BOX_WIDTH = `calc(${LIST_ROW_LABEL_EM}em + 10px)`;
+export const LIST_ROW_BOX_WIDTH = `calc(${LIST_ROW_LABEL_EM} * ${LIST_ROW_FONT_SIZE} + 10px)`;
 export const LIST_ROW_BUTTON_STYLE = {
   fontFamily: "'IBM Plex Mono', monospace",
   padding: '0.12em 0.3em',

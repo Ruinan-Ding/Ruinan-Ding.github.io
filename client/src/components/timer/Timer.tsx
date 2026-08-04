@@ -196,12 +196,15 @@ export default function Timer() {
   const [isHourFormatFlashing, setIsHourFormatFlashing] = useState(false);
   const hourFormatFlashRef = useRef(0);
   useEffect(() => () => window.clearTimeout(hourFormatFlashRef.current), []);
-  const handleHourFormatClick = () => {
+  // useCallback because this is what the clock hangs its memo on. As a
+  // plain arrow it was a new function every tick, which meant a new prop,
+  // which meant memo() could never bail out.
+  const handleHourFormatClick = useCallback(() => {
     setIs24Hour((prev) => !prev);
     setIsHourFormatFlashing(true);
     window.clearTimeout(hourFormatFlashRef.current);
     hourFormatFlashRef.current = window.setTimeout(() => setIsHourFormatFlashing(false), FLASH_DURATION_MS);
-  };
+  }, [setIs24Hour]);
   // The offset for every zone, so the picker reads "New York (-4)" rather
   // than leaving you to work out which of the twelve Americas is yours
   // from a city name alone. Needs an Intl.DateTimeFormat per zone and 418
@@ -705,7 +708,14 @@ export default function Timer() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code !== 'Space' && e.code !== 'KeyS' && e.code !== 'KeyR') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+      // Anything focused that wants these keys itself keeps them. Fields
+      // were the obvious case, but they aren't the only one: SPACE opens a
+      // <select> and presses a button, and a letter jumps a <select> to its
+      // next matching option. Guarding fields alone, this swallowed all of
+      // that — SPACE on the zone picker started the timer instead of
+      // opening it, and S there opened the stop dialog rather than reaching
+      // Seoul. Buttons were unusable by keyboard for the same reason.
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, button, a, [contenteditable], [role="button"]')) return;
       if (keyActionRef.current(e.code)) {
         e.preventDefault();
       }
@@ -1625,7 +1635,7 @@ export default function Timer() {
         <X style={{ width: shrinkClamp(0.8, 1.3, 1.4, 1.1), height: shrinkClamp(0.8, 1.3, 1.4, 1.1) }} />
       </button>
       <a
-        href="https://ruinanding.com/"
+        href="https://ruinan-ding.com/"
         target="_blank"
         rel="noopener noreferrer"
         className={`flex items-center gap-1.5 font-bold text-black bg-[#FF80BF] border-3 border-white px-2.5 py-0.5 sm:px-3 sm:py-1 whitespace-nowrap hover:scale-105 hover:opacity-90 transition-all duration-200 ${!isPaused && !isAlarmRinging ? 'animate-linkGlow' : ''}`}

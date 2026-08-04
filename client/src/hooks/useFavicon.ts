@@ -53,6 +53,11 @@ export const useFavicon = (
     if (!ctx) return;
 
     const drawFavicon = (shape: 'triangle' | 'bars' | 'square' | 'default', opacity: number = 1) => {
+      // Opaque for the background specifically. A canvas keeps its alpha
+      // between calls, so this fill ran at whatever the last frame faded
+      // to: at 0.02 it cleared almost nothing and the pulse stacked frame
+      // on frame instead of fading.
+      ctx.globalAlpha = 1;
       ctx.fillStyle = '#9ca3af';
       ctx.fillRect(0, 0, 64, 64);
 

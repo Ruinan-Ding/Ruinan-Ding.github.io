@@ -191,10 +191,13 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           // so the event is stopped here or it bubbles to that window
           // listener and re-triggers on the same keystroke.
           //
-          // Except on the "don't ask again" checkbox, where Space is how
-          // you tick it, and confirming would answer the dialog out from
-          // under someone reaching for the box by keyboard.
-          if (e.code === 'Space' && (e.target as HTMLElement).closest('[data-dont-ask]')) return;
+          // Except on the "don't ask again" checkbox, where both keys tick
+          // it, and confirming would answer the dialog out from under
+          // someone reaching for the box by keyboard. Enter belongs here as
+          // much as Space: without it, Enter on the box confirmed with the
+          // preference still unticked, throwing away the very thing being
+          // reached for.
+          if ((e.code === 'Space' || e.key === 'Enter') && (e.target as HTMLElement).closest('[data-dont-ask]')) return;
           if (e.code === 'Space' || e.key === 'Enter') {
             e.preventDefault();
             e.stopPropagation();

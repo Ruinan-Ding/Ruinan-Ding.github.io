@@ -463,3 +463,24 @@
     font-size: 16px !important;
   }
 }
+
+/* The sidebar's boxes are the one place that rule couldn't reach, because
+   they aren't one control: the preset input, the preset rows and the
+   history rows are all sized off LIST_ROW_FONT_SIZE and all share one box
+   width. Forcing 16px onto the input alone left it a different size and a
+   different width from the rows beside it — wider than them on a phone,
+   narrower on a tablet, and either way ragged in a column that reserves
+   exactly one width.
+
+   So the floor moves for all of them instead of the override landing on
+   one. Above the floor nothing changes, which is every desktop and most of
+   a tablet; on a phone it lifts 0.9rem to the 1rem the input needed
+   anyway. The input then clears 16px on its own and needs no override. */
+:root {
+  --list-row-floor: 0.9rem;
+}
+@media (hover: none) and (pointer: coarse) {
+  :root {
+    --list-row-floor: 1rem;
+  }
+}
