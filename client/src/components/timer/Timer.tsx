@@ -13,7 +13,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HISTORY_WARN, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES } from './constants';
 import { formatDateParts, formatEntryLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { fitClamp, shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
@@ -135,6 +135,8 @@ export default function Timer() {
   const [insertedPreset, setInsertedPreset] = useState<FlashTarget>(null);
   const [duplicatePreset, setDuplicatePreset] = useState<FlashTarget>(null);
   const [insertedHistory, setInsertedHistory] = useState<FlashTarget>(null);
+  // Which tone the newest history insert flashes in; see recordHistory.
+  const [historyInsertClass, setHistoryInsertClass] = useState('animate-insertFlash');
   const [loadedEntry, setLoadedEntry] = useState<FlashTarget>(null);
   // Bumped with the direction of the change when a field's adjustment
   // applies, so each digit on the countdown flashes green or red on its
@@ -802,8 +804,19 @@ export default function Timer() {
     restartRunFade();
   };
 
+  // The insert flash says how full the list is getting: green while
+  // there's room, yellow from HISTORY_WARN on, red once the list is at
+  // MAX_HISTORY and this row costs the oldest one its place.
   const recordHistory = (parts: TimeParts) => {
     const entry: TimerEntry = { id: uniqueId(), ...parts, timestamp: Date.now() };
+    const wouldBe = history.length + 1;
+    setHistoryInsertClass(
+      wouldBe > MAX_HISTORY
+        ? 'animate-insertFullFlash'
+        : wouldBe >= HISTORY_WARN
+          ? 'animate-insertWarnFlash'
+          : 'animate-insertFlash'
+    );
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
     setInsertedHistory((prev) => bumpFlash(prev, entry.id));
   };
@@ -953,8 +966,20 @@ export default function Timer() {
     const id = uniqueId();
     setPresets((prev) => [...prev, { id, ...parts, timestamp: 0 }]);
     setInsertedPreset((prev) => bumpFlash(prev, id));
+    // Adding a time is a request to use it, so it runs. An unstarted timer
+    // has nothing on the clock to lose and just goes; every other state
+    // does, so it asks first, in the same words and with the same
+    // "don't ask again" scope as picking the row out of the list would.
+    // An out-of-range entry never reaches here: the panel sends it to the
+    // correction dialog first, and only a corrected time is added.
+    if (timerStateKind() === 'unstarted') {
+      applySwitch(parts, true);
+    } else {
+      const mode = isPaused ? 'loadOnly' : 'switchRunning';
+      askThenRun({ type: 'switch', data: parts, mode }, () => applySwitch(parts, true));
+    }
     return true;
-  }, [presets]);
+  }, [presets, timerStateKind, isPaused, applySwitch, askThenRun]);
 
   // Two steps, so the delete animation plays after the question is
   // answered rather than before. Only a confirmed removal sets this, which
@@ -1803,6 +1828,8 @@ export default function Timer() {
             inserted={insertedHistory}
             loaded={loadedEntry}
             formatStamp={formatHistoryStamp}
+            insertClass={historyInsertClass}
+            max={MAX_HISTORY}
           />
         </div>
       )}

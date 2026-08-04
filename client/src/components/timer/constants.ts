@@ -155,10 +155,19 @@ export const MAX_HOURS = 99;
 export const MAX_MINUTES = 59;
 export const MAX_SECONDS = 59;
 // Both lists share the sidebar's one scrollbar, so a long list costs
-// scrollable height rather than squeezing the other one. History fills on
-// its own, a row per started timer, hence the higher ceiling.
+// scrollable height rather than squeezing the other one.
 export const MAX_PRESETS = 100;
-export const MAX_HISTORY = 1000;
+export const MAX_HISTORY = 20;
+// Where a new history row starts warning that the list is filling up. Past
+// it the insert flashes yellow instead of green, and at the ceiling red,
+// where the oldest row is being dropped to make room.
+export const HISTORY_WARN = 15;
+
+// One size for both sidebar headings. They were on different vw/vh
+// coefficients, so HISTORY rendered smaller than PRESETS at most sizes.
+export const SIDEBAR_HEADING_FONT_SIZE = shrinkClamp(0.875, 2, 2.2, 1.25);
+// The x/max counter beside them, a step down so it reads as an annotation.
+export const SIDEBAR_COUNT_FONT_SIZE = shrinkClamp(0.55, 1.1, 1.2, 0.8);
 
 // [frequency Hz, duration ms]
 export const TONES = {

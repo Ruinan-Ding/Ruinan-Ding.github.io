@@ -212,23 +212,16 @@
   animation: alarmFlashBar 0.5s linear infinite;
 }
 
-/* One-shot cues on the list rows: yellow for a fresh insert, green for
-   loading one back into the timer. forwards holds the end colour, so
-   nothing has to remove the class afterwards. */
-@keyframes insertFlashYellow {
-  from {
-    background-color: #eab308;
-  }
-  to {
-    background-color: var(--app-surface);
-  }
-}
-
-.animate-insertFlash {
-  animation: insertFlashYellow 1.2s ease-out forwards;
-}
-
-@keyframes loadFlashGreen {
+/* One-shot cues on the list rows, in the app's three state colours:
+   green for a row that went in or was loaded, yellow for one that went in
+   with the list filling up, red for one that hit the ceiling or was
+   refused as a duplicate. forwards holds the end colour, so nothing has to
+   remove the class afterwards.
+   One keyframe per colour rather than per meaning — five names for three
+   fades was five places to change a colour. Replay doesn't depend on the
+   name being unique either: useDomFlash removes the class, forces a
+   reflow and re-adds it, which restarts the animation regardless. */
+@keyframes rowFlashGreen {
   from {
     background-color: #22c55e;
   }
@@ -237,14 +230,16 @@
   }
 }
 
-.animate-loadFlash {
-  animation: loadFlashGreen 1.2s ease-out forwards;
+@keyframes rowFlashYellow {
+  from {
+    background-color: #eab308;
+  }
+  to {
+    background-color: var(--app-surface);
+  }
 }
 
-/* Third of the same set: red for "you already have this one". Red rather
-   than the insert's yellow because nothing was inserted, and it's the
-   colour the counters and the alarm already use for a refusal. */
-@keyframes duplicateFlashRed {
+@keyframes rowFlashRed {
   from {
     background-color: #ef4444;
   }
@@ -253,8 +248,18 @@
   }
 }
 
+.animate-insertFlash,
+.animate-loadFlash {
+  animation: rowFlashGreen 1.2s ease-out forwards;
+}
+
+.animate-insertWarnFlash {
+  animation: rowFlashYellow 1.2s ease-out forwards;
+}
+
+.animate-insertFullFlash,
 .animate-duplicateFlash {
-  animation: duplicateFlashRed 1.2s ease-out forwards;
+  animation: rowFlashRed 1.2s ease-out forwards;
 }
 
 /* The row holds red long enough to register as "this one, gone" rather

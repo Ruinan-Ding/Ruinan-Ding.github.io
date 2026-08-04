@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS } from './constants';
+import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_HEADING_FONT_SIZE } from './constants';
 import { formatEntryLabel, isPresetOutOfRange, pad, parsePresetDigits, presetDigits, presetDigitsFromParts, rawPresetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
@@ -196,7 +196,12 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
         className="flex justify-between items-center border-b-2 border-white flex-shrink-0"
         style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
       >
-        <h2 className="text-white font-bold" style={{ fontSize: shrinkClamp(0.875, 2, 2.2, 1.25) }}>PRESETS</h2>
+        <span className="flex items-baseline gap-1.5 min-w-0">
+          <h2 className="text-white font-bold" style={{ fontSize: SIDEBAR_HEADING_FONT_SIZE }}>PRESETS</h2>
+          <span className="text-white opacity-60 font-bold whitespace-nowrap" style={{ fontSize: SIDEBAR_COUNT_FONT_SIZE }}>
+            {presets.length}/{MAX_PRESETS}
+          </span>
+        </span>
         {presets.length > 0 && (
           <button
             onClick={onClear}

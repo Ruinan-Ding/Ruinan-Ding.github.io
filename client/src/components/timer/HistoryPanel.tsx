@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { LIST_ROW_BUTTON_STYLE, LIST_ROW_FONT_SIZE, LIST_ROW_REMOVE_BUTTON_STYLE, LIST_ROW_REMOVE_FONT_SIZE } from './constants';
+import { LIST_ROW_BUTTON_STYLE, LIST_ROW_FONT_SIZE, LIST_ROW_REMOVE_BUTTON_STYLE, LIST_ROW_REMOVE_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_HEADING_FONT_SIZE } from './constants';
 import { formatEntryLabel } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimerEntry } from './types';
@@ -39,21 +39,26 @@ interface HistoryPanelProps {
   // 12/24 setting, split into the two lines it prints on. Null for an
   // entry with no usable timestamp.
   formatStamp: (timestamp: number) => { time: string; date: string } | null;
+  // Which tone the newest insert flashes in, decided in Timer from how
+  // full the list has become.
+  insertClass: string;
+  max: number;
 }
 
 // Deliberately the same shape as PresetRow: a history entry is the same
 // kind of thing as a preset, a time you can load, so it gets the same box
 // and the same − beside it. What it has that a preset doesn't is a when,
 // which sits above the row.
-function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp }: {
+function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp, insertClass }: {
   entry: TimerEntry;
   onSelect: (entry: TimerEntry) => void;
   onRemove: (id: string) => void;
   inserted: FlashTarget;
   loaded: FlashTarget;
   formatStamp: (timestamp: number) => { time: string; date: string } | null;
+  insertClass: string;
 }) {
-  const buttonRef = useEntryFlash(entry.id, inserted, loaded);
+  const buttonRef = useEntryFlash(entry.id, inserted, loaded, null, insertClass);
   const fizz = useFizzRemove(useCallback(() => onRemove(entry.id), [onRemove, entry.id]));
   const stamp = formatStamp(entry.timestamp);
 
@@ -102,7 +107,7 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp }
   );
 }
 
-function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, formatStamp }: HistoryPanelProps) {
+function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, formatStamp, insertClass, max }: HistoryPanelProps) {
   return (
     // flex-shrink-0 like the presets panel: neither list gives up height to
     // the other. As flex-auto this claimed the leftover space, which is
@@ -113,7 +118,12 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
         className="flex justify-between items-center border-b-2 border-white flex-shrink-0"
         style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
       >
-        <h2 className="text-white font-bold" style={{ fontSize: shrinkClamp(0.875, 1.3, 1.4, 1.25) }}>HISTORY</h2>
+        <span className="flex items-baseline gap-1.5 min-w-0">
+          <h2 className="text-white font-bold" style={{ fontSize: SIDEBAR_HEADING_FONT_SIZE }}>HISTORY</h2>
+          <span className="text-white opacity-60 font-bold whitespace-nowrap" style={{ fontSize: SIDEBAR_COUNT_FONT_SIZE }}>
+            {history.length}/{max}
+          </span>
+        </span>
         {history.length > 0 && (
           <button
             onClick={onClear}
@@ -135,7 +145,7 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
           <p className="text-white opacity-50" style={{ fontSize: shrinkClamp(0.75, 1, 1.05, 0.875) }}>No history yet</p>
         ) : (
           history.map((entry) => (
-            <HistoryRow key={entry.id} entry={entry} onSelect={onSelect} onRemove={onRemove} inserted={inserted} loaded={loaded} formatStamp={formatStamp} />
+            <HistoryRow key={entry.id} entry={entry} onSelect={onSelect} onRemove={onRemove} inserted={inserted} loaded={loaded} formatStamp={formatStamp} insertClass={insertClass} />
           ))
         )}
       </div>
