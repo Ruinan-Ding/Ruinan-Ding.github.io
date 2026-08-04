@@ -42,10 +42,13 @@ export type DialogState =
   | { type: 'clearHistory' }
   | { type: 'clearPresets' }
   | { type: 'removePreset'; data: { id: string; label: string } }
-  // An out-of-range entry like 99:99:99, asked about at commit rather than
-  // corrected while it's still being typed. `add` is whether the commit
-  // was an add or just leaving the field.
+  // An out-of-range entry like 99:99:99, reported at commit rather than
+  // corrected silently while it's still being typed. `add` is whether the
+  // commit was an add or just leaving the field.
   | { type: 'correctPreset'; data: { typed: string; corrected: string; digits: string; add: boolean } }
+  // Adding a time the list already holds. Nothing to decide either: it says
+  // so and points at the row that time is already in.
+  | { type: 'duplicatePreset'; data: { id: string; label: string } }
   // Turning confirmations off asks; turning them back on never does.
   | { type: 'skipConfirmations' }
   | { type: 'clearWordCounter' };

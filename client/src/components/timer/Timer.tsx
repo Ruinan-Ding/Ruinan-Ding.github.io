@@ -16,7 +16,7 @@ import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES } from './constants';
 import { formatDateParts, formatEntryLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { fitClamp, shrinkClamp } from './responsive';
-import { isDialogSuppressed, suppressDialog } from './suppressions';
+import { isAcknowledgement, isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 
@@ -936,8 +936,9 @@ export default function Timer() {
   };
 
   // A preset list is a set of times, so adding one it already holds adds
-  // nothing and flashes the existing row red instead. Returns whether
-  // anything went in, so the panel knows whether to clear its input.
+  // nothing and says so instead, then flashes the existing row red to point
+  // at it. Returns whether anything went in, so the panel knows whether to
+  // clear its input.
   //
   // Matched on the time, not the label: formatEntryLabel drops leading
   // zeroes, so 1:05 and 0:01:05 print the same and are the same preset.
@@ -946,7 +947,13 @@ export default function Timer() {
       (p) => (p.hours ?? 0) === parts.hours && p.minutes === parts.minutes && p.seconds === parts.seconds
     );
     if (existing) {
-      setDuplicatePreset((prev) => bumpFlash(prev, existing.id));
+      // The flash comes after the notice rather than under it, where the
+      // dialog would cover the row it's meant to be pointing at. Silence the
+      // notice and the flash alone is left to say it.
+      askThenRun(
+        { type: 'duplicatePreset', data: { id: existing.id, label: formatEntryLabel(existing) } },
+        () => setDuplicatePreset((prev) => bumpFlash(prev, existing.id))
+      );
       return false;
     }
     if (presets.length >= MAX_PRESETS) return false;
@@ -1219,6 +1226,10 @@ export default function Timer() {
         setPresetCorrection({ digits: dialog.data.digits, add: dialog.data.add });
         closeDialog();
         break;
+      case 'duplicatePreset':
+        setDuplicatePreset((prev) => bumpFlash(prev, dialog.data.id));
+        closeDialog();
+        break;
       case 'skipConfirmations':
         setSkipConfirmations(true);
         closeDialog();
@@ -1232,6 +1243,13 @@ export default function Timer() {
   const handleDialogDismiss = () => {
     if (!justConfirmedRef.current && dialog.type === 'adjust') {
       askedAdjustInStatesRef.current.delete(dialog.data.state);
+    }
+    // An acknowledgement states what happened, so ESC has to leave the same
+    // result behind as OK. Anything else and the text would be a lie for
+    // whoever dismissed it that way.
+    if (!justConfirmedRef.current && isAcknowledgement(dialog)) {
+      handleDialogConfirm(false);
+      return;
     }
     justConfirmedRef.current = false;
     closeDialog();

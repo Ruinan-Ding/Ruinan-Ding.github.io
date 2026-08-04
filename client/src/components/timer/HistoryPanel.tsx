@@ -26,7 +26,7 @@ const STAMP_GAP = `calc(${LIST_ROW_FONT_SIZE} * 0.18)`;
 // Bigger than the presets list uses, because a history row is now two
 // pieces: without it the gap between entries was the same 4px as the gap
 // inside one, and they ran together.
-const HISTORY_ROW_GAP = shrinkClamp(0.6, 1, 1.1, 1);
+const HISTORY_ROW_GAP = shrinkClamp(0.75, 1.25, 1.35, 1.2);
 
 interface HistoryPanelProps {
   history: TimerEntry[];

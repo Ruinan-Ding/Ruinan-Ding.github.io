@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import DotCheckbox from './DotCheckbox';
 import { formatEntryLabel, fromTotalSeconds } from './format';
-import { dialogKey } from './suppressions';
+import { dialogKey, isAcknowledgement } from './suppressions';
 import type { DialogState } from './types';
 
 interface ConfirmDialogProps {
@@ -128,15 +128,21 @@ const getCopy = (dialog: DialogState) => {
       };
     case 'correctPreset':
       return {
-        title: 'CORRECT TIME',
-        description: `${dialog.data.typed} isn't a valid time — minutes and seconds only go up to 59, and hours to 99. Use ${dialog.data.corrected} instead?`,
-        action: 'CORRECT',
+        title: 'TIME CORRECTED',
+        description: `${dialog.data.typed} isn't a valid time — minutes and seconds only go up to 59, and hours to 99. It's been corrected to ${dialog.data.corrected}.`,
+        action: 'OK',
+      };
+    case 'duplicatePreset':
+      return {
+        title: 'ALREADY SAVED',
+        description: `${dialog.data.label} is already one of your presets, so nothing was added. The one you have will flash red.`,
+        action: 'OK',
       };
     case 'skipConfirmations':
       return {
         title: 'TURN OFF CONFIRMATIONS',
         description:
-          "Turn off confirmations? Stopping, resetting, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset, clearing history, correcting an out-of-range preset and hiding the website link will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice. To silence just one of these instead, tick \"Don't ask this again\" in its own dialog.",
+          "Turn off confirmations? Stopping, resetting, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset, clearing history, correcting an out-of-range preset, pointing out a preset you already have and hiding the website link will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice. To silence just one of these instead, tick \"Don't ask this again\" in its own dialog.",
         action: 'TURN OFF',
       };
     case 'clearWordCounter':
@@ -171,6 +177,8 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   // through the exit animation like the copy above.
   const suppressibleRef = useRef(false);
   if (dialog.type !== null) suppressibleRef.current = key !== null;
+  const acknowledgeRef = useRef(false);
+  if (dialog.type !== null) acknowledgeRef.current = isAcknowledgement(dialog);
 
   return (
     <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss()}>
@@ -215,12 +223,18 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           </button>
         )}
         <div className="flex gap-4 justify-end items-center">
-          <AlertDialogCancel
-            onClick={onDismiss}
-            className="border-4 border-white text-white font-bold px-6 py-3 hover:bg-white hover:text-black"
-          >
-            CANCEL <span className="opacity-60 font-normal">(ESC)</span>
-          </AlertDialogCancel>
+          {/* An acknowledgement has nothing to cancel — what it reports has
+              already been decided — so it gets the one button. Held through
+              the exit animation like the copy, or CANCEL would pop back in
+              mid-fade. */}
+          {!acknowledgeRef.current && (
+            <AlertDialogCancel
+              onClick={onDismiss}
+              className="border-4 border-white text-white font-bold px-6 py-3 hover:bg-white hover:text-black"
+            >
+              CANCEL <span className="opacity-60 font-normal">(ESC)</span>
+            </AlertDialogCancel>
+          )}
           <AlertDialogAction
             onClick={() => onConfirm(dontAskAgain)}
             className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
