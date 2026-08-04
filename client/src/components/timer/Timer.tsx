@@ -2019,17 +2019,26 @@ export default function Timer() {
             bail out and the whole word counter reconciled on every tick.
             Null while windowed leaves the props all primitives and stable
             callbacks. Nothing renders differently, since these reach the
-            DOM on the same flag either way. */}
+            DOM on the same flag either way.
+            The clock and the bar also stay behind below sm. That row never
+            wraps and reserves ~168px for the floating corner, which on a
+            390px phone is 43% of the screen before it carries mute,
+            repeat, the countdown, the bar, three buttons and a clock: it
+            wanted 459px of content in 374px and clipped, taking STOP and
+            the clock with it. The countdown and the controls are what
+            fullscreen exists to keep in reach; the time of day and a
+            progress bar aren't. The clock's flex-1 box stays either way,
+            so the timer still sits on the row's midpoint. */}
         <WordCounter
           onFocusChange={setIsWordCounterFocused}
           onFullscreenChange={setIsWordCounterFullscreen}
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={isWordCounterFullscreen ? speakerButton : null}
           ringerButton={isWordCounterFullscreen ? ringerButton : null}
-          clockCluster={isWordCounterFullscreen ? renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE) : null}
+          clockCluster={isWordCounterFullscreen && isRowLayout ? renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE) : null}
           headerCornerWidth={headerCornerWidth}
           timerDigits={isWordCounterFullscreen ? wordCounterTimerDigits : null}
-          timerBar={isWordCounterFullscreen ? renderDrainBar('clamp(3rem, 8vw, 8rem)', true) : null}
+          timerBar={isWordCounterFullscreen && isRowLayout ? renderDrainBar('clamp(3rem, 8vw, 8rem)', true) : null}
           timerControls={
             isWordCounterFullscreen ? (
               <div className="flex items-center gap-1.5 flex-shrink-0">

@@ -342,25 +342,30 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           repeat tip, leaving the row to the controls that matter while
           typing. Timer stops rendering its own mute/repeat buttons at the
           same time, so those relocate here rather than being duplicated.
-          flex-nowrap in both versions: nothing here ever wraps to a second
-          line. The corner is reserved as padding rather than a spacer
-          element, because padding shrinks the line box itself while a
-          spacer stops protecting anything the moment the row overflows,
-          which is exactly when the corner lands on something. Running out
-          of width shrinks the clock; see its box below. */}
+          The corner is reserved as padding rather than a spacer element,
+          because padding shrinks the line box itself while a spacer stops
+          protecting anything the moment the row overflows, which is exactly
+          when the corner lands on something. Running out of width shrinks
+          the clock; see its box below.
+          It stays on one line from sm up. Below that it wraps, because it
+          can't do otherwise: on a 390px phone the corner's own reservation
+          is 136px, leaving 246px for a row whose contents measure ~400 even
+          with the clock and bar dropped. Held to nowrap it put STOP under
+          the corner instead. */}
       <div
-        className="flex items-center gap-3 flex-nowrap w-full"
+        className="flex items-center gap-3 flex-wrap sm:flex-nowrap w-full"
         style={isFullscreen ? { paddingRight: headerCornerWidth ? headerCornerWidth + 24 : HEADER_CORNER_RESERVE } : undefined}
       >
         {isFullscreen ? (
           <>
             {/* Arrow, ringer and speaker on the left, then the timer, then
                 the clock. The two flex-1 ends centre the middle of that.
-                No min-w-0 here on purpose: it would let this cluster be
-                squeezed to nothing while its own flex-shrink-0 buttons
-                spilled over the timer beside them. On min-width auto it
-                can't go below its content. */}
-            <div className="flex items-center gap-3 flex-1">
+                min-w-min, not the automatic minimum: index.css's blanket
+                `.flex { min-width: 0 }` overrides that, and on a phone this
+                cluster really was squeezed to 0 with its flex-shrink-0
+                buttons spilling over the timer beside it. Same remedy the
+                HOURS/MINUTES/SECONDS box needs for the same rule. */}
+            <div className="flex items-center gap-3 flex-1 min-w-min">
               {!isAutoCollapsed && (
                 <HeaderToggleButton
                   onClick={toggleCollapsed}
