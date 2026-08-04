@@ -15,8 +15,18 @@ const STAMP_INDENT = `calc(1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + 4px + ${ROW_GAP}
 // Sized off the row it labels rather than the viewport, so it can't
 // outgrow the box it sits over. The box holds 8 characters at
 // LIST_ROW_FONT_SIZE and the longest line here is 15 ("Tue, 04/08/2026"),
-// which at half that size leaves room to spare.
-const STAMP_FONT_SIZE = `calc(${LIST_ROW_FONT_SIZE} * 0.5)`;
+// so this leaves room to spare.
+const STAMP_FONT_SIZE = `calc(${LIST_ROW_FONT_SIZE} * 0.45)`;
+
+// A stamp sitting flush on its own row made the − button look like it
+// reached up into the timestamp. Small enough that the two still read as
+// one entry.
+const STAMP_GAP = `calc(${LIST_ROW_FONT_SIZE} * 0.18)`;
+
+// Bigger than the presets list uses, because a history row is now two
+// pieces: without it the gap between entries was the same 4px as the gap
+// inside one, and they ran together.
+const HISTORY_ROW_GAP = shrinkClamp(0.6, 1, 1.1, 1);
 
 interface HistoryPanelProps {
   history: TimerEntry[];
@@ -48,7 +58,7 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp }
   const stamp = formatStamp(entry.timestamp);
 
   return (
-    <div className="flex flex-col flex-shrink-0">
+    <div className="flex flex-col flex-shrink-0" style={{ gap: stamp ? STAMP_GAP : undefined }}>
       {/* Two lines, indented to the label box: on one line it had to be
           tiny to fit 26 characters across the sidebar, and splitting it at
           the time/date boundary buys enough width to read it. */}
@@ -119,7 +129,7 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
           a horizontal bar to slide along. */}
       <div
         className="flex flex-col"
-        style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
+        style={{ gap: HISTORY_ROW_GAP }}
       >
         {history.length === 0 ? (
           <p className="text-white opacity-50" style={{ fontSize: shrinkClamp(0.75, 1, 1.05, 0.875) }}>No history yet</p>
