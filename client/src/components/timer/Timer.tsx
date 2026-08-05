@@ -1343,10 +1343,18 @@ export default function Timer() {
   // into, and the digit row is at its widest twice as wide as "1:05" —
   // sizing to the short readout is what puts the long one under the
   // sidebar.
+  //
+  // 16vw is what the window can actually take rather than a round number:
+  // the widest readout, "-99:59:58·00", measures 5.55x its own font-size
+  // plus the block's padding, and the content column keeps 16px either
+  // side, so anything the window can hold is (100vw - 52px) / 5.55. That's
+  // ~18vw at 1400 but only ~16.5vw at 640, where the clamp is tightest, so
+  // the flat limit is set by the narrow end. Past that the height term
+  // takes over and the leftover space is gone, which is the point.
   const isUnobstructed = isSidebarHidden && isTimeFieldsHidden;
-  const timerColumnWidth = isUnobstructed ? 'clamp(16rem, 52vw, 60rem)' : 'clamp(16rem, 40vw, 44rem)';
-  const digitWidthLimit = isUnobstructed ? '13vw' : '10.5vw';
-  const digitCeiling = isUnobstructed ? '16rem' : '12rem';
+  const timerColumnWidth = isUnobstructed ? 'clamp(16rem, 64vw, 72rem)' : 'clamp(16rem, 40vw, 44rem)';
+  const digitWidthLimit = isUnobstructed ? '16vw' : '10.5vw';
+  const digitCeiling = isUnobstructed ? '20rem' : '12rem';
 
   // Height is a slice of the digit size, so the bar tracks the digits
   // rather than the window. Letting it absorb the column's leftover height

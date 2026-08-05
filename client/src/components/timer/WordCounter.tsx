@@ -1,7 +1,7 @@
 import { ChevronsDown, ChevronsUp, Maximize2, Minimize2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePersisted } from '@/hooks/usePersisted';
-import { readBoolean, readRaw, writeRaw } from '@/lib/storage';
+import { readBoolean, readJSON, readRaw, writeRaw } from '@/lib/storage';
 import ConfirmDialog from './ConfirmDialog';
 import { HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, STORAGE_KEYS, TOGGLE_FONT_SIZE } from './constants';
 import DotCheckbox from './DotCheckbox';
@@ -91,14 +91,22 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // RESET clears them with every other key.
   const [isFullscreen, setIsFullscreen] = useState(() => readBoolean(STORAGE_KEYS.wordCounterFullscreen, false));
   const [isCollapsed, setIsCollapsed] = useState(() => readBoolean(STORAGE_KEYS.wordCounterCollapsed, false));
-  // True only when the auto-collapse below forced it, never for a manual
-  // toggle. The collapse arrow hides itself while this is set, since
-  // clicking it would bounce straight back on the next check().
-  const [isAutoCollapsed, setIsAutoCollapsed] = useState(false);
   // Window size when auto-collapse last fired, null otherwise. Growing
   // back past it is this app's proxy for "there's room again": the
   // expanded content isn't in the DOM to re-measure once collapsed.
-  const collapsedAtSizeRef = useRef<{ w: number; h: number } | null>(null);
+  //
+  // Saved, so a reload doesn't replay the collapse in front of you: with
+  // the size in memory only, an auto-collapse couldn't be persisted
+  // without reading back as a manual one, so every refresh came back
+  // expanded, overflowed its share of the column, and snapped shut again.
+  // Restored it comes back already collapsed, and still reopens itself
+  // once the window grows past the size below.
+  const [savedCollapsedAt] = useState(() => readJSON<{ w: number; h: number } | null>(STORAGE_KEYS.wordCounterCollapsedAt, null));
+  // True only when the auto-collapse below forced it, never for a manual
+  // toggle. The collapse arrow hides itself while this is set, since
+  // clicking it would bounce straight back on the next check().
+  const [isAutoCollapsed, setIsAutoCollapsed] = useState(savedCollapsedAt !== null);
+  const collapsedAtSizeRef = useRef(savedCollapsedAt);
   // check() reads state through refs, not closures. Window resize and the
   // ResizeObserver can both fire the same closure from an effect run whose
   // state has since gone stale.
@@ -108,13 +116,10 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   useEffect(() => {
     onFullscreenChange(isFullscreen);
   }, [isFullscreen, onFullscreenChange]);
-  // Only a manual collapse persists, the same guard the timer's own
-  // auto-tuck gets. An auto-collapse is a reaction to one window size, and
-  // reversing it needs collapsedAtSizeRef, which is in memory and gone on
-  // reload: saved, it would come back looking like a deliberate collapse
-  // and stay shut at every later size, reopenable only by finding the
-  // arrow.
-  usePersisted(STORAGE_KEYS.wordCounterCollapsed, isCollapsed && !isAutoCollapsed);
+  usePersisted(STORAGE_KEYS.wordCounterCollapsed, isCollapsed);
+  // Null for a manual collapse, which is what tells the two apart on the
+  // way back in.
+  usePersisted(STORAGE_KEYS.wordCounterCollapsedAt, isAutoCollapsed ? collapsedAtSizeRef.current : null);
   usePersisted(STORAGE_KEYS.wordCounterFullscreen, isFullscreen);
 
   // Collapsing has to leave fullscreen too, since there's no such thing as

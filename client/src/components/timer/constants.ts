@@ -106,6 +106,7 @@ export const STORAGE_KEYS = {
   sidebarHidden: 'timerSidebarHidden',
   timeFieldsHidden: 'timerTimeFieldsHidden',
   wordCounterCollapsed: 'wordCounterCollapsed',
+  wordCounterCollapsedAt: 'wordCounterCollapsedAt',
   wordCounterFullscreen: 'wordCounterFullscreen',
   lightTheme: 'timerLightTheme',
   dontAskAgain: 'timerDontAskAgain',
