@@ -1332,6 +1332,22 @@ export default function Timer() {
   // Shared by the main column's bar and the compact copy in the word
   // counter's fullscreen row. Same hover and seek behaviour; the copy sits
   // near the top of the screen, so its tooltip goes below the track.
+  // The digits are held back by width, not height — they run out of column
+  // long before they run out of room above and below. What holds the column
+  // in is the sidebar on one side and the time fields on the other, so with
+  // both of those tucked away the whole measurement changes and the timer
+  // can take the window it now has to itself. Growing sideways is what
+  // spends the leftover height: every pixel of digit costs 1.75 of column.
+  //
+  // Both, not either. One of them still showing is still something to run
+  // into, and the digit row is at its widest twice as wide as "1:05" —
+  // sizing to the short readout is what puts the long one under the
+  // sidebar.
+  const isUnobstructed = isSidebarHidden && isTimeFieldsHidden;
+  const timerColumnWidth = isUnobstructed ? 'clamp(16rem, 52vw, 60rem)' : 'clamp(16rem, 40vw, 44rem)';
+  const digitWidthLimit = isUnobstructed ? '13vw' : '10.5vw';
+  const digitCeiling = isUnobstructed ? '16rem' : '12rem';
+
   // Height is a slice of the digit size, so the bar tracks the digits
   // rather than the window. Letting it absorb the column's leftover height
   // instead just traded a gap for an empty panel.
@@ -2011,7 +2027,7 @@ export default function Timer() {
                 against and would collapse the column to a sliver. */}
             <div
               className="flex-1 flex flex-col items-center justify-center min-h-0 gap-1"
-              style={isRowLayout ? { containerType: 'size', width: 'clamp(16rem, 40vw, 44rem)' } : undefined}
+              style={isRowLayout ? { containerType: 'size', width: timerColumnWidth } : undefined}
             >
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
@@ -2035,7 +2051,7 @@ export default function Timer() {
               // CLOCK_FONT_SIZE so it tracks the same way.
               style={{
                 fontSize: isRowLayout
-                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5dvh) - max(3rem, min(5vw, 5.4dvh))) / 1.75)), 12rem)'
+                  ? `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(10.5rem, 1.5rem + 19.5dvh) - max(3rem, min(5vw, 5.4dvh))) / 1.75)), ${digitCeiling})`
                   // No queryable container below sm, so the two
                   // measurements are replaced by estimates: the row gets
                   // about half the viewport height, and ~15rem of that goes
@@ -2081,7 +2097,7 @@ export default function Timer() {
                 </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
               </div>
-              {renderDrainBar('clamp(16rem, 40vw, 44rem)')}
+              {renderDrainBar(timerColumnWidth)}
             </div>
 
             <div className="flex gap-2 flex-shrink-0">
