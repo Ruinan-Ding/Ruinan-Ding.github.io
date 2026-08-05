@@ -1332,24 +1332,15 @@ export default function Timer() {
   // Shared by the main column's bar and the compact copy in the word
   // counter's fullscreen row. Same hover and seek behaviour; the copy sits
   // near the top of the screen, so its tooltip goes below the track.
-  // fill: the bar takes whatever height the column has left over instead of
-  // a fixed slice of the digit size. Flexbox rather than a cqh height,
-  // because only flexbox hands over space that actually exists — on a short
-  // window there is none, the bar sits on its minHeight, and the digits
-  // keep the room their own clamp reserved.
-  const renderDrainBar = (width: string, tooltipBelow: boolean = false, fill: boolean = false) => (
+  // Height is a slice of the digit size, so the bar tracks the digits
+  // rather than the window. Letting it absorb the column's leftover height
+  // instead just traded a gap for an empty panel.
+  const renderDrainBar = (width: string, tooltipBelow: boolean = false) => (
     <div
-      className={`relative flex justify-end border-2 ${fill ? 'flex-1' : 'flex-shrink-0'} ${tooltipBelow ? '' : 'mx-auto'} ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
+      className={`relative flex justify-end border-2 flex-shrink-0 ${tooltipBelow ? '' : 'mx-auto'} ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
       style={{
-        height: fill ? undefined : '0.16em',
+        height: '0.16em',
         minHeight: '0.5rem',
-        // A ceiling, because the leftover room is sometimes larger than
-        // anything that still reads as a bar: past about this it stops
-        // looking like a drain and starts looking like an empty panel.
-        // Whatever is left over after this goes back to the column's
-        // justify-center, split evenly above and below rather than pooling
-        // under the buttons the way it used to.
-        maxHeight: fill ? '6rem' : undefined,
         marginTop: tooltipBelow ? 0 : '0.08em',
         width,
         borderColor: isRunning ? 'var(--app-ink)' : '#6b7280',
@@ -2044,7 +2035,7 @@ export default function Timer() {
               // CLOCK_FONT_SIZE so it tracks the same way.
               style={{
                 fontSize: isRowLayout
-                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5dvh) - max(3rem, min(5vw, 5.4dvh))) / 1.75)), 8.5rem)'
+                  ? 'clamp(1.2rem, min(10.5vw, calc((100cqh - max(10.5rem, 1.5rem + 19.5dvh) - max(3rem, min(5vw, 5.4dvh))) / 1.75)), 12rem)'
                   // No queryable container below sm, so the two
                   // measurements are replaced by estimates: the row gets
                   // about half the viewport height, and ~15rem of that goes
@@ -2057,7 +2048,7 @@ export default function Timer() {
                   // dvh, not vh: vh is pinned to the large/static viewport
                   // and would hold the digits at a size sized for more room
                   // than a phone with its address bar showing actually has.
-                  : 'clamp(1.2rem, min(10.5vw, calc((50dvh - 17.6rem - max(3rem, min(5vw, 5.4dvh))) / 1.75)), 8.5rem)',
+                  : 'clamp(1.2rem, min(10.5vw, calc((50dvh - 17.6rem - max(3rem, min(5vw, 5.4dvh))) / 1.75)), 12rem)',
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}
@@ -2090,15 +2081,8 @@ export default function Timer() {
                 </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
               </div>
+              {renderDrainBar('clamp(16rem, 40vw, 44rem)')}
             </div>
-
-            {/* Out of the digit block and into the column, so it is a flex
-                item of the thing that has the spare height. Inside the
-                block it could only ever be a fraction of the digit size,
-                which left the column's leftover room sitting empty below
-                the buttons — most visible with the word counter tucked
-                away, where nothing else is down there. */}
-            {renderDrainBar('clamp(16rem, 40vw, 44rem)', false, true)}
 
             <div className="flex gap-2 flex-shrink-0">
               {renderControlButtons(controlButtonStyle, 'border-4')}
