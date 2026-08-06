@@ -548,6 +548,8 @@ export default function Timer() {
     // pagehide rather than beforeunload: it fires on every navigation away,
     // bfcache included, where beforeunload saved nothing and cost the page
     // its bfcache eligibility in Safari — going back reloaded the app cold.
+    // The leave-confirmation further down does use beforeunload, because
+    // nothing else can stop an unload, but only while a timer is live.
     //
     // visibilitychange beside it because pagehide never fires for a tab the
     // phone discards while it sits in the background, which is how a mobile
@@ -703,6 +705,31 @@ export default function Timer() {
       setIsBeepFlash(false);
     };
   }, [isAlarmActive, isAlarmLooping, beep]);
+
+  // Leaving mid-run throws the run away, so it asks first. The browser
+  // owns this one: its own wording, no styling, and it stays quiet until
+  // the page has been interacted with. Nothing this app can draw holds up
+  // an unload, so beforeunload is the whole of what's available.
+  //
+  // Registered only while there's a run to lose, which is what keeps the
+  // trade above intact — an idle page carries no beforeunload listener and
+  // keeps the bfcache eligibility a permanent one would cost it. Once
+  // overtime starts isRunning stays true, so a counting-up stopwatch and a
+  // finished-but-unacknowledged alarm both still ask.
+  //
+  // Deliberately not gated on skipConfirmations. That switch is for
+  // actions this app takes on your behalf; closing the tab is one the
+  // browser takes, and it's the one with nothing to undo it.
+  useEffect(() => {
+    if (!isRunning && !isPaused && !isAlarmRinging) return;
+    const confirmLeave = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Chrome and Edge before 119 ignore preventDefault on its own.
+      e.returnValue = true;
+    };
+    window.addEventListener('beforeunload', confirmLeave);
+    return () => window.removeEventListener('beforeunload', confirmLeave);
+  }, [isRunning, isPaused, isAlarmRinging]);
 
   // Space/S/R mirror the on-screen controls. The ref lets the keydown
   // listener register once instead of rebinding every tick.
