@@ -1344,6 +1344,11 @@ export default function Timer() {
   // sizing to the short readout is what puts the long one under the
   // sidebar.
   //
+  // Below sm neither one is on the screen whatever the flags say: the
+  // sidebar is hidden sm:flex and the panel is gated on isRowLayout. A
+  // stale saved "sidebar shown" was holding the digits to the narrow limit
+  // against a window with nothing in it.
+  //
   // 16vw is what the window can actually take rather than a round number:
   // the widest readout, "-99:59:58·00", measures 5.55x its own font-size
   // plus the block's padding, and the content column keeps 16px either
@@ -1351,7 +1356,7 @@ export default function Timer() {
   // ~18vw at 1400 but only ~16.5vw at 640, where the clamp is tightest, so
   // the flat limit is set by the narrow end. Past that the height term
   // takes over and the leftover space is gone, which is the point.
-  const isUnobstructed = isSidebarHidden && isTimeFieldsHidden;
+  const isUnobstructed = !isRowLayout || (isSidebarHidden && isTimeFieldsHidden);
   const timerColumnWidth = isUnobstructed ? 'clamp(16rem, 64vw, 72rem)' : 'clamp(16rem, 40vw, 44rem)';
   const digitWidthLimit = isUnobstructed ? '16vw' : '10.5vw';
   const digitCeiling = isUnobstructed ? '20rem' : '12rem';
@@ -1994,14 +1999,16 @@ export default function Timer() {
             no state, no observer, and no risk of the switch moving its own
             trigger: the row is flex-1 in both axes with an explicit
             w-full, so its box comes from its parent rather than its
-            contents, which is exactly what size containment needs. Gated
-            to sm, the only range the panel is rendered in anyway. */}
+            contents, which is exactly what size containment needs.
+            Ungated, because that reason holds at every width, and below sm
+            this is the nearest size container the digits have: their own
+            box isn't one there, and what they were sizing against instead
+            was a guess at half the viewport — less than half the truth
+            once the word counter tucks away. */}
         <div
           ref={timerRowRef}
           className="flex flex-col sm:flex-row gap-4 sm:gap-2 w-full min-h-0 flex-1 items-center justify-start sm:justify-between overflow-hidden"
-          style={isRowLayout
-            ? { alignItems: 'safe center', containerType: 'size', containerName: 'timer-row' }
-            : { alignItems: 'safe center' }}
+          style={{ alignItems: 'safe center', containerType: 'size', containerName: 'timer-row' }}
         >
           <div className="flex-1 hidden sm:block"></div>
 
@@ -2011,7 +2018,14 @@ export default function Timer() {
               auto-tucked the panel beside it. The panel changes form on a
               breakpoint instead, which is a third of the width rather than
               a squeezed version of the same one. */}
-          <div className="flex flex-col items-center justify-center flex-shrink-0 min-w-0 gap-1 w-full sm:w-auto sm:self-stretch">
+          {/* max-sm:my-auto rather than justify-center on the row: an auto
+              margin only ever eats space that exists, so it centres this
+              while there's room and collapses to 0 when there isn't,
+              leaving the row's justify-start to top-align an overflow.
+              Centring outright would clip the clock off the top instead,
+              where nothing can scroll to it. At sm+ it would fight
+              self-stretch for the same axis, hence the scope. */}
+          <div className="flex flex-col items-center justify-center flex-shrink-0 min-w-0 gap-1 w-full max-sm:my-auto sm:w-auto sm:self-stretch">
             {/* In this column rather than the absolute header strip, so
                 the same items-center that centres the digits centres it,
                 without fighting the header icons for space. Its font-size
@@ -2032,7 +2046,9 @@ export default function Timer() {
                 sm+ only: below it this column loses sm:self-stretch and
                 takes fit-content height, so a size container would have
                 nothing but its own contained (~0) content to measure
-                against and would collapse the column to a sliver. */}
+                against and would collapse the column to a sliver. The row
+                above is parent-sized at every width and answers the query
+                there instead. */}
             <div
               className="flex-1 flex flex-col items-center justify-center min-h-0 gap-1"
               style={isRowLayout ? { containerType: 'size', width: timerColumnWidth } : undefined}
@@ -2057,22 +2073,15 @@ export default function Timer() {
               //
               // The second max() is the clock's own reserve, shaped like
               // CLOCK_FONT_SIZE so it tracks the same way.
+              //
+              // One formula, two containers. At sm+ the nearest one is the
+              // box above, which has already given the website link its
+              // share; below sm that box isn't a container and the row is,
+              // which comes to the same measurement, since the link is
+              // hidden below md and the column holds nothing else. Same
+              // siblings either way, so the same reserve covers both.
               style={{
-                fontSize: isRowLayout
-                  ? `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(10.5rem, 1.5rem + 19.5dvh) - max(3rem, min(5vw, 5.4dvh))) / 1.75)), ${digitCeiling})`
-                  // No queryable container below sm, so the two
-                  // measurements are replaced by estimates: the row gets
-                  // about half the viewport height, and ~15rem of that goes
-                  // to everything here that isn't the digit line. A vw-only
-                  // clamp instead let the digits ignore height entirely and
-                  // overflow a row that clips, slicing the buttons in half.
-                  // On a tall narrow window the vw term wins anyway, so
-                  // this costs nothing where height isn't scarce.
-                  //
-                  // dvh, not vh: vh is pinned to the large/static viewport
-                  // and would hold the digits at a size sized for more room
-                  // than a phone with its address bar showing actually has.
-                  : 'clamp(1.2rem, min(10.5vw, calc((50dvh - 17.6rem - max(3rem, min(5vw, 5.4dvh))) / 1.75)), 12rem)',
+                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(10.5rem, 1.5rem + 19.5dvh) - max(3rem, min(5vw, 5.4dvh))) / 1.75)), ${digitCeiling})`,
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}

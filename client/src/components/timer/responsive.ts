@@ -19,7 +19,9 @@ export const shrinkClamp = (minRem: number, vw: number, vh: number, maxRem: numb
 // is tall. cqi is a percentage of the container's own inline size, so it
 // responds to exactly the space the control has.
 //
-// Falls back to the viewport where there's no container ancestor, which is
-// the sub-sm layout, and there the column is full width anyway.
+// Falls back to the viewport where there's no container ancestor. That used
+// to be the sub-sm layout; the timer row is a size container at every width
+// now, so these resolve against it there instead — a hair under 1vw, since
+// the content column keeps 8px either side.
 export const fitClamp = (minRem: number, cqi: number, maxRem: number) =>
   `clamp(${minRem}rem, ${cqi}cqi, ${maxRem}rem)`;
