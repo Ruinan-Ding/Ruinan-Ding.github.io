@@ -151,7 +151,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
 
   // Fullscreen has nothing else to type into, so entering it focuses the
   // textarea rather than waiting for a click. Otherwise the first
-  // keystroke would hit the global SPACE/R/S shortcuts instead.
+  // keystroke would hit the global ENTER/R/S shortcuts instead.
   useEffect(() => {
     if (isFullscreen) textareaRef.current?.focus();
   }, [isFullscreen]);
@@ -554,6 +554,16 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               onChange={handleTextChange}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
+              // ESC hands the keyboard back to the timer. Its shortcuts sit
+              // on the window and skip anything being typed into, so
+              // dropping focus is the whole of what "back to the timer"
+              // means — and it's the same key that leaves every other
+              // typing box in the app.
+              onKeyDown={(e) => {
+                if (e.key !== 'Escape') return;
+                e.preventDefault();
+                e.currentTarget.blur();
+              }}
               onScroll={() => {
                 if (rowsRef.current && textareaRef.current) rowsRef.current.scrollTop = textareaRef.current.scrollTop;
               }}

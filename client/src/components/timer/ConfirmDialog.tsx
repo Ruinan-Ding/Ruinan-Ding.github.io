@@ -188,24 +188,26 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
       <AlertDialogContent
         className="bg-black border-4 border-white"
         onKeyDown={(e) => {
-          // Space and Enter confirm whichever button holds focus; Radix
-          // focuses Cancel on open, so without this Enter would activate
-          // that instead. Space is also the global start/pause shortcut,
-          // so the event is stopped here or it bubbles to that window
-          // listener and re-triggers on the same keystroke.
+          // Enter confirms whatever the dialog asked, not whichever button
+          // happens to hold focus — Radix focuses Cancel on open, so the
+          // default would answer no to a question the key is meant to
+          // answer yes to. preventDefault is what stops that, and
+          // stopPropagation keeps the same keystroke from carrying on to
+          // the window listener and starting the timer behind the dialog.
           //
-          // Except on the "don't ask again" checkbox, where both keys tick
-          // it, and confirming would answer the dialog out from under
-          // someone reaching for the box by keyboard. Enter belongs here as
-          // much as Space: without it, Enter on the box confirmed with the
-          // preference still unticked, throwing away the very thing being
-          // reached for.
-          if ((e.code === 'Space' || e.key === 'Enter') && (e.target as HTMLElement).closest('[data-dont-ask]')) return;
-          if (e.code === 'Space' || e.key === 'Enter') {
-            e.preventDefault();
-            e.stopPropagation();
-            onConfirm(dontAskAgain);
-          }
+          // Except on the "don't ask again" checkbox, where Enter ticks it,
+          // and confirming would answer the dialog out from under someone
+          // reaching for the box by keyboard — throwing away the very
+          // preference being reached for.
+          //
+          // Space is left to the browser, which presses the focused button
+          // with it. That's Cancel on a two-button dialog and the single OK
+          // on an acknowledgement, both of which are what that button says.
+          if (e.key !== 'Enter') return;
+          if ((e.target as HTMLElement).closest('[data-dont-ask]')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          onConfirm(dontAskAgain);
         }}
       >
         <AlertDialogHeader>
@@ -235,14 +237,14 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // One button, and it's the Cancel element rather than the
             // Action on purpose: Radix focuses Cancel when the dialog
             // opens, and with no Cancel to find it focuses nothing at all,
-            // which left SPACE and ESC going to the page behind the dialog.
+            // which left ENTER and ESC going to the page behind the dialog.
             // Nothing is lost by it being Cancel, since an acknowledgement
             // has nothing to decline and all three do the same thing.
             <AlertDialogCancel
               onClick={() => onConfirm(dontAskAgain)}
               className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
             >
-              {copy?.action} <span className="opacity-60 font-normal">(SPACE / ESC)</span>
+              {copy?.action} <span className="opacity-60 font-normal">(ENTER / ESC)</span>
             </AlertDialogCancel>
           ) : (
             <>
@@ -256,7 +258,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
                 onClick={() => onConfirm(dontAskAgain)}
                 className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
               >
-                {copy?.action} <span className="opacity-60 font-normal">(SPACE)</span>
+                {copy?.action} <span className="opacity-60 font-normal">(ENTER)</span>
               </AlertDialogAction>
             </>
           )}

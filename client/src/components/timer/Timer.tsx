@@ -86,7 +86,7 @@ const normalizeEntry = (p: TimerEntry): TimerEntry => ({
 
 // Which controls own a keystroke, by kind of key. See the window listener.
 const TYPES_INTO = 'input, textarea, select, [contenteditable]';
-const SPACE_ACTIVATES = `${TYPES_INTO}, button, a, [role="button"]`;
+const ENTER_ACTIVATES = `${TYPES_INTO}, button, a, [role="button"]`;
 
 const isValidEntry = (p: unknown): p is TimerEntry => {
   if (typeof p !== 'object' || p === null) return false;
@@ -563,7 +563,7 @@ export default function Timer() {
     };
   }, []);
 
-  // Confirming with Space closes the dialog without a Radix close event,
+  // Confirming with Enter closes the dialog without a Radix close event,
   // so onOpenChange never consumes the flag. Cleared as each one opens.
   useEffect(() => {
     if (dialog.type !== null) justConfirmedRef.current = false;
@@ -731,13 +731,13 @@ export default function Timer() {
     return () => window.removeEventListener('beforeunload', confirmLeave);
   }, [isRunning, isPaused, isAlarmRinging]);
 
-  // Space/S/R mirror the on-screen controls. The ref lets the keydown
+  // Enter/S/R mirror the on-screen controls. The ref lets the keydown
   // listener register once instead of rebinding every tick.
   const keyActionRef = useRef<(code: string) => boolean>(() => false);
   keyActionRef.current = (code) => {
     // The dialog owns the keyboard while it's open.
     if (dialog.type !== null) return false;
-    if (code === 'Space') {
+    if (code === 'Enter') {
       if (isRunning) {
         togglePause();
       } else {
@@ -760,17 +760,20 @@ export default function Timer() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' && e.code !== 'KeyS' && e.code !== 'KeyR') return;
+      // key, not code, for Enter: the numpad's own Enter reports
+      // NumpadEnter and is the same key to anyone pressing it.
+      const action = e.key === 'Enter' ? 'Enter' : e.code === 'KeyS' || e.code === 'KeyR' ? e.code : null;
+      if (!action) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       // Anything focused that wants the key itself keeps it, and which
-      // controls those are depends on the key. SPACE presses whatever is
+      // controls those are depends on the key. ENTER presses whatever is
       // focused, so every activatable control claims it. A letter only
       // gets typed — into a field, or into a <select>'s type-ahead — and
       // buttons do nothing with one, so blocking S and R on buttons too
       // killed both shortcuts for anyone who had just clicked something,
       // which is everyone: click START and R stopped resetting.
-      if ((e.target as HTMLElement | null)?.closest?.(e.code === 'Space' ? SPACE_ACTIVATES : TYPES_INTO)) return;
-      if (keyActionRef.current(e.code)) {
+      if ((e.target as HTMLElement | null)?.closest?.(action === 'Enter' ? ENTER_ACTIVATES : TYPES_INTO)) return;
+      if (keyActionRef.current(action)) {
         e.preventDefault();
       }
     };
@@ -1469,7 +1472,7 @@ export default function Timer() {
   // A reloaded overtime timer isn't ringing; the keys act on the timer.
   const hintSubject = isRunning && seconds < 0 ? 'alarm' : 'timer';
   const hints = [
-    { text: `Press SPACE to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${hintSubject}`, disabled: false },
+    { text: `Press ENTER to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${hintSubject}`, disabled: false },
     { text: `Press R to RESET the ${hintSubject}`, disabled: isIdleAtConfigured },
     { text: `Press S to STOP the ${hintSubject}`, disabled: isIdleAtConfigured },
   ];

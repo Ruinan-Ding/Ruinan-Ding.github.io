@@ -10,7 +10,7 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 - Word counter with per-line and total line/word/character counts, optional alphanumeric-only filters, copy/clear, and a full-screen mode that keeps the timer controls in reach
 - Wall clock above the digits: any time zone the browser knows, and click the time to switch 12/24-hour
 - Drain bar under the digits: hover to preview a point, click to seek there
-- Spacebar to start/pause/resume, R to reset, S to stop
+- Enter to start/pause/resume, R to reset, S to stop; Esc leaves the word counter
 - Mute toggle with a volume slider, plus an alarm repeat toggle (ring forever or ring once)
 - Light and dark themes
 - Confirmations before anything destructive, each with its own "don't ask this again", plus one switch to turn the lot off
@@ -18,7 +18,7 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 
 ## Usage
 
-Set a time with the input fields or a preset, then press START (or spacebar). PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Everything persists across page reloads; the bin button in the top-right restores the site to defaults.
+Set a time with the input fields or a preset, then press START (or Enter). PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Confirmation dialogs take Enter for yes and Esc for no. Everything persists across page reloads; the bin button in the top-right restores the site to defaults.
 
 Tip: for a stopwatch, turn off the alarm repeat toggle and set the time to 00:00:00 — it rings once, then keeps counting silently.
 
