@@ -200,9 +200,17 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           // reaching for the box by keyboard — throwing away the very
           // preference being reached for.
           //
-          // Space is left to the browser, which presses the focused button
-          // with it. That's Cancel on a two-button dialog and the single OK
-          // on an acknowledgement, both of which are what that button says.
+          // Space answers nothing. Left to the browser it presses whatever
+          // holds focus, and Radix focuses Cancel on open, so a spacebar
+          // reflex cancelled the question — the same act as ESC, from a key
+          // nothing in the dialog offers as an answer. ENTER confirms and
+          // ESC cancels, and both say so on the buttons.
+          if (e.key === ' ') {
+            if ((e.target as HTMLElement).closest('[data-dont-ask]')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
           if (e.key !== 'Enter') return;
           if ((e.target as HTMLElement).closest('[data-dont-ask]')) return;
           e.preventDefault();

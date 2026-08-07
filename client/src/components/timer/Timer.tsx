@@ -1377,42 +1377,30 @@ export default function Timer() {
   // counter's fullscreen row. Same hover and seek behaviour; the copy sits
   // near the top of the screen, so its tooltip goes below the track.
   // The digits are held back by width, not height — they run out of column
-  // long before they run out of room above and below. What holds the column
-  // in is the sidebar on one side and the time fields on the other, so with
-  // both of those tucked away the whole measurement changes and the timer
-  // can take the window it now has to itself. Growing sideways is what
-  // spends the leftover height: every pixel of digit costs 1.75 of column.
+  // long before they run out of room above and below, so what the column
+  // is worth is the whole question.
   //
-  // Both, not either. One of them still showing is still something to run
-  // into, and the digit row is at its widest twice as wide as "1:05" —
-  // sizing to the short readout is what puts the long one under the
-  // sidebar.
+  // It used to be guessed at from the viewport, one vw clamp for a window
+  // with the sidebar and the panel showing and a wider one for a window
+  // with neither. Both were guesses about room the row already knew, and
+  // both were low: the column grows into the row's leftover now, so the
+  // sidebar and the panel take their share first and the digits get every
+  // pixel neither one is using, at any width and in any tuck state. This
+  // is the only cap left, and it's here so an ultrawide gets a readout
+  // rather than a billboard.
   //
-  // Below sm neither one is on the screen whatever the flags say: the
-  // sidebar is hidden sm:flex and the panel is gated on isRowLayout. A
-  // stale saved "sidebar shown" was holding the digits to the narrow limit
-  // against a window with nothing in it.
-  //
-  // The obstructed width is 50vw rather than 40: the row put 326px into
-  // each of its two spacers at 1920 and the digits went on being sized for
-  // a 704px column, so the space was there but nothing could reach it. It
-  // gives the spacers ~180px each instead, which is still clear of both
-  // the panel beside it and the sidebar outside the row.
-  //
-  // The digits' width limit is the column itself rather than a slice of
-  // the window: the widest readout, "-99:59:58·00", measures 5.5x its own
-  // font-size, and the block's padding and the row's gaps take another
-  // 16px, so what fits is (100cqi - 16px) / 5.5. That comes to 17.2cqi on
+  // The digits' width limit is that column rather than a slice of the
+  // window: the widest readout, "-99:59:58·00", measures 5.5x its own
+  // font-size, and the block's padding takes another 16px at the narrow
+  // end, so what fits is (100cqi - 16px) / 5.5. That comes to 17.2cqi on
   // the narrowest window and 17.9 on the widest, since the 16px is a
   // fixed cost against a growing column; 17 is the flat figure that holds
-  // at both ends. Both branches resolve against the same container, so one
-  // covers them. The vw guesses it replaces were set to the narrowest
+  // at both ends. The vw guesses it replaces were set to the narrowest
   // window's ratio and so never bound anywhere else, which left the height
   // term free to size digits wider than the column they sit in.
-  const isUnobstructed = !isRowLayout || (isSidebarHidden && isTimeFieldsHidden);
-  const timerColumnWidth = isUnobstructed ? 'clamp(16rem, 64vw, 72rem)' : 'clamp(16rem, 50vw, 62rem)';
+  const timerColumnMaxWidth = '72rem';
   const digitWidthLimit = '17cqi';
-  const digitCeiling = isUnobstructed ? '20rem' : '12rem';
+  const digitCeiling = '20rem';
 
   // Height is a slice of the digit size, so the bar tracks the digits
   // rather than the window. Letting it absorb the column's leftover height
@@ -1581,14 +1569,14 @@ export default function Timer() {
   // which is a thumb's worth.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${fitClamp(0.45, 1.15, 0.85)} ${fitClamp(0.5, 2.3, 1.7)}`,
-    fontSize: fitClamp(0.8, 1.75, 1.15),
+    padding: `${fitClamp(0.45, 1.15, 0.6)} ${fitClamp(0.5, 2.3, 1.2)}`,
+    fontSize: fitClamp(0.8, 1.75, 1),
     borderColor: color,
     color,
     // A surface-coloured chip keeps the borders readable on the coloured
     // window behind them.
     backgroundColor: 'var(--app-surface)',
-    minWidth: fitClamp(4, 13, 7),
+    minWidth: fitClamp(4, 13, 5.5),
   });
   // The same buttons scaled to a single header row, for the word counter's
   // fullscreen view, which covers the real ones.
@@ -2065,17 +2053,20 @@ export default function Timer() {
             once the word counter tucks away. */}
         <div
           ref={timerRowRef}
-          className="flex flex-col sm:flex-row gap-4 sm:gap-2 w-full min-h-0 flex-1 items-center justify-start sm:justify-between overflow-hidden"
+          className="flex flex-col sm:flex-row gap-4 sm:gap-6 w-full min-h-0 flex-1 items-center justify-start sm:justify-between overflow-hidden"
           style={{ alignItems: 'safe center', containerType: 'size', containerName: 'timer-row' }}
         >
-          <div className="flex-1 hidden sm:block"></div>
-
-          {/* Never shrinks at any width. Its inner box carries an explicit
-              width, so letting the row shrink this column only pushed that
-              box past the column's clipped edge, and the overflow
-              auto-tucked the panel beside it. The panel changes form on a
-              breakpoint instead, which is a third of the width rather than
-              a squeezed version of the same one. */}
+          {/* sm:flex-1, and no spacers either side of it: the row used to
+              hold two empty flex-1 divs to centre this, which at 1920 put
+              180px into each while the digits were capped at a width that
+              couldn't reach it. Growing into the leftover instead lands the
+              column in exactly the same place — with equal spacers its
+              centre is (row - panel) / 2, and taking the whole leftover
+              puts it there too — while giving the digits every pixel the
+              panel isn't using.
+              sm-scoped because flex-1 below sm would grow this down the
+              cross axis of a column row and fight max-sm:my-auto for the
+              same space. */}
           {/* max-sm:my-auto rather than justify-center on the row: an auto
               margin only ever eats space that exists, so it centres this
               while there's room and collapses to 0 when there isn't,
@@ -2083,7 +2074,7 @@ export default function Timer() {
               Centring outright would clip the clock off the top instead,
               where nothing can scroll to it. At sm+ it would fight
               self-stretch for the same axis, hence the scope. */}
-          <div className="flex flex-col items-center justify-center flex-shrink-0 min-w-0 gap-1 w-full max-sm:my-auto sm:w-auto sm:self-stretch">
+          <div className="flex flex-col items-center justify-center flex-shrink-0 min-w-0 gap-1 w-full max-sm:my-auto sm:w-auto sm:flex-1 sm:self-stretch">
             {/* In this column rather than the absolute header strip, so
                 the same items-center that centres the digits centres it,
                 without fighting the header icons for space. Its font-size
@@ -2109,7 +2100,7 @@ export default function Timer() {
                 there instead. */}
             <div
               className="flex-1 flex flex-col items-center justify-center min-h-0 gap-1"
-              style={isRowLayout ? { containerType: 'size', width: timerColumnWidth } : undefined}
+              style={isRowLayout ? { containerType: 'size', width: '100%', maxWidth: timerColumnMaxWidth } : undefined}
             >
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
@@ -2142,9 +2133,15 @@ export default function Timer() {
               // hidden below md and the column holds nothing else. Same
               // siblings either way, so the same reserve covers both.
               style={{
-                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(9rem, 1.5rem + 16.5dvh) - max(2.2rem, min(3.6vw, 3.9dvh))) / 1.3)), ${digitCeiling})`,
+                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(8.7rem, 1.5rem + 14.7dvh) - max(2.2rem, min(3.6vw, 3.9dvh))) / 1.3)), ${digitCeiling})`,
                 fontFamily: "'IBM Plex Mono', monospace",
-                padding: shrinkClamp(0.25, 1.2, 1.3, 1),
+                // Vertical and horizontal on separate clamps. They were one
+                // figure, and the horizontal one is the useful one — it
+                // keeps the widest readout off the column's edges, and the
+                // digit width limit is set against it. Vertically the same
+                // figure was 14px of nothing above the clock, on top of the
+                // gap that already separates this from the website link.
+                padding: `${shrinkClamp(0.1, 0.35, 0.4, 0.3)} ${shrinkClamp(0.25, 1.2, 1.3, 1)}`,
               }}
             >
               {/* Every child sets its own font-size, since this block's own
@@ -2181,7 +2178,7 @@ export default function Timer() {
                 </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
               </div>
-              {renderDrainBar(timerColumnWidth)}
+              {renderDrainBar('100%')}
             </div>
 
             <div className="flex gap-2 flex-shrink-0">
@@ -2204,8 +2201,6 @@ export default function Timer() {
             </div>
             </div>
           </div>
-
-          <div className="flex-1 hidden sm:block"></div>
 
           {isRowLayout && timeFieldsPanel}
         </div>
