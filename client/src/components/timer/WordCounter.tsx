@@ -450,7 +450,15 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           there's room or not, and all of it comes off the typing area. */}
       {!isCollapsed && (
       <div className={`flex flex-col gap-1 border-4 transition-colors duration-200 w-full flex-1 ${isActive ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
-        <div className="flex justify-between items-center gap-3 flex-wrap px-3 pt-1">
+        {/* No flex-wrap on the row: the buttons on the right were the ones
+            it dropped, and they landed under the switches as the window
+            narrowed. They hold their place now and the column on the left
+            gives up the width instead — it can, having a line of prose in
+            it that's happy to wrap.
+            items-start, because that column is two lines tall and centring
+            against it pushed the buttons half a line down the box. */}
+        <div className="flex justify-between items-start gap-3 px-3 pt-1">
+          <div className="flex flex-col gap-0.5 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
@@ -482,13 +490,16 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               <DotCheckbox checked={alnumCharsOnly} />
               Alphanumeric chars only
             </button>
+          </div>
 
-            <span
-              className="opacity-60 font-bold"
-              style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 0.9, 1, 0.65) }}
-            >
-              Turn both off to count everything, like a classic word processor
-            </span>
+          {/* Under the two switches it talks about, rather than trailing
+              them on the same line where it read as a third control. */}
+          <span
+            className="opacity-60 font-bold"
+            style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 0.9, 1, 0.65) }}
+          >
+            Turn both off to count everything, like a classic word processor
+          </span>
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
