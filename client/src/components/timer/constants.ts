@@ -90,6 +90,12 @@ export const LIST_ROW_REMOVE_BUTTON_STYLE = {
 // also spelled out literally in client/index.html, which reads it before
 // React mounts to avoid a flash of the wrong theme, so renaming that one
 // means editing both.
+// Controls that own a keystroke because they're being typed into. Shared,
+// because both keyboard owners in the app have to agree on the same list:
+// the window's timer shortcuts skip these, and the word counter's
+// fullscreen refocus has to leave the same ones alone.
+export const TYPES_INTO = 'input, textarea, select, [contenteditable]';
+
 export const STORAGE_KEYS = {
   timerState: 'timerAppState',
   history: 'timerAppHistory',

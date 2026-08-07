@@ -3,7 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import { usePersisted } from '@/hooks/usePersisted';
 import { readBoolean, readJSON, readRaw, writeRaw } from '@/lib/storage';
 import ConfirmDialog from './ConfirmDialog';
-import { HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, STORAGE_KEYS, TOGGLE_FONT_SIZE } from './constants';
+import { HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, STORAGE_KEYS, TOGGLE_FONT_SIZE, TYPES_INTO } from './constants';
 import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
@@ -91,9 +91,10 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
   // RESET clears them with every other key.
   const [isFullscreen, setIsFullscreen] = useState(() => readBoolean(STORAGE_KEYS.wordCounterFullscreen, false));
   const [isCollapsed, setIsCollapsed] = useState(() => readBoolean(STORAGE_KEYS.wordCounterCollapsed, false));
-  // Window size when auto-collapse last fired, null otherwise. Growing
-  // back past it is this app's proxy for "there's room again": the
-  // expanded content isn't in the DOM to re-measure once collapsed.
+  // The window this box needed when auto-collapse last fired, null
+  // otherwise. Reaching it is this app's proxy for "there's room again":
+  // the expanded content isn't in the DOM to re-measure once collapsed.
+  // A need rather than the size at the time — see where it's recorded.
   //
   // Saved, so a reload doesn't replay the collapse in front of you: with
   // the size in memory only, an auto-collapse couldn't be persisted
@@ -172,6 +173,16 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
       // An open dialog is a real destination for focus; a closing one
       // isn't.
       if (document.querySelector('[role="alertdialog"][data-state="open"]')) return;
+      // Already somewhere that takes typing, including this row's own
+      // clock picker — a <select> answers a letter by jumping to the city
+      // that starts with it, and yanking focus away ate that.
+      if ((e.target as HTMLElement | null)?.closest?.(TYPES_INTO)) return;
+      // This keystroke is typing, so it stops here. Left to carry on, the
+      // window's timer shortcuts read the same S or R off whichever button
+      // was last clicked in this row — buttons aren't typed into, so
+      // nothing there turns them away — and stopped or restarted the run
+      // instead of putting a letter on the page.
+      e.stopPropagation();
       textareaRef.current?.focus();
     };
     document.addEventListener('keydown', handleKeyDown);
@@ -216,8 +227,25 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
       const oneLine = style
         ? parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
         : 0;
-      if (el.scrollHeight > el.clientHeight || (textarea && textarea.clientHeight < oneLine)) {
-        collapsedAtSizeRef.current = { w: window.innerWidth, h: window.innerHeight };
+      // How far short this box is, by whichever of the two measures is
+      // worse. Positive on exactly the cases the two conditions used to be
+      // an OR of.
+      const shortBy = Math.max(
+        el.scrollHeight - el.clientHeight,
+        textarea ? oneLine - textarea.clientHeight : 0,
+      );
+      if (shortBy > 0) {
+        // The window this box NEEDED, not the one it happens to be in.
+        // Collapsing doesn't resize the window, so "grown back to what it
+        // was" is already true the moment this commits: it reopened into
+        // the same shortage, collapsed again, and ping-ponged for as long
+        // as the window sat at that size. Same trap the timer's own
+        // auto-tuck documents and avoids by recording a need.
+        //
+        // Doubled because this panel and the timer row are both flex-1
+        // off the same free space, so each pixel the window gains is split
+        // between them and only half of it lands here.
+        collapsedAtSizeRef.current = { w: window.innerWidth, h: window.innerHeight + 2 * shortBy };
         setIsAutoCollapsed(true);
         collapse();
       }

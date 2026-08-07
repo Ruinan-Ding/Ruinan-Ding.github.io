@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
 import { usePersisted } from '@/hooks/usePersisted';
-import { readBoolean, readJSON, writeJSON } from '@/lib/storage';
+import { readBoolean, readJSON, wipeStorage, writeJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
 import ClockCluster from './ClockCluster';
 import ConfirmDialog from './ConfirmDialog';
@@ -13,7 +13,7 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES } from './constants';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
 import { formatDateParts, formatEntryLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { fitClamp, shrinkClamp } from './responsive';
 import { isAcknowledgement, isDialogSuppressed, suppressDialog } from './suppressions';
@@ -85,7 +85,8 @@ const normalizeEntry = (p: TimerEntry): TimerEntry => ({
 });
 
 // Which controls own a keystroke, by kind of key. See the window listener.
-const TYPES_INTO = 'input, textarea, select, [contenteditable]';
+// TYPES_INTO lives in constants because the word counter needs the same
+// list; ENTER additionally belongs to anything it would press.
 const ENTER_ACTIVATES = `${TYPES_INTO}, button, a, [role="button"]`;
 
 const isValidEntry = (p: unknown): p is TimerEntry => {
@@ -113,8 +114,11 @@ export default function Timer() {
       history: Array.isArray(savedHistory) ? savedHistory.filter(isValidEntry).map(normalizeEntry) : [],
     };
   }, []);
+  // isFinite, not typeof: JSON.parse turns an overflowing literal into
+  // Infinity, which is a number and which every guard downstream compares
+  // false against, so the countdown would sit on it and never move.
   const savedNumber = (key: string, fallback: number) =>
-    typeof initial.saved[key] === 'number' ? (initial.saved[key] as number) : fallback;
+    Number.isFinite(initial.saved[key]) ? (initial.saved[key] as number) : fallback;
   const wasActive = initial.saved.isRunning === true;
 
   // Remaining time: signed whole seconds plus milliseconds in [0, 1000)
@@ -166,10 +170,13 @@ export default function Timer() {
   const [presets, setPresets] = useState<TimerEntry[]>(() => {
     const parsed = readJSON<unknown>(STORAGE_KEYS.presets, null);
     if (!Array.isArray(parsed) || !parsed.every(isValidEntry)) return DEFAULT_PRESETS;
-    // older saves packed hours into minutes
+    // older saves packed hours into minutes. Capped on the way out, or a
+    // save holding 6000 minutes migrates to 100 hours — past the range
+    // every other path in the app holds itself to, and into a countdown
+    // the fields can't show.
     return parsed.map((p) => ({
       ...normalizeEntry(p),
-      hours: (p.hours ?? 0) + Math.floor(p.minutes / 60),
+      hours: Math.min((p.hours ?? 0) + Math.floor(p.minutes / 60), MAX_HOURS),
       minutes: p.minutes % 60,
     }));
   });
@@ -720,9 +727,12 @@ export default function Timer() {
   // Deliberately not gated on skipConfirmations. That switch is for
   // actions this app takes on your behalf; closing the tab is one the
   // browser takes, and it's the one with nothing to undo it.
+  const isSelfReloadingRef = useRef(false);
   useEffect(() => {
     if (!isRunning && !isPaused && !isAlarmRinging) return;
     const confirmLeave = (e: BeforeUnloadEvent) => {
+      // A reload the app asked for itself has already been confirmed once.
+      if (isSelfReloadingRef.current) return;
       e.preventDefault();
       // Chrome and Edge before 119 ignore preventDefault on its own.
       e.returnValue = true;
@@ -1252,8 +1262,12 @@ export default function Timer() {
         handleConfirmMute();
         break;
       case 'clearCache':
-        // Wipe and reload, so every piece of state re-initialises.
-        Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+        // Wipe and reload, so every piece of state re-initialises. The
+        // leave guard stands down first: this reload is the thing that was
+        // just confirmed, and challenging it would leave the storage
+        // emptied behind a page that never went anywhere.
+        isSelfReloadingRef.current = true;
+        wipeStorage(Object.values(STORAGE_KEYS));
         window.location.reload();
         break;
       case 'reset':
