@@ -242,7 +242,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // has nothing to decline and all three do the same thing.
             <AlertDialogCancel
               onClick={() => onConfirm(dontAskAgain)}
-              className="border-4 border-white bg-white text-black text-sm font-bold px-4 py-2 hover:bg-black hover:text-white hover:border-white"
+              className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
             >
               {copy?.action} <span className="opacity-60 font-normal">(ENTER / ESC)</span>
             </AlertDialogCancel>
@@ -250,13 +250,13 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             <>
               <AlertDialogCancel
                 onClick={() => onDismiss(false)}
-                className="border-4 border-white text-white text-sm font-bold px-4 py-2 hover:bg-white hover:text-black"
+                className="border-4 border-white text-white text-xs font-bold h-auto px-3 py-1 hover:bg-white hover:text-black"
               >
                 CANCEL <span className="opacity-60 font-normal">(ESC)</span>
               </AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => onConfirm(dontAskAgain)}
-                className="border-4 border-white bg-white text-black text-sm font-bold px-4 py-2 hover:bg-black hover:text-white hover:border-white"
+                className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
               >
                 {copy?.action} <span className="opacity-60 font-normal">(ENTER)</span>
               </AlertDialogAction>

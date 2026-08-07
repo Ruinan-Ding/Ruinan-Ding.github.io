@@ -1393,16 +1393,25 @@ export default function Timer() {
   // stale saved "sidebar shown" was holding the digits to the narrow limit
   // against a window with nothing in it.
   //
-  // 16vw is what the window can actually take rather than a round number:
-  // the widest readout, "-99:59:58·00", measures 5.55x its own font-size
-  // plus the block's padding, and the content column keeps 16px either
-  // side, so anything the window can hold is (100vw - 52px) / 5.55. That's
-  // ~18vw at 1400 but only ~16.5vw at 640, where the clamp is tightest, so
-  // the flat limit is set by the narrow end. Past that the height term
-  // takes over and the leftover space is gone, which is the point.
+  // The obstructed width is 50vw rather than 40: the row put 326px into
+  // each of its two spacers at 1920 and the digits went on being sized for
+  // a 704px column, so the space was there but nothing could reach it. It
+  // gives the spacers ~180px each instead, which is still clear of both
+  // the panel beside it and the sidebar outside the row.
+  //
+  // The digits' width limit is the column itself rather than a slice of
+  // the window: the widest readout, "-99:59:58·00", measures 5.5x its own
+  // font-size, and the block's padding and the row's gaps take another
+  // 16px, so what fits is (100cqi - 16px) / 5.5. That comes to 17.2cqi on
+  // the narrowest window and 17.9 on the widest, since the 16px is a
+  // fixed cost against a growing column; 17 is the flat figure that holds
+  // at both ends. Both branches resolve against the same container, so one
+  // covers them. The vw guesses it replaces were set to the narrowest
+  // window's ratio and so never bound anywhere else, which left the height
+  // term free to size digits wider than the column they sit in.
   const isUnobstructed = !isRowLayout || (isSidebarHidden && isTimeFieldsHidden);
-  const timerColumnWidth = isUnobstructed ? 'clamp(16rem, 64vw, 72rem)' : 'clamp(16rem, 40vw, 44rem)';
-  const digitWidthLimit = isUnobstructed ? '16vw' : '10.5vw';
+  const timerColumnWidth = isUnobstructed ? 'clamp(16rem, 64vw, 72rem)' : 'clamp(16rem, 50vw, 62rem)';
+  const digitWidthLimit = '17cqi';
   const digitCeiling = isUnobstructed ? '20rem' : '12rem';
 
   // Height is a slice of the digit size, so the bar tracks the digits
@@ -1563,21 +1572,23 @@ export default function Timer() {
   // onto their floor. Against the column they give way steadily as it
   // does.
   //
-  // The coefficients are set so that at the column's full 44rem these come
-  // out the size they always were on a roomy window, and shrink from
-  // there. Three of them plus two gaps have to fit 100cqi, which 20.4 x 3
-  // leaves room to spare on, and the floors keep the widest label, RESUME,
-  // in a box that's still comfortably clickable.
+  // The coefficients give way faster than the digits do, so these read as
+  // controls beside the readout rather than competing with it: a fifth of
+  // the digit size on a roomy window where they were closer to a quarter.
+  // Three of them plus two gaps have to fit 100cqi, which 13 x 3 leaves
+  // room to spare on, and the floors are what stop the shrinking — at the
+  // narrow end the widest label, RESUME, still sits in a box ~38px tall,
+  // which is a thumb's worth.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${fitClamp(0.5, 1.75, 1.4)} ${fitClamp(0.6, 3.55, 2.75)}`,
-    fontSize: fitClamp(0.9, 2.8, 1.65),
+    padding: `${fitClamp(0.45, 1.15, 0.85)} ${fitClamp(0.5, 2.3, 1.7)}`,
+    fontSize: fitClamp(0.8, 1.75, 1.15),
     borderColor: color,
     color,
     // A surface-coloured chip keeps the borders readable on the coloured
     // window behind them.
     backgroundColor: 'var(--app-surface)',
-    minWidth: fitClamp(4.5, 20.4, 11.25),
+    minWidth: fitClamp(4, 13, 7),
   });
   // The same buttons scaled to a single header row, for the word counter's
   // fullscreen view, which covers the real ones.
@@ -1704,7 +1715,7 @@ export default function Timer() {
           paragraph instead. */}
       <p
         className="alarm-tip hidden sm:block opacity-75 font-bold text-white text-left"
-        style={{ fontSize: shrinkClamp(0.45, 0.95, 1, 0.6), width: 0, minWidth: '100%', lineHeight: 1.25 }}
+        style={{ fontSize: shrinkClamp(0.4, 0.8, 0.85, 0.5), width: 0, minWidth: '100%', lineHeight: 1.25 }}
       >
         Tip: mute the volume or turn off repeat to silence the alarm — OFF + start at 00:00:00 = count-up stopwatch
       </p>
@@ -2102,21 +2113,24 @@ export default function Timer() {
             >
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-              // Solved from measured layout rather than picked. This block
-              // is ~2.8rem plus 1.73x its font-size (only the digit line
-              // scales), and its siblings add ~7.9rem, so the container's
-              // content is ~10.75rem + 1.73x font-size. Solving that for
-              // font-size against 100cqh gives an exact fit.
+              // Solved from measured layout rather than picked. Two pieces
+              // scale with this: the digit line, whose box is exactly 1x
+              // its font-size under leading-none, and the drain bar below,
+              // which takes its height and its margin from the digit size
+              // and measures another 0.24x. So the content is the reserve
+              // below plus 1.24x font-size, and 1.3 is the margin on that.
+              // Reserving 1x flat was what let the digits overflow the row
+              // on a window with the sidebar and the panel both tucked,
+              // where nothing else was capping them.
               //
               // The reserve isn't a constant: the siblings are themselves
-              // min(vw, vh) clamps, measuring ~13rem on a tall window and
-              // bottoming out near 9.7rem on a short one. A flat figure was
+              // min(vw, vh) clamps, measuring ~12.5rem on a tall window and
+              // bottoming out near 8.6rem on a short one. A flat figure was
               // wrong in both directions, and since every reserved pixel
-              // costs 1.75x its height in font-size, over-reserving pinned
+              // costs its own height in font-size, over-reserving pinned
               // the digits at their floor on windows with room to spare.
               // max(floor, vh-scaled) tracks the siblings while they scale
-              // and takes over once they stop, leaving ~10px of slack so
-              // this column can't be what overflows the row.
+              // and takes over once they stop.
               //
               // The second max() is the clock's own reserve, shaped like
               // CLOCK_FONT_SIZE so it tracks the same way.
@@ -2128,7 +2142,7 @@ export default function Timer() {
               // hidden below md and the column holds nothing else. Same
               // siblings either way, so the same reserve covers both.
               style={{
-                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(10.5rem, 1.5rem + 19.5dvh) - max(3rem, min(5vw, 5.4dvh))) / 1.75)), ${digitCeiling})`,
+                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(9rem, 1.5rem + 16.5dvh) - max(2.2rem, min(3.6vw, 3.9dvh))) / 1.3)), ${digitCeiling})`,
                 fontFamily: "'IBM Plex Mono', monospace",
                 padding: shrinkClamp(0.25, 1.2, 1.3, 1),
               }}
@@ -2136,11 +2150,17 @@ export default function Timer() {
               {/* Every child sets its own font-size, since this block's own
                   is the digit size. */}
               <div className="flex justify-center">{renderClockCluster(CLOCK_FONT_SIZE)}</div>
-              <div className="opacity-60 text-center" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
+              {/* leading-none on both, here and on the digits below: the
+                  gap between the configured time and the running one was
+                  half-leading on two line boxes, ~0.5em of each font, and
+                  at the digit size that reads as a hole rather than a
+                  space. Neither line has a descender to lose — the labels
+                  are digits, colons and h/m/s. */}
+              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
               <div
-                className={`flex items-baseline justify-center gap-1 ${digitWaveClass}`}
+                className={`flex items-baseline justify-center gap-1 leading-none ${digitWaveClass}`}
                 style={digitColorStyle}
               >
                 {remaining.hours && (
@@ -2175,7 +2195,7 @@ export default function Timer() {
             <div className="text-center">
               <div
                 className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-                style={{ fontSize: shrinkClamp(0.85, 2.1, 2.2, 1.4), ...textGlowStyle }}
+                style={{ fontSize: shrinkClamp(0.75, 1.7, 1.8, 1.15), ...textGlowStyle }}
               >
                 {status}
               </div>

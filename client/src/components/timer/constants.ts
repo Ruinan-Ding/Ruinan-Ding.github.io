@@ -188,7 +188,10 @@ export const countColor = (count: number, warn: number, max: number) =>
 // coefficients, so HISTORY rendered smaller than PRESETS at most sizes.
 export const SIDEBAR_HEADING_FONT_SIZE = shrinkClamp(0.875, 2, 2.2, 1.25);
 // The x/max counter beside them, a step down so it reads as an annotation.
-export const SIDEBAR_COUNT_FONT_SIZE = shrinkClamp(0.55, 1.1, 1.2, 0.8);
+// Two steps down at the narrow end: "1000/1000" beside HISTORY and Clear is
+// what runs the heading row out of width first, and an annotation is the
+// right thing to give way.
+export const SIDEBAR_COUNT_FONT_SIZE = shrinkClamp(0.5, 0.95, 1.05, 0.65);
 
 // [frequency Hz, duration ms]
 export const TONES = {

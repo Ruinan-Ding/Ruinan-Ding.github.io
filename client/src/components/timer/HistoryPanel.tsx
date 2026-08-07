@@ -111,7 +111,12 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
     <div className="flex flex-col flex-shrink-0">
       {/* Spacing on shrinkClamp rather than fixed Tailwind steps. */}
       <div
-        className="flex justify-between items-center border-b-2 border-white flex-shrink-0"
+        // flex-wrap and a gap, because "HISTORY 1000/1000" plus Clear is
+        // wider than the sidebar below ~1400px and neither piece can wrap
+        // inside itself: the row shrank the heading below its content and
+        // the count spilled over the button. Wrapping drops Clear onto its
+        // own line instead, and only where it genuinely doesn't fit.
+        className="flex flex-wrap justify-between items-center gap-x-2 gap-y-1 border-b-2 border-white flex-shrink-0"
         style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
       >
         <span className="flex items-baseline gap-1.5 min-w-0">
@@ -131,8 +136,8 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
         {history.length > 0 && (
           <button
             onClick={onClear}
-            className="text-white border border-white hover:bg-white hover:text-black transition-colors"
-            style={{ fontSize: shrinkClamp(0.65, 0.85, 0.92, 0.75), padding: shrinkClamp(0.25, 0.4, 0.45, 0.375) }}
+            className="text-white border border-white hover:bg-white hover:text-black transition-colors flex-shrink-0 ml-auto"
+            style={{ fontSize: shrinkClamp(0.55, 0.8, 0.85, 0.7), padding: shrinkClamp(0.25, 0.4, 0.45, 0.375) }}
           >
             Clear
           </button>
