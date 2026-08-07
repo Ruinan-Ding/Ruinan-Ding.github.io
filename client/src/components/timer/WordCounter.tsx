@@ -58,17 +58,11 @@ const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 // Mixed off --app-ink rather than a literal white, or the rules vanish
 // against the light theme's own near-white surface.
 const RULE_COLOR_IDLE = 'color-mix(in oklab, var(--app-ink) 35%, transparent)';
-// A notch below the textarea's size, leaving it room to grow — and capped
-// against the column the two switches share, so they shrink rather than
-// stack. Each is a checkbox plus 23 monospace characters, so the pair with
-// its gap needs about 31em; 3cqi leaves a little over that.
-//
-// The 0.5rem floor is where shrinking stops being worth it: without one
-// these came out at 5px on a phone, which is not stacking by way of not
-// being readable either. Below that the row is allowed to wrap after all —
-// see the flex-wrap on it. No desktop window reaches that width; Chrome
-// won't go below about 500px, where these still sit side by side.
-const WORD_TOGGLE_FONT_SIZE = `max(0.5rem, min(${TOGGLE_FONT_SIZE}, 3cqi))`;
+// The two switches size themselves in index.css rather than here, because
+// what they do depends on how much of their column is left — and a
+// container query can answer that where an inline style can't. This is
+// the ceiling it works down from, handed over as a custom property.
+const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
 // Copy, Clear and the full-screen icon. Smaller than the switches beside
 // them on purpose: this group never shrinks, so every pixel it takes is
 // one the switches can't have, and it's the reason they used to stack.
@@ -476,19 +470,21 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               it be an inline-size container without collapsing. Everything
               inside then sizes against the room actually left over after
               the buttons, in cqi, rather than against the viewport. */}
-          <div className="flex flex-col gap-0.5 flex-1 min-w-0" style={{ containerType: 'inline-size', containerName: 'counter-switches' }}>
-          {/* Side by side is what these two are, and stacked they read as
-              two unrelated settings, so they give up font size to stay on
-              one line — see WORD_TOGGLE_FONT_SIZE. flex-wrap is the last
-              rung below that, once shrinking further would cost more than
-              stacking does; it can't be reached by narrowing a desktop
-              window. */}
-          <div className="flex items-center gap-3 flex-wrap">
+          <div
+            className="flex flex-col gap-0.5 flex-1 min-w-0"
+            style={{ containerType: 'inline-size', containerName: 'counter-switches', '--toggle-fs': WORD_TOGGLE_FONT_SIZE } as React.CSSProperties}
+          >
+          {/* Side by side while there's room for it, shrinking with the
+              column rather than the viewport; stacked once shrinking
+              further would cost more than stacking does, and back at full
+              size there, since stacking is what buys the width. Both rungs
+              are in index.css — see .counter-switches. */}
+          <div className="counter-switches flex items-center gap-3">
             <button
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
               aria-pressed={alnumWordsOnly}
               className="flex items-center gap-1.5 font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
-              style={{ color: capColor(rawWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              style={{ color: capColor(rawWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace" }}
               title={wordsCapHidden
                 ? `Every token counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
                 : 'When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included.'}
@@ -505,7 +501,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               // Coloured like the switch beside it, and more sharply
               // needed: "$$$$$" counts as no characters, so C can read far
               // under a limit the text is already sitting on.
-              style={{ color: capColor(rawChars, alnumCharsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              style={{ color: capColor(rawChars, alnumCharsOnly), fontFamily: "'IBM Plex Mono', monospace" }}
               title={charsCapHidden
                 ? `Every character counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
                 : 'When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces.'}
@@ -570,9 +566,9 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
 
         <div className="flex items-center px-3">
           <div className="text-white font-bold grid grid-cols-3 text-center flex-shrink-0" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
-            <div className="border-2 border-white px-1 py-1">L</div>
-            <div className="border-2 border-white px-1 py-1">W</div>
-            <div className="border-2 border-white px-1 py-1">C</div>
+            <div className="border-2 border-white px-1 leading-tight">L</div>
+            <div className="border-2 border-white px-1 leading-tight">W</div>
+            <div className="border-2 border-white px-1 leading-tight">C</div>
           </div>
         </div>
         {/* No gap: one child, so it would only be dead height. */}

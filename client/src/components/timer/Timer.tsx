@@ -1501,7 +1501,9 @@ export default function Timer() {
     <div
       className={`opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
       style={{
-        fontSize: shrinkClamp(0.5, 1.1, 1.2, 0.75),
+        // Smaller than it was, since it's three lines now rather than one
+        // wrapping row, and all three of them come off the digits.
+        fontSize: shrinkClamp(0.45, 0.85, 0.95, 0.6),
         color: isWordCounterFocused ? '#ef4444' : 'var(--app-ink)',
         ...textGlowStyle,
       }}
