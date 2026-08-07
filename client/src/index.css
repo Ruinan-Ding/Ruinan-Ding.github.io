@@ -503,25 +503,3 @@
   }
 }
 
-/* The two filter switches, on a two-rung ladder against the column they
-   share rather than against the viewport, which is the width that decides
-   whether they fit.
-   Side by side while there's room: each is a checkbox plus 23 monospace
-   characters, so the pair with its gap needs about 31em, and 3cqi leaves a
-   little over that.
-   Stacked below it, and back at full size there — stacking is what buys
-   the width, so spending it on a smaller font too would be paying twice.
-   255px is where the side-by-side form hits 8px and stops being worth
-   reading; no desktop window narrows far enough to reach it. */
-.counter-switches {
-  font-size: min(var(--toggle-fs), 3cqi);
-}
-
-@container counter-switches (max-width: 255px) {
-  .counter-switches {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-    font-size: var(--toggle-fs);
-  }
-}

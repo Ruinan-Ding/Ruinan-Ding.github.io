@@ -3,7 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import { usePersisted } from '@/hooks/usePersisted';
 import { readBoolean, readJSON, readRaw, writeRaw } from '@/lib/storage';
 import ConfirmDialog from './ConfirmDialog';
-import { HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, STORAGE_KEYS, TOGGLE_FONT_SIZE, TYPES_INTO } from './constants';
+import { HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, STORAGE_KEYS, TYPES_INTO } from './constants';
 import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { shrinkClamp } from './responsive';
@@ -58,11 +58,10 @@ const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 // Mixed off --app-ink rather than a literal white, or the rules vanish
 // against the light theme's own near-white surface.
 const RULE_COLOR_IDLE = 'color-mix(in oklab, var(--app-ink) 35%, transparent)';
-// The two switches size themselves in index.css rather than here, because
-// what they do depends on how much of their column is left — and a
-// container query can answer that where an inline style can't. This is
-// the ceiling it works down from, handed over as a custom property.
-const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
+// One under the other, so a notch under the shared TOGGLE_FONT_SIZE: they
+// no longer have to earn their place on a line with anything, and two
+// stacked rows of it read heavier than one did.
+const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.6, 1.2, 1.35, 0.78);
 // Copy, Clear and the full-screen icon. Smaller than the switches beside
 // them on purpose: this group never shrinks, so every pixel it takes is
 // one the switches can't have, and it's the reason they used to stack.
@@ -460,31 +459,23 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         {/* No flex-wrap on the row: the buttons on the right were the ones
             it dropped, and they landed under the switches as the window
             narrowed. They hold their place now and the column on the left
-            gives up the width instead — it can, having a line of prose in
-            it that's happy to wrap.
-            items-start, because that column is two lines tall and centring
-            against it pushed the buttons half a line down the box. */}
+            gives up the width instead.
+            items-start, because that column is three lines tall and
+            centring against it pushed the buttons down the box. */}
         <div className="flex justify-between items-start gap-3 px-3 pt-1">
-          {/* flex-1 rather than shrink-to-fit, so this column's width comes
-              from the row instead of its own contents — which is what lets
-              it be an inline-size container without collapsing. Everything
-              inside then sizes against the room actually left over after
-              the buttons, in cqi, rather than against the viewport. */}
+          {/* One switch per line, and the line about them under both. An
+              inline-size container so the hint can tell whether it fits;
+              flex-1 rather than shrink-to-fit, since a container's own
+              size can't come from its contents. */}
           <div
-            className="flex flex-col gap-0.5 flex-1 min-w-0"
-            style={{ containerType: 'inline-size', containerName: 'counter-switches', '--toggle-fs': WORD_TOGGLE_FONT_SIZE } as React.CSSProperties}
+            className="flex flex-col items-start gap-0.5 flex-1 min-w-0"
+            style={{ containerType: 'inline-size', containerName: 'counter-switches' }}
           >
-          {/* Side by side while there's room for it, shrinking with the
-              column rather than the viewport; stacked once shrinking
-              further would cost more than stacking does, and back at full
-              size there, since stacking is what buys the width. Both rungs
-              are in index.css — see .counter-switches. */}
-          <div className="counter-switches flex items-center gap-3">
             <button
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
               aria-pressed={alnumWordsOnly}
               className="flex items-center gap-1.5 font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
-              style={{ color: capColor(rawWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace" }}
+              style={{ color: capColor(rawWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
               title={wordsCapHidden
                 ? `Every token counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
                 : 'When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included.'}
@@ -501,7 +492,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               // Coloured like the switch beside it, and more sharply
               // needed: "$$$$$" counts as no characters, so C can read far
               // under a limit the text is already sitting on.
-              style={{ color: capColor(rawChars, alnumCharsOnly), fontFamily: "'IBM Plex Mono', monospace" }}
+              style={{ color: capColor(rawChars, alnumCharsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
               title={charsCapHidden
                 ? `Every character counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
                 : 'When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces.'}
@@ -510,16 +501,15 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               <DotCheckbox checked={alnumCharsOnly} fontSize="1em" />
               Alphanumeric chars only
             </button>
-          </div>
 
-          {/* Under the two switches it talks about, rather than trailing
-              them on the same line where it read as a third control. */}
-          <span
-            className="counter-hint opacity-60 font-bold whitespace-nowrap"
-            style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 0.9, 1, 0.65) }}
-          >
-            Turn both off to count everything, like a classic word processor
-          </span>
+            {/* Under the two switches it talks about, rather than trailing
+                them on the same line where it read as a third control. */}
+            <span
+              className="counter-hint opacity-60 font-bold whitespace-nowrap"
+              style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 0.9, 1, 0.65) }}
+            >
+              Turn both off to count everything, like a classic word processor
+            </span>
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">

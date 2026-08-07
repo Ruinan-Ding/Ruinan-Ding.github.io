@@ -186,7 +186,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   return (
     <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss(dontAskAgain)}>
       <AlertDialogContent
-        className="bg-black border-4 border-white"
+        className="bg-black border-4 border-white p-4 gap-3"
         onKeyDown={(e) => {
           // Enter confirms whatever the dialog asked, not whichever button
           // happens to hold focus — Radix focuses Cancel on open, so the
@@ -211,8 +211,8 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
         }}
       >
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-white text-2xl font-bold">{copy?.title}</AlertDialogTitle>
-          <AlertDialogDescription className="text-white text-lg">{copy?.description}</AlertDialogDescription>
+          <AlertDialogTitle className="text-white text-lg font-bold">{copy?.title}</AlertDialogTitle>
+          <AlertDialogDescription className="text-white text-sm">{copy?.description}</AlertDialogDescription>
         </AlertDialogHeader>
         {/* Its own row: beside CANCEL/CONFIRM it pushed one of them onto a
             second line. Worded as this one question rather than all of
@@ -223,7 +223,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             data-dont-ask
             onClick={() => setDontAskAgain((prev) => !prev)}
             aria-pressed={dontAskAgain}
-            className="flex items-center gap-2 text-white font-bold self-start transition-opacity duration-200 hover:opacity-80"
+            className="flex items-center gap-2 text-white text-sm font-bold self-start transition-opacity duration-200 hover:opacity-80"
             title="Skip this particular confirmation from now on. Resetting the website to defaults brings it back."
           >
             <DotCheckbox checked={dontAskAgain} />
@@ -232,7 +232,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
         )}
         {/* Held through the exit animation like the copy, or the buttons
             would swap over mid-fade. */}
-        <div className="flex gap-4 justify-end items-center">
+        <div className="flex gap-3 justify-end items-center">
           {acknowledgeRef.current ? (
             // One button, and it's the Cancel element rather than the
             // Action on purpose: Radix focuses Cancel when the dialog
@@ -242,7 +242,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // has nothing to decline and all three do the same thing.
             <AlertDialogCancel
               onClick={() => onConfirm(dontAskAgain)}
-              className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
+              className="border-4 border-white bg-white text-black text-sm font-bold px-4 py-2 hover:bg-black hover:text-white hover:border-white"
             >
               {copy?.action} <span className="opacity-60 font-normal">(ENTER / ESC)</span>
             </AlertDialogCancel>
@@ -250,13 +250,13 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             <>
               <AlertDialogCancel
                 onClick={() => onDismiss(false)}
-                className="border-4 border-white text-white font-bold px-6 py-3 hover:bg-white hover:text-black"
+                className="border-4 border-white text-white text-sm font-bold px-4 py-2 hover:bg-white hover:text-black"
               >
                 CANCEL <span className="opacity-60 font-normal">(ESC)</span>
               </AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => onConfirm(dontAskAgain)}
-                className="border-4 border-white bg-white text-black font-bold px-6 py-3 hover:bg-black hover:text-white hover:border-white"
+                className="border-4 border-white bg-white text-black text-sm font-bold px-4 py-2 hover:bg-black hover:text-white hover:border-white"
               >
                 {copy?.action} <span className="opacity-60 font-normal">(ENTER)</span>
               </AlertDialogAction>
