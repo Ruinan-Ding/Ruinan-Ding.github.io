@@ -58,8 +58,21 @@ const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 // Mixed off --app-ink rather than a literal white, or the rules vanish
 // against the light theme's own near-white surface.
 const RULE_COLOR_IDLE = 'color-mix(in oklab, var(--app-ink) 35%, transparent)';
-// A notch below the textarea's size, leaving it room to grow.
-const WORD_TOGGLE_FONT_SIZE = TOGGLE_FONT_SIZE;
+// A notch below the textarea's size, leaving it room to grow — and capped
+// against the column the two switches share, so they shrink rather than
+// stack. Each is a checkbox plus 23 monospace characters, so the pair with
+// its gap needs about 31em; 3cqi leaves a little over that.
+//
+// The 0.5rem floor is where shrinking stops being worth it: without one
+// these came out at 5px on a phone, which is not stacking by way of not
+// being readable either. Below that the row is allowed to wrap after all —
+// see the flex-wrap on it. No desktop window reaches that width; Chrome
+// won't go below about 500px, where these still sit side by side.
+const WORD_TOGGLE_FONT_SIZE = `max(0.5rem, min(${TOGGLE_FONT_SIZE}, 3cqi))`;
+// Copy, Clear and the full-screen icon. Smaller than the switches beside
+// them on purpose: this group never shrinks, so every pixel it takes is
+// one the switches can't have, and it's the reason they used to stack.
+const ACTION_FONT_SIZE = shrinkClamp(0.55, 1, 1.1, 0.7);
 
 // Largest size at which a number still fits its counter box. The box is a
 // third of COUNTER_COLUMN_WIDTH less padding and borders, and a monospace
@@ -458,26 +471,37 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             items-start, because that column is two lines tall and centring
             against it pushed the buttons half a line down the box. */}
         <div className="flex justify-between items-start gap-3 px-3 pt-1">
-          <div className="flex flex-col gap-0.5 min-w-0">
+          {/* flex-1 rather than shrink-to-fit, so this column's width comes
+              from the row instead of its own contents — which is what lets
+              it be an inline-size container without collapsing. Everything
+              inside then sizes against the room actually left over after
+              the buttons, in cqi, rather than against the viewport. */}
+          <div className="flex flex-col gap-0.5 flex-1 min-w-0" style={{ containerType: 'inline-size', containerName: 'counter-switches' }}>
+          {/* Side by side is what these two are, and stacked they read as
+              two unrelated settings, so they give up font size to stay on
+              one line — see WORD_TOGGLE_FONT_SIZE. flex-wrap is the last
+              rung below that, once shrinking further would cost more than
+              stacking does; it can't be reached by narrowing a desktop
+              window. */}
           <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
               aria-pressed={alnumWordsOnly}
-              className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
+              className="flex items-center gap-1.5 font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
               style={{ color: capColor(rawWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
               title={wordsCapHidden
                 ? `Every token counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
                 : 'When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included.'}
               aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
             >
-              <DotCheckbox checked={alnumWordsOnly} />
+              <DotCheckbox checked={alnumWordsOnly} fontSize="1em" />
               Alphanumeric words only
             </button>
 
             <button
               onClick={() => setAlnumCharsOnly((prev) => !prev)}
               aria-pressed={alnumCharsOnly}
-              className="flex items-center gap-1.5 font-bold transition-all duration-200 hover:opacity-80"
+              className="flex items-center gap-1.5 font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
               // Coloured like the switch beside it, and more sharply
               // needed: "$$$$$" counts as no characters, so C can read far
               // under a limit the text is already sitting on.
@@ -487,7 +511,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 : 'When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces.'}
               aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
             >
-              <DotCheckbox checked={alnumCharsOnly} />
+              <DotCheckbox checked={alnumCharsOnly} fontSize="1em" />
               Alphanumeric chars only
             </button>
           </div>
@@ -495,7 +519,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           {/* Under the two switches it talks about, rather than trailing
               them on the same line where it read as a third control. */}
           <span
-            className="opacity-60 font-bold"
+            className="counter-hint opacity-60 font-bold whitespace-nowrap"
             style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 0.9, 1, 0.65) }}
           >
             Turn both off to count everything, like a classic word processor
@@ -514,14 +538,14 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                   title="Copy all text to the clipboard"
                   aria-label="Copy text to clipboard"
                   className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0 text-center"
-                  style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75), minWidth: '5.6em' }}
+                  style={{ fontSize: ACTION_FONT_SIZE, minWidth: '5.6em' }}
                 >
                   {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Failed' : 'Copy'}
                 </button>
                 <button
                   onClick={() => (isDialogSuppressed(CLEAR_DIALOG) ? setText('') : setClearDialog(CLEAR_DIALOG))}
                   className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
-                  style={{ fontSize: shrinkClamp(0.65, 1.2, 1.3, 0.75) }}
+                  style={{ fontSize: ACTION_FONT_SIZE }}
                 >
                   Clear
                 </button>
@@ -536,9 +560,9 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
             >
               {isFullscreen ? (
-                <Minimize2 style={{ width: shrinkClamp(0.65, 1.2, 1.3, 0.75), height: shrinkClamp(0.65, 1.2, 1.3, 0.75) }} />
+                <Minimize2 style={{ width: ACTION_FONT_SIZE, height: ACTION_FONT_SIZE }} />
               ) : (
-                <Maximize2 style={{ width: shrinkClamp(0.65, 1.2, 1.3, 0.75), height: shrinkClamp(0.65, 1.2, 1.3, 0.75) }} />
+                <Maximize2 style={{ width: ACTION_FONT_SIZE, height: ACTION_FONT_SIZE }} />
               )}
             </button>
           </div>
@@ -667,12 +691,15 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               })}
             </div>
           </div>
-          <div className={`text-xs flex flex-wrap justify-center items-baseline gap-x-2 text-center ${isActive ? 'text-green-500' : 'text-gray-400'}`}>
-            <span><strong>L:</strong> Line number</span>
-            <span className="opacity-50">|</span>
-            <span><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</span>
-            <span className="opacity-50">|</span>
-            <span><strong>C:</strong> {alnumCharsOnly ? 'Alphanumeric chars (a-z, A-Z, 0-9)' : 'All characters, including spaces'}</span>
+          {/* A line each, and none of them allowed to wrap: three keys
+              wrapped across two lines read as five, and the separators
+              only ever marked where the wrap wasn't. Smaller than the
+              text-xs it was, since three lines cost three times the
+              height and this is a legend, not the numbers it labels. */}
+          <div className={`flex flex-col items-end text-right ${isActive ? 'text-green-500' : 'text-gray-400'}`} style={{ fontSize: shrinkClamp(0.45, 0.8, 0.9, 0.6) }}>
+            <span className="whitespace-nowrap"><strong>L:</strong> Line number</span>
+            <span className="whitespace-nowrap"><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</span>
+            <span className="whitespace-nowrap"><strong>C:</strong> {alnumCharsOnly ? 'Alphanumeric chars (a-z, A-Z, 0-9)' : 'All characters, including spaces'}</span>
           </div>
         </div>
       </div>

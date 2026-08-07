@@ -490,3 +490,15 @@
     --list-row-floor: 1rem;
   }
 }
+
+/* The line under the word counter's two filter switches is one line or
+   nothing. Wrapped, a sentence you've already read cost the row twice the
+   height, and that height comes straight off the typing area.
+   ~305px is what it measures at its floor size, which is the only range
+   where the column is ever this narrow — above it the column grows far
+   faster than the font does, so this never hides a hint that would fit. */
+@container counter-switches (max-width: 320px) {
+  .counter-hint {
+    display: none;
+  }
+}

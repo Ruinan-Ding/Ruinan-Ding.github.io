@@ -1490,14 +1490,13 @@ export default function Timer() {
     { text: `Press R to RESET the ${hintSubject}`, disabled: isIdleAtConfigured },
     { text: `Press S to STOP the ${hintSubject}`, disabled: isIdleAtConfigured },
   ];
-  // One row of plain text rather than a div per hint. They all share a
-  // colour and glow, and three flex items cost 3x the vertical space on a
-  // short window, enough to make the column scroll to reach the last one.
-  const hintsText = hints
-    .map(({ text, disabled }) =>
-      isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
-    )
-    .join('   |   ');
+  // A line each. Joined onto one row they wrapped wherever the width ran
+  // out, which put a key and its description on different lines and left
+  // the separators marking nothing. Blocks, not flex items, so the three
+  // stack with no gap between them and cost only their own line boxes.
+  const hintLines = hints.map(({ text, disabled }) =>
+    isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
+  );
   const hintsDisplay = (
     <div
       className={`opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
@@ -1507,7 +1506,9 @@ export default function Timer() {
         ...textGlowStyle,
       }}
     >
-      {hintsText}
+      {hintLines.map((line, i) => (
+        <div key={i} className="whitespace-nowrap leading-tight">{line}</div>
+      ))}
     </div>
   );
 
