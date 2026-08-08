@@ -196,17 +196,15 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
           Clear sits in the heading rule, and only when there's something
           to clear. */}
       <div
-        // flex-wrap and a gap for the same reason as the history heading:
-        // the count is nowrap and the heading is one word, so a row too
-        // narrow for both plus Clear spilled them over each other rather
-        // than breaking anywhere.
-        className="flex flex-wrap justify-between items-center gap-x-2 gap-y-1 border-b-2 border-white flex-shrink-0"
-        style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
+        // One line at every width, like the history heading: see the note
+        // there for why the count is what gives when they can't all fit.
+        className="flex justify-between items-center gap-x-2 border-b-2 border-white flex-shrink-0"
+        style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5), containerType: 'inline-size', containerName: 'sidebar-heading' }}
       >
-        <span className="flex items-baseline gap-1.5 min-w-0">
-          <h2 className="text-white font-bold" style={{ fontSize: SIDEBAR_HEADING_FONT_SIZE }}>PRESETS</h2>
+        <span className="flex items-baseline gap-1.5 min-w-0 overflow-hidden">
+          <h2 className="text-white font-bold flex-shrink-0" style={{ fontSize: SIDEBAR_HEADING_FONT_SIZE }}>PRESETS</h2>
           <span
-            className="text-white font-bold whitespace-nowrap"
+            className="sidebar-count text-white font-bold whitespace-nowrap"
             style={{
               fontSize: SIDEBAR_COUNT_FONT_SIZE,
               color: warnColor,
@@ -221,7 +219,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
           <button
             onClick={onClear}
             title="Delete every preset — asks first"
-            className="text-white border border-white hover:bg-white hover:text-black transition-colors flex-shrink-0 ml-auto"
+            className="text-white border border-white hover:bg-white hover:text-black transition-colors flex-shrink-0"
             style={{ fontSize: shrinkClamp(0.55, 0.8, 0.85, 0.7), padding: shrinkClamp(0.25, 0.4, 0.45, 0.375) }}
           >
             Clear

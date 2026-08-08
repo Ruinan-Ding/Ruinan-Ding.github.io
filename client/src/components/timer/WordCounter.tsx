@@ -658,7 +658,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                     // Centred for the same reason as the cells above: all
                     // three boxes are as tall as the tallest, so a shrunken
                     // "999,999" would hang from the top beside a "12".
-                    className="flex items-center justify-center border border-white px-1 py-0.5 bg-black overflow-hidden"
+                    // Shaped like the L/W/C boxes at the top of the same
+                    // column: same font, and leading-tight with no vertical
+                    // padding rather than a full line box plus py-0.5,
+                    // which made these 29px against those 23 and read as a
+                    // different kind of box.
+                    className="flex items-center justify-center border border-white px-1 leading-tight bg-black overflow-hidden"
                     style={{
                       fontSize: countFontSize(total),
                       color: total >= COUNTER_MAX ? '#ef4444' : total >= COUNTER_WARN ? '#eab308' : undefined,

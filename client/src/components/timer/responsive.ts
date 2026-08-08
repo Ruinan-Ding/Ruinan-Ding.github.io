@@ -25,3 +25,12 @@ export const shrinkClamp = (minRem: number, vw: number, vh: number, maxRem: numb
 // the content column keeps 8px either side.
 export const fitClamp = (minRem: number, cqi: number, maxRem: number) =>
   `clamp(${minRem}rem, ${cqi}cqi, ${maxRem}rem)`;
+
+// fitClamp against both of the container's axes, for anything the digits'
+// height reserve has to predict. On cqi alone a wide but short window grew
+// these off the column's width while the reserve was estimating them off
+// the viewport's height, and the two disagreed by enough to push the
+// column past the row. cqh is the same height the reserve is spending, so
+// they can't drift apart.
+export const boxClamp = (minRem: number, cqi: number, cqh: number, maxRem: number) =>
+  `clamp(${minRem}rem, min(${cqi}cqi, ${cqh}cqh), ${maxRem}rem)`;

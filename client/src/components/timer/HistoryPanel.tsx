@@ -111,18 +111,18 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
     <div className="flex flex-col flex-shrink-0">
       {/* Spacing on shrinkClamp rather than fixed Tailwind steps. */}
       <div
-        // flex-wrap and a gap, because "HISTORY 1000/1000" plus Clear is
-        // wider than the sidebar below ~1400px and neither piece can wrap
-        // inside itself: the row shrank the heading below its content and
-        // the count spilled over the button. Wrapping drops Clear onto its
-        // own line instead, and only where it genuinely doesn't fit.
-        className="flex flex-wrap justify-between items-center gap-x-2 gap-y-1 border-b-2 border-white flex-shrink-0"
-        style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}
+        // One line, always: the heading and its count stay level with
+        // Clear at every width. A gap so they can't touch, and the count
+        // is what gives when they can't all fit — it's an annotation, and
+        // the sidebar is too narrow for "HISTORY 1000/1000 Clear" below
+        // about 900px however small the type gets. See sidebar-count.
+        className="flex justify-between items-center gap-x-2 border-b-2 border-white flex-shrink-0"
+        style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5), containerType: 'inline-size', containerName: 'sidebar-heading' }}
       >
-        <span className="flex items-baseline gap-1.5 min-w-0">
-          <h2 className="text-white font-bold" style={{ fontSize: SIDEBAR_HEADING_FONT_SIZE }}>HISTORY</h2>
+        <span className="flex items-baseline gap-1.5 min-w-0 overflow-hidden">
+          <h2 className="text-white font-bold flex-shrink-0" style={{ fontSize: SIDEBAR_HEADING_FONT_SIZE }}>HISTORY</h2>
           <span
-            className="text-white font-bold whitespace-nowrap"
+            className="sidebar-count text-white font-bold whitespace-nowrap"
             style={{
               fontSize: SIDEBAR_COUNT_FONT_SIZE,
               color: warnColor,
@@ -136,7 +136,7 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
         {history.length > 0 && (
           <button
             onClick={onClear}
-            className="text-white border border-white hover:bg-white hover:text-black transition-colors flex-shrink-0 ml-auto"
+            className="text-white border border-white hover:bg-white hover:text-black transition-colors flex-shrink-0"
             style={{ fontSize: shrinkClamp(0.55, 0.8, 0.85, 0.7), padding: shrinkClamp(0.25, 0.4, 0.45, 0.375) }}
           >
             Clear

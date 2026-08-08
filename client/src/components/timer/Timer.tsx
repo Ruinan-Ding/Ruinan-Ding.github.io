@@ -15,7 +15,7 @@ import TimeField from './TimeField';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
 import { formatDateParts, formatEntryLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
-import { fitClamp, shrinkClamp } from './responsive';
+import { boxClamp, fitClamp, shrinkClamp } from './responsive';
 import { isAcknowledgement, isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
@@ -1398,7 +1398,7 @@ export default function Timer() {
   // at both ends. The vw guesses it replaces were set to the narrowest
   // window's ratio and so never bound anywhere else, which left the height
   // term free to size digits wider than the column they sit in.
-  const timerColumnMaxWidth = '72rem';
+  const timerColumnMaxWidth = '80rem';
   const digitWidthLimit = '17cqi';
   const digitCeiling = '20rem';
 
@@ -1569,14 +1569,14 @@ export default function Timer() {
   // which is a thumb's worth.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${fitClamp(0.45, 1.15, 0.6)} ${fitClamp(0.5, 2.3, 1.2)}`,
-    fontSize: fitClamp(0.8, 1.75, 1),
+    padding: `${boxClamp(0.5, 1.5, 3.7, 0.85)} ${fitClamp(0.6, 2.8, 1.7)}`,
+    fontSize: boxClamp(0.85, 2.2, 5.5, 1.4),
     borderColor: color,
     color,
     // A surface-coloured chip keeps the borders readable on the coloured
     // window behind them.
     backgroundColor: 'var(--app-surface)',
-    minWidth: fitClamp(4, 13, 5.5),
+    minWidth: fitClamp(4.25, 15, 7),
   });
   // The same buttons scaled to a single header row, for the word counter's
   // fullscreen view, which covers the real ones.
@@ -2109,7 +2109,10 @@ export default function Timer() {
               // its font-size under leading-none, and the drain bar below,
               // which takes its height and its margin from the digit size
               // and measures another 0.24x. So the content is the reserve
-              // below plus 1.24x font-size, and 1.3 is the margin on that.
+              // below plus 1.24x font-size, and 1.27 is the margin on that.
+              // Every 0.01 of margin here is ~5px of dead space above the
+              // clock and below the hints on a 1080-tall window, which is
+              // what it buys back.
               // Reserving 1x flat was what let the digits overflow the row
               // on a window with the sidebar and the panel both tucked,
               // where nothing else was capping them.
@@ -2133,7 +2136,7 @@ export default function Timer() {
               // hidden below md and the column holds nothing else. Same
               // siblings either way, so the same reserve covers both.
               style={{
-                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(8.7rem, 1.5rem + 14.7dvh) - max(2.2rem, min(3.6vw, 3.9dvh))) / 1.3)), ${digitCeiling})`,
+                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(9rem, 1.5rem + 15.9dvh) - max(2.6rem, min(4.5vw, 4.9dvh))) / 1.29)), ${digitCeiling})`,
                 fontFamily: "'IBM Plex Mono', monospace",
                 // Vertical and horizontal on separate clamps. They were one
                 // figure, and the horizontal one is the useful one — it
@@ -2153,7 +2156,7 @@ export default function Timer() {
                   at the digit size that reads as a hole rather than a
                   space. Neither line has a descender to lose — the labels
                   are digits, colons and h/m/s. */}
-              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(1.1, 2.2, 2.4, 1.85), letterSpacing: '0.05em' }}>
+              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(1.2, 2.8, 3, 2.5), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
               <div
@@ -2181,7 +2184,10 @@ export default function Timer() {
               {renderDrainBar('100%')}
             </div>
 
-            <div className="flex gap-2 flex-shrink-0">
+            {/* Gap on the column's own measure rather than a flat 8px: the
+                buttons shrank onto the digits' scale, and a fixed gap at
+                that size reads as three boxes stuck together. */}
+            <div className="flex flex-shrink-0" style={{ gap: fitClamp(0.5, 2.5, 1.75) }}>
               {renderControlButtons(controlButtonStyle, 'border-4')}
             </div>
 
@@ -2192,7 +2198,7 @@ export default function Timer() {
             <div className="text-center">
               <div
                 className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-                style={{ fontSize: shrinkClamp(0.75, 1.7, 1.8, 1.15), ...textGlowStyle }}
+                style={{ fontSize: shrinkClamp(0.8, 1.9, 2, 1.25), ...textGlowStyle }}
               >
                 {status}
               </div>

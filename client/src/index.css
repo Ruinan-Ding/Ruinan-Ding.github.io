@@ -503,3 +503,17 @@
   }
 }
 
+/* The x/max beside PRESETS and HISTORY, on the same terms. The heading and
+   Clear hold the line at every width; the count is the annotation, and
+   below ~145px of heading row the sidebar cannot carry all three however
+   small the type gets — "HISTORY 2/1000 Clear" needs 143px at sizes that
+   are already down to 8px. Hiding it keeps the other two exactly where
+   they are, which wrapping the button onto a second line did not. Above
+   it the count is free to clip rather than vanish, which only a full
+   1000/1000 ever does. */
+@container sidebar-heading (max-width: 145px) {
+  .sidebar-count {
+    display: none;
+  }
+}
+
