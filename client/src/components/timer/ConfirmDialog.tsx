@@ -47,13 +47,6 @@ const getCopy = (dialog: DialogState) => {
     case 'switch': {
       const label = formatEntryLabel(dialog.data);
       switch (dialog.mode) {
-        // Nothing to lose, so this skips the warning the other two need.
-        case 'startFromIdle':
-          return {
-            title: 'START TIMER',
-            description: `Start ${label}?`,
-            action: 'START',
-          };
         // "Progress" covers both directions: time left on a countdown, or
         // time counted past zero by an alarm still running.
         case 'switchRunning':

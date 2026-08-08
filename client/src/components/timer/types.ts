@@ -30,10 +30,11 @@ export type DialogState =
   | { type: 'reset' }
   | { type: 'clearCache' }
   | { type: 'mute' }
-  // Every mode runs the picked time and differs only in what's given up to
-  // do it. Also the "don't ask again" scope, so silencing the harmless one
-  // doesn't silence the two that discard a run in progress.
-  | { type: 'switch'; data: TimeParts; mode: 'startFromIdle' | 'switchRunning' | 'loadOnly' }
+  // Both modes run the picked time and differ only in what's given up to
+  // do it. Also the "don't ask again" scope, so silencing one doesn't
+  // silence the other. Only reachable where there's a run on the clock to
+  // lose — see hasRunToLose — which is why there's no idle mode.
+  | { type: 'switch'; data: TimeParts; mode: 'switchRunning' | 'loadOnly' }
   | { type: 'seek'; data: { targetSeconds: number; mode: 'idle' | 'paused' | 'running' } }
   // `state` is which timer state the adjustment was asked in. It picks the
   // wording and doubles as the "don't ask again" scope; see dialogKey.
