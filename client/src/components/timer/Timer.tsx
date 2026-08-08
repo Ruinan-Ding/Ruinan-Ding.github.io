@@ -622,7 +622,16 @@ export default function Timer() {
     };
   }, [isRunning, isPaused]);
 
-  const isAlarmActive = isRunning && !isPaused && seconds < 0 && !isSilentMode;
+  // Not gated on mute. Muting silences the alarm; it doesn't mean the
+  // timer didn't run out. The window flash and the red digits are the
+  // whole of what a muted alarm has left to say, and without them a
+  // finished timer looked identical to one still counting.
+  const isAlarmActive = isRunning && !isPaused && seconds < 0;
+  // Read through a ref inside the pattern below rather than as a
+  // dependency: toggling mute mid-ring should stop the sound where it is,
+  // not tear down and restart the flashing that goes with it.
+  const isSilentModeRef = useRef(isSilentMode);
+  isSilentModeRef.current = isSilentMode;
   // With repeat off the alarm gets one finite ring per overtime period,
   // and the allowance is spent the moment ringing starts. Pause/resume and
   // mute can't squeeze out extra groups, turning repeat off mid-ring mutes
@@ -702,8 +711,8 @@ export default function Timer() {
         return;
       }
       if (pattern[alarmTickRef.current % pattern.length]) {
-        beep(...TONES.alarm);
-        // Red for exactly as long as the beep sounds.
+        if (!isSilentModeRef.current) beep(...TONES.alarm);
+        // Red for exactly as long as the beep sounds — or would have.
         setIsBeepFlash(true);
         window.setTimeout(() => setIsBeepFlash(false), TONES.alarm[1]);
       }
@@ -812,10 +821,12 @@ export default function Timer() {
   // ever mutes, which asks first.
   const handleMuteToggle = () => {
     if (isSilentMode) {
-      // Unmuting with the slider parked at 0 restores a usable level, and
-      // the confirmation tone plays at that level rather than the stale 0.
-      beep(...TONES.silentToggle, volume === 0 ? DEFAULT_VOLUME : undefined);
-      if (volume === 0) setVolume(DEFAULT_VOLUME);
+      // The slider keeps whatever level it was left at, 0 included.
+      // Unmuting used to jump it to the default from there, which threw
+      // away a setting that had been made deliberately — and the toggle
+      // tone plays at the real level, so at 0 there's nothing to hear,
+      // which is what 0 means.
+      beep(...TONES.silentToggle);
       setIsSilentMode(false);
       return;
     }
@@ -1233,7 +1244,15 @@ export default function Timer() {
     restartRunFade();
   };
 
+  // Same terms as the fields and the list: only a run on the clock is
+  // worth a question. Seeking a ringing timer moves a count-up reading,
+  // and seeking an idle one sets the configured time, which is what the
+  // fields do without asking either.
   const requestSeek = (targetSeconds: number) => {
+    if (!hasRunToLose()) {
+      applySeek(targetSeconds);
+      return;
+    }
     const mode = !isRunning ? 'idle' : isPaused ? 'paused' : 'running';
     askThenRun({ type: 'seek', data: { targetSeconds, mode } }, () => applySeek(targetSeconds));
   };
@@ -1573,7 +1592,14 @@ export default function Timer() {
     // A surface-coloured chip keeps the borders readable on the coloured
     // window behind them.
     backgroundColor: 'var(--app-surface)',
-    minWidth: fitClamp(4.25, 15, 7),
+    // width, not minWidth: with a minimum, RESUME — the one six-letter
+    // label — outgrew it and came out wider than the four beside it, and
+    // the row shifted as START became it. A fixed width makes every button
+    // the same box whatever it says. Solved against the widest label
+    // rather than picked: RESUME is 3.6em of this monospace, and the box
+    // has to hold that plus both paddings and the 8px border at the size
+    // each of them tops out at.
+    width: fitClamp(5.25, 18, 9.25),
   });
   // The same buttons scaled to a single header row, for the word counter's
   // fullscreen view, which covers the real ones.
