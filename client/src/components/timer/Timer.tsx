@@ -17,7 +17,7 @@ import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_
 import { formatDateParts, formatEntryLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
 import { boxClamp, fitClamp, shrinkClamp } from './responsive';
 import { isAcknowledgement, isDialogSuppressed, suppressDialog } from './suppressions';
-import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
+import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 
 // Bigger than a normal header icon, filling most of the button, since the
@@ -464,11 +464,6 @@ export default function Timer() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
-  // States an adjustment has already been asked about, so the three fields
-  // share one prompt per state. In memory on purpose: this means "you
-  // answered that a moment ago", which shouldn't outlive the session. The
-  // dialog's "don't ask again" is what makes an answer permanent.
-  const askedAdjustInStatesRef = useRef(new Set<TimerStateKind>());
   // Radix fires onClick and onOpenChange for the same click, so the
   // dismiss handler needs this to tell a confirm from a cancel.
   const justConfirmedRef = useRef(false);
@@ -502,15 +497,6 @@ export default function Timer() {
     }
     setDialog(next);
   }, [skipConfirmations]);
-
-  // Read off timeRef rather than `seconds` so a caller mid-click sees the
-  // live value, like every other check here.
-  const timerStateKind = useCallback((): TimerStateKind => {
-    if (timeRef.current.seconds < 0) return 'ringing';
-    if (isPaused) return 'paused';
-    if (isRunning) return 'running';
-    return 'unstarted';
-  }, [isRunning, isPaused]);
 
   // One key per hook, so each writes only when its own value changes. A
   // single effect for all fourteen means a single dependency list, and
@@ -916,10 +902,16 @@ export default function Timer() {
     setIsPaused(false);
   };
 
+  // Past zero, both of these go straight through. An alarm that's going
+  // off is something you're trying to make stop, and a dialog between the
+  // button and the silence is the wrong thing to meet there — the count-up
+  // reading it discards is the cost, and mute and repeat-off are still the
+  // way to keep one.
   const handleStopClick = () => {
-    // Asks even while ringing. Stopping doesn't only silence the alarm, it
-    // throws away how far past zero the timer counted, which is the whole
-    // output of a count-up run. Mute and repeat-off cover the urgent case.
+    if (isOvertime) {
+      handleConfirmStop();
+      return;
+    }
     askThenRun({ type: 'stop' }, handleConfirmStop);
   };
 
@@ -930,7 +922,10 @@ export default function Timer() {
   };
 
   const handleResetClick = () => {
-    // Asks even on a finished timer, for the same reason STOP does.
+    if (isOvertime) {
+      handleConfirmReset();
+      return;
+    }
     askThenRun({ type: 'reset' }, handleConfirmReset);
   };
 
@@ -950,8 +945,8 @@ export default function Timer() {
     setTime({ seconds: toTotalSeconds(parts), milliseconds: 0 });
   }, []);
 
-  // The one switch sequence, shared by the direct path and the dialog
-  // confirm. start=false loads the preset without running it.
+  // The one switch sequence. start=false loads the preset without running
+  // it.
   //
   // Memoized so handleSelectEntry can just depend on it. As a plain
   // function left out of that dependency list it was correct only because
@@ -969,48 +964,18 @@ export default function Timer() {
     }
   }, [loadEntry, isSilentMode, beep]);
 
+  // Picking a row out of the list is a request to run it, whatever the
+  // timer was doing, so it just runs. It used to ask whenever there was
+  // progress to discard, in three wordings for the three ways there could
+  // be; the list is one click away from what it replaced, so the question
+  // was between you and the thing you had already decided to do.
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
-    // Flashed on the click rather than when the switch applies: simpler
-    // than threading the id through the dialog, and a cancelled switch
-    // leaves a harmless flash. The panels check loaded before inserted, so
-    // loading a just-created entry goes green rather than staying yellow.
+    // The panels check loaded before inserted, so loading a just-created
+    // entry goes green rather than staying yellow.
     setLoadedEntry((prev) => bumpFlash(prev, entry.id));
-    // Every branch below runs the picked time. Picking one out of the list
-    // is a request to run it, whatever the timer was doing; the only
-    // difference is whether there's something to lose first.
-    //
-    // Already loaded and sitting at it unstarted: nothing to lose.
-    if (!isRunning && timeRef.current.seconds === configuredTotalSeconds && toTotalSeconds(parts) === configuredTotalSeconds) {
-      applySwitch(parts, true);
-      return;
-    }
-    // Counting down.
-    if (isRunning && !isPaused && timeRef.current.seconds >= 0) {
-      askThenRun({ type: 'switch', data: parts, mode: 'switchRunning' }, () => applySwitch(parts, true));
-      return;
-    }
-    // Paused, or stopped somewhere other than the configured time after a
-    // reload. Either way there's progress on screen to discard.
-    if (isPaused || (!isRunning && timeRef.current.seconds !== configuredTotalSeconds)) {
-      askThenRun({ type: 'switch', data: parts, mode: 'loadOnly' }, () => applySwitch(parts, true));
-      return;
-    }
-    // Ringing. How far past zero it counted is real elapsed time, and
-    // switching discards it as thoroughly as switching mid-countdown
-    // discards the time remaining.
-    if (isRunning && timeRef.current.seconds < 0) {
-      askThenRun({ type: 'switch', data: parts, mode: 'switchRunning' }, () => applySwitch(parts, true));
-      return;
-    }
-    // Idle at a different time: the question is only "this one?".
-    askThenRun({ type: 'switch', data: parts, mode: 'startFromIdle' }, () => applySwitch(parts, true));
-  }, [isRunning, isPaused, configuredTotalSeconds, applySwitch, askThenRun]);
-
-  const handleConfirmSwitch = (parts: TimeParts, start: boolean) => {
-    applySwitch(parts, start);
-    closeDialog();
-  };
+    applySwitch(parts, true);
+  }, [applySwitch]);
 
   // A preset list is a set of times, so adding one it already holds adds
   // nothing and says so instead, then flashes the existing row red to point
@@ -1037,21 +1002,13 @@ export default function Timer() {
     const id = uniqueId();
     setPresets((prev) => [...prev, { id, ...parts, timestamp: 0 }]);
     setInsertedPreset((prev) => bumpFlash(prev, id));
-    // Adding a time is a request to use it, so it runs. An unstarted timer
-    // has nothing on the clock to lose and just goes, which is the one
-    // place this differs from clicking the row afterwards; every other
-    // state has something to lose, so it asks first, in the same words and
-    // with the same "don't ask again" scope as the row would.
+    // Adding a time is a request to use it, so it runs, exactly as
+    // clicking the row afterwards would.
     // An out-of-range entry never reaches here: the panel sends it to the
     // correction dialog first, and only a corrected time is added.
-    if (timerStateKind() === 'unstarted') {
-      applySwitch(parts, true);
-    } else {
-      const mode = isPaused ? 'loadOnly' : 'switchRunning';
-      askThenRun({ type: 'switch', data: parts, mode }, () => applySwitch(parts, true));
-    }
+    applySwitch(parts, true);
     return true;
-  }, [presets, timerStateKind, isPaused, applySwitch, askThenRun]);
+  }, [presets, applySwitch]);
 
   // Two steps, so the delete animation plays after the question is
   // answered rather than before. Only a confirmed removal sets this, which
@@ -1176,43 +1133,18 @@ export default function Timer() {
     }
   }, [setterFor, flashSetterFor, configured]);
 
-  // Changing a field asks first, once per timer state, for all three
-  // fields together. An unstarted timer asks too: these fields are how the
-  // timer is set up, an arrow is one misclick, and a silently changed
-  // total is only noticeable if you read the digits before pressing START.
-  //
-  // Tracked by state kind rather than by transition, because setting a
-  // timer up means touching two or three fields in a row, which is one
-  // intent; and pausing to nudge a minute, resuming, then pausing to nudge
-  // again is still the same question about the same paused timer.
+  // Typing or nudging a field just applies. It used to ask once per timer
+  // state, which made setting a timer up — the most ordinary thing here —
+  // start with a dialog, and the arrows unusable as arrows.
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
     const previous = configured[unit];
     if (value === previous) return;
-
-    const state = timerStateKind();
-    if (!askedAdjustInStatesRef.current.has(state)) {
-      const next: DialogState = { type: 'adjust', data: { unit, value, previous, state } };
-      // Marked before asking, not after confirming: a cancelled question
-      // was still asked. The dismiss handler clears it again so cancelling
-      // doesn't hand the next adjustment a free pass.
-      askedAdjustInStatesRef.current.add(state);
-      askThenRun(next, () => {
-        askedAdjustInStatesRef.current.delete(state);
-        applyAdjustment(unit, value, previous);
-      });
-      return;
-    }
     applyAdjustment(unit, value, previous);
-  }, [configured, timerStateKind, applyAdjustment, askThenRun]);
+  }, [configured, applyAdjustment]);
 
   const handleHoursChange = useCallback((value: number) => requestConfiguredChange('hours', value), [requestConfiguredChange]);
   const handleMinutesChange = useCallback((value: number) => requestConfiguredChange('minutes', value), [requestConfiguredChange]);
   const handleSecondsChange = useCallback((value: number) => requestConfiguredChange('seconds', value), [requestConfiguredChange]);
-
-  const handleConfirmAdjust = (unit: TimeUnit, value: number, previous: number) => {
-    applyAdjustment(unit, value, previous);
-    closeDialog();
-  };
 
   const handleHideWebsiteLinkClick = () => {
     askThenRun({ type: 'hideWebsiteLink' }, () => setIsWebsiteLinkHidden(true));
@@ -1273,18 +1205,9 @@ export default function Timer() {
       case 'reset':
         handleConfirmReset();
         break;
-      case 'switch':
-        // Every mode starts the new time; they differ only in what they
-        // warned about first. The skipped-dialog path runs the same
-        // applySwitch through askThenRun, and the two have to agree.
-        handleConfirmSwitch(dialog.data, true);
-        break;
       case 'seek':
         applySeek(dialog.data.targetSeconds);
         closeDialog();
-        break;
-      case 'adjust':
-        handleConfirmAdjust(dialog.data.unit, dialog.data.value, dialog.data.previous);
         break;
       case 'hideWebsiteLink':
         setIsWebsiteLinkHidden(true);
@@ -1319,13 +1242,7 @@ export default function Timer() {
     }
   };
 
-  // Dismissing an 'adjust' has no edit to undo, since nothing was applied,
-  // but the once-per-state prompt has to re-arm or the next adjustment in
-  // that state would apply silently.
   const handleDialogDismiss = (dontAskAgain = false) => {
-    if (!justConfirmedRef.current && dialog.type === 'adjust') {
-      askedAdjustInStatesRef.current.delete(dialog.data.state);
-    }
     // An acknowledgement states what happened, so ESC has to leave the same
     // result behind as OK — the ticked box included. Anything else and the
     // text would be a lie for whoever dismissed it that way, and the

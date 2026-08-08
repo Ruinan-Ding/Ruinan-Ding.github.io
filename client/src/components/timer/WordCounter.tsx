@@ -52,6 +52,13 @@ const COUNTER_COLUMN_WIDTH = 'clamp(6rem, 12vw, 8rem)';
 // boxes stay aligned at any viewport.
 const COUNTER_FONT_SIZE = shrinkClamp(0.7, 1.6, 1.75, 0.95);
 const COUNTER_PADDING = shrinkClamp(0.5, 1, 1.1, 0.75);
+// The same padding vertically was 12px of nothing between the L/W/C boxes
+// and the first line, and another 12 between the last line and TOTAL. Only
+// the horizontal one is doing work — it holds the text off the thick
+// divider — so the vertical one shrinks and the typing area takes the 16px
+// back. The rules overlay and the textarea have to carry the identical
+// figure or every line box drifts from the rule under it.
+const COUNTER_PADDING_Y = shrinkClamp(0.15, 0.3, 0.35, 0.25);
 const COUNTER_GAP = '0.5rem';
 const COUNTER_LINE_HEIGHT = 1.6;
 const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
@@ -503,12 +510,20 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             </button>
 
             {/* Under the two switches it talks about, rather than trailing
-                them on the same line where it read as a third control. */}
+                them on the same line where it read as a third control.
+                It names the switch that's actually left, and once neither
+                is on it stops asking for anything and says what you have. */}
             <span
               className="counter-hint opacity-60 font-bold whitespace-nowrap"
               style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 0.9, 1, 0.65) }}
             >
-              Turn both off to count everything, like a classic word processor
+              {alnumWordsOnly && alnumCharsOnly
+                ? 'Turn both off to count everything, like a classic word processor'
+                : alnumWordsOnly
+                  ? 'Turn off alphanumeric words to count everything, like a classic word processor'
+                  : alnumCharsOnly
+                    ? 'Turn off alphanumeric chars to count everything, like a classic word processor'
+                    : 'Counting everything, like a classic word processor'}
             </span>
           </div>
 
@@ -572,7 +587,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             <div ref={rowsRef} aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
               {/* Set here so each row's 1.6em height equals a textarea
                   line box exactly. */}
-              <div className="zoom-safe-text" style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: COUNTER_LINE_HEIGHT, paddingTop: COUNTER_PADDING, paddingBottom: COUNTER_PADDING }}>
+              <div className="zoom-safe-text" style={{ fontSize: COUNTER_FONT_SIZE, lineHeight: COUNTER_LINE_HEIGHT, paddingTop: COUNTER_PADDING_Y, paddingBottom: COUNTER_PADDING_Y }}>
                 {lineStats.map((stat, idx) => (
                   <div key={idx} className="flex items-stretch" style={{ height: `${COUNTER_LINE_HEIGHT}em`, borderBottom: rowDivider(idx) }}>
                     {/* font-size goes on the number, not the row, so a
@@ -623,7 +638,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 right: 0,
                 fontFamily: "'IBM Plex Mono', monospace",
                 fontSize: COUNTER_FONT_SIZE,
-                padding: COUNTER_PADDING,
+                padding: `${COUNTER_PADDING_Y} ${COUNTER_PADDING}`,
                 lineHeight: COUNTER_LINE_HEIGHT,
                 whiteSpace: 'pre',
                 overflowWrap: 'normal',

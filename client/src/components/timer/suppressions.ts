@@ -17,10 +17,8 @@ const readKeys = (): string[] => {
 };
 
 // Which question a dialog is asking, which is not the same as its type:
-// several types ask different things depending on their mode, and
-// silencing one must not silence its siblings. "Load this preset onto an
-// idle timer" and "switch to it mid-run, losing progress" are both
-// `switch`.
+// `seek` asks a different thing depending on its mode, and silencing one
+// must not silence its siblings.
 //
 // null means the dialog can never be silenced. Only clearCache: it is the
 // site RESET, the one action that clears this list, so silencing it would
@@ -30,13 +28,6 @@ export const dialogKey = (dialog: DialogState): string | null => {
     case null:
     case 'clearCache':
       return null;
-    // One question per timer state, not per field. HOURS, MINUTES and
-    // SECONDS do the same thing, so answering for one answers for all
-    // three, but only in the state it was answered in.
-    case 'adjust':
-      return `adjust:${dialog.data.state}`;
-    case 'switch':
-      return `switch:${dialog.mode}`;
     case 'seek':
       return `seek:${dialog.data.mode}`;
     default:

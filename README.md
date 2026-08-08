@@ -13,7 +13,7 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 - Enter to start/pause/resume, R to reset, S to stop; Esc leaves the word counter
 - Mute toggle with a volume slider, plus an alarm repeat toggle (ring forever or ring once)
 - Light and dark themes
-- Confirmations before anything destructive, each with its own "don't ask this again", plus one switch to turn the lot off
+- Confirmations before anything destructive, each with its own "don't ask this again", plus one switch to turn the lot off. Loading a preset, setting the time and silencing an alarm that's already going off just happen
 - Live favicon and tab title showing timer state
 
 ## Usage

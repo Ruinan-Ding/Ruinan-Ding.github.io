@@ -93,7 +93,9 @@ function ClockCluster({
 
   // What the clock is on, plus the picker that changes it.
   const zoneBox = (
-    <span className="inline-flex items-center flex-shrink-0" style={{ fontSize: `max(0.5rem, calc(${fontSize} * 0.7))` }}>
+    // No font-size of its own: it used to run at 0.7 of the clock's, which
+    // left two boxes meant to read as a pair at visibly different heights.
+    <span className="inline-flex items-center flex-shrink-0">
       {/* A native select gets 400-odd options and type-to-find for free,
           but draws the selected option's own text, so the closed box and
           the open list would have to read the same. Drawing the select's
