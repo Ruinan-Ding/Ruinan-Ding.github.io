@@ -9,6 +9,10 @@ export interface TimerEntry {
 
 export type TimeUnit = 'hours' | 'minutes' | 'seconds';
 
+// 'ringing' is a running timer past zero, counting up with the alarm
+// going. 'unstarted' covers both a never-run timer and a stopped one.
+export type TimerStateKind = 'unstarted' | 'running' | 'paused' | 'ringing';
+
 // Which entry to flash, plus a token that bumps on every trigger, repeats
 // of the same id included, so a reselect inside the flash window replays
 // rather than no-opping on a same-value state update.
@@ -26,7 +30,14 @@ export type DialogState =
   | { type: 'reset' }
   | { type: 'clearCache' }
   | { type: 'mute' }
+  // Every mode runs the picked time and differs only in what's given up to
+  // do it. Also the "don't ask again" scope, so silencing the harmless one
+  // doesn't silence the two that discard a run in progress.
+  | { type: 'switch'; data: TimeParts; mode: 'startFromIdle' | 'switchRunning' | 'loadOnly' }
   | { type: 'seek'; data: { targetSeconds: number; mode: 'idle' | 'paused' | 'running' } }
+  // `state` is which timer state the adjustment was asked in. It picks the
+  // wording and doubles as the "don't ask again" scope; see dialogKey.
+  | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number; state: TimerStateKind } }
   | { type: 'hideWebsiteLink' }
   | { type: 'clearHistory' }
   | { type: 'clearPresets' }

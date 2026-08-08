@@ -44,6 +44,33 @@ const getCopy = (dialog: DialogState) => {
         description: 'Are you sure you want to reset the timer? It will restart from the beginning.',
         action: 'CONFIRM',
       };
+    case 'switch': {
+      const label = formatEntryLabel(dialog.data);
+      switch (dialog.mode) {
+        // Nothing to lose, so this skips the warning the other two need.
+        case 'startFromIdle':
+          return {
+            title: 'START TIMER',
+            description: `Start ${label}?`,
+            action: 'START',
+          };
+        // "Progress" covers both directions: time left on a countdown, or
+        // time counted past zero by an alarm still running.
+        case 'switchRunning':
+          return {
+            title: 'SWITCH TIMER',
+            description: `Switch to ${label}? It will start immediately, and current progress will be lost.`,
+            action: 'SWITCH',
+          };
+        // Replaces a paused or stopped-mid-progress timer.
+        case 'loadOnly':
+          return {
+            title: 'SWITCH TIMER',
+            description: `Switch to ${label}? It will start immediately, and the current remaining time will be discarded.`,
+            action: 'SWITCH',
+          };
+      }
+    }
     case 'seek': {
       const label = formatEntryLabel(fromTotalSeconds(dialog.data.targetSeconds));
       // Idle: nothing to resume into, so this sets a new configured time
@@ -61,6 +88,18 @@ const getCopy = (dialog: DialogState) => {
           ? `Move the timer to ${label}? It will wait there paused; the configured time stays the same.`
           : `Move the remaining time to ${label}? The configured time stays the same.`,
         action: 'MOVE',
+      };
+    }
+    case 'adjust': {
+      const { unit, value, state } = dialog.data;
+      return {
+        title: 'ADJUST TIME',
+        // An unstarted timer has no run to restart, and saying it would
+        // suggest this throws something away.
+        description: state === 'unstarted'
+          ? `Change ${unit} to ${value}? That's the time the timer will start from.`
+          : `Change ${unit} to ${value}? The timer will restart from the new time.`,
+        action: 'CONFIRM',
       };
     }
     case 'hideWebsiteLink':
@@ -106,7 +145,7 @@ const getCopy = (dialog: DialogState) => {
       return {
         title: 'TURN OFF CONFIRMATIONS',
         description:
-          "Turn off confirmations? Stopping, resetting, seeking the bar, muting, deleting a preset, clearing presets or history, correcting an out-of-range preset, pointing out a preset you already have and hiding the website link will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice. To silence just one of these instead, tick \"Don't ask this again\" in its own dialog.",
+          "Turn off confirmations? Stopping, resetting, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset, clearing history, correcting an out-of-range preset, pointing out a preset you already have and hiding the website link will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice. To silence just one of these instead, tick \"Don't ask this again\" in its own dialog.",
         action: 'TURN OFF',
       };
     case 'clearWordCounter':

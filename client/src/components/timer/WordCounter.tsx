@@ -528,30 +528,34 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {text !== '' && (
-              <>
-                {/* The label reports the result rather than assuming it:
-                    writeText can be refused. minWidth holds the box at its
-                    longest label so the buttons beside it don't shuffle
-                    when it changes. */}
-                <button
-                  onClick={handleCopy}
-                  title="Copy all text to the clipboard"
-                  aria-label="Copy text to clipboard"
-                  className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0 text-center"
-                  style={{ fontSize: ACTION_FONT_SIZE, minWidth: '5.6em' }}
-                >
-                  {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Failed' : 'Copy'}
-                </button>
-                <button
-                  onClick={() => (isDialogSuppressed(CLEAR_DIALOG) ? setText('') : setClearDialog(CLEAR_DIALOG))}
-                  className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0"
-                  style={{ fontSize: ACTION_FONT_SIZE }}
-                >
-                  Clear
-                </button>
-              </>
-            )}
+            {/* Disabled on an empty box rather than removed from it: two
+                buttons appearing and disappearing as you type and delete
+                shuffled the row, and a control you can see greyed out is
+                one you can find again. Same disabled treatment as the
+                timer's own START/RESET/STOP. */}
+            {/* The label reports the result rather than assuming it:
+                writeText can be refused. minWidth holds the box at its
+                longest label so the buttons beside it don't shuffle
+                when it changes. */}
+            <button
+              onClick={handleCopy}
+              disabled={text === ''}
+              title={text === '' ? 'Nothing to copy yet' : 'Copy all text to the clipboard'}
+              aria-label="Copy text to clipboard"
+              className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0 text-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-white"
+              style={{ fontSize: ACTION_FONT_SIZE, minWidth: '5.6em' }}
+            >
+              {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Failed' : 'Copy'}
+            </button>
+            <button
+              onClick={() => (isDialogSuppressed(CLEAR_DIALOG) ? setText('') : setClearDialog(CLEAR_DIALOG))}
+              disabled={text === ''}
+              title={text === '' ? 'Nothing to clear yet' : 'Clear everything typed here'}
+              className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-white"
+              style={{ fontSize: ACTION_FONT_SIZE }}
+            >
+              Clear
+            </button>
             {/* Filled red in fullscreen: it's the only way back out, so it
                 reads as the exit rather than one more square in the row. */}
             <button
