@@ -31,9 +31,16 @@ const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrin
 // footprint on a short window.
 const TIME_FIELDS_TOP_MARGIN = { marginTop: `calc(${HEADER_BUTTON_SIZE.height} + 0.5rem)` };
 
-// Sound waves grow in as the volume rises; an X when muted.
+// Sound waves grow in as the volume rises. Two ways to be silent, and they
+// don't draw the same, because they aren't the same thing and the fix for
+// one isn't the fix for the other: muted is a switch, and clicking the
+// button undoes it; 0% is a level, and only the slider moves it. Muted
+// gets a red slash straight through the whole icon — a "no" sign, readable
+// at a glance and at the smallest size this shrinks to. A silent slider
+// keeps the small grey X beside the speaker: same speaker, no waves left.
 function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean; color: string }) {
   const wave = (threshold: number) => Math.max(0, Math.min(1, (volume - threshold) / 0.25));
+  const silentSlider = !muted && volume === 0;
   return (
     <svg
       viewBox="0 0 24 24"
@@ -45,18 +52,23 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
       style={{ width: shrinkClamp(1.1, 3, 3, 2), height: shrinkClamp(1.1, 3, 3, 2) }}
     >
       <polygon points="9 5 4 9 1 9 1 15 4 15 9 19 9 5" fill={color} />
-      {muted ? (
-        <>
-          <line x1="14" y1="9" x2="20" y2="15" />
-          <line x1="20" y1="9" x2="14" y2="15" />
-        </>
-      ) : (
+      {!muted && (
         <>
           <path d="M12.5 9.5a3.5 3.5 0 0 1 0 5" opacity={wave(0)} />
           <path d="M15 7a7 7 0 0 1 0 10" opacity={wave(0.33)} />
           <path d="M17.5 4.5a10.5 10.5 0 0 1 0 15" opacity={wave(0.66)} />
         </>
       )}
+      {silentSlider && (
+        <>
+          <line x1="14" y1="9" x2="20" y2="15" />
+          <line x1="20" y1="9" x2="14" y2="15" />
+        </>
+      )}
+      {/* Drawn last and in its own red, so it reads over the speaker
+          rather than beside it, and stays the one red thing in the corner
+          whatever colour the button itself is wearing. */}
+      {muted && <line x1="3" y1="3" x2="21" y2="21" stroke="#ef4444" strokeWidth={2.5} />}
     </svg>
   );
 }
@@ -691,7 +703,17 @@ export default function Timer() {
       setHasRungOut(true);
       return;
     }
-    alarmRungThisOvertimeRef.current = true;
+    // Spent by a ring that was heard, not by one that only flashed. A
+    // muted overtime period ran the pattern to the end and marked the
+    // single repeat-off ring as used, so unmuting afterwards was silent
+    // for the rest of that period — the one ring had been spent on nobody.
+    // Muted, this leaves the flashing to play and the allowance intact;
+    // unmuting re-runs this effect, which rewinds the pattern and rings it
+    // properly. isSilentMode is a dependency for exactly that reason, and
+    // the tick position is a ref so the toggle continues rather than
+    // restarts whenever the ring was already audible.
+    if (!isSilentMode) alarmRungThisOvertimeRef.current = true;
+    else alarmTickRef.current = 0;
 
     const pattern: boolean[] = [];
     for (let burst = 0; burst < ALARM_TOTAL_BURSTS; burst++) {
@@ -702,13 +724,18 @@ export default function Timer() {
 
     const playTick = () => {
       // With repeat off the ring is one full pass through the pattern,
-      // every burst of it, not just the first.
+      // every burst of it, not just the first. A muted pass leaves the
+      // allowance unspent, so it doesn't end here — it keeps flashing to
+      // the end of the overtime period, and unmuting still gets a ring.
       if (!isAlarmLooping && alarmTickRef.current >= pattern.length) {
-        if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
-        beepIntervalRef.current = null;
-        setIsAlarmRinging(false);
-        setHasRungOut(true);
-        return;
+        if (alarmRungThisOvertimeRef.current) {
+          if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
+          beepIntervalRef.current = null;
+          setIsAlarmRinging(false);
+          setHasRungOut(true);
+          return;
+        }
+        alarmTickRef.current = 0;
       }
       if (pattern[alarmTickRef.current % pattern.length]) {
         if (!isSilentModeRef.current) beep(...TONES.alarm);
@@ -728,7 +755,7 @@ export default function Timer() {
       setIsAlarmRinging(false);
       setIsBeepFlash(false);
     };
-  }, [isAlarmActive, isAlarmLooping, beep]);
+  }, [isAlarmActive, isAlarmLooping, isSilentMode, beep]);
 
   // Leaving mid-run throws the run away, so it asks first. The browser
   // owns this one: its own wording, no styling, and it stays quiet until
@@ -791,6 +818,11 @@ export default function Timer() {
       // NumpadEnter and is the same key to anyone pressing it.
       const action = e.key === 'Enter' ? 'Enter' : e.code === 'KeyS' || e.code === 'KeyR' ? e.code : null;
       if (!action) return;
+      // Autorepeat is not three hundred presses. Held down, Enter fired
+      // ~30 pause/resume toggles a second — each with its own oscillator —
+      // and left the timer running or paused on the parity of how long the
+      // key was down.
+      if (e.repeat) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       // Anything focused that wants the key itself keeps it, and which
       // controls those are depends on the key. ENTER presses whatever is
@@ -1585,8 +1617,8 @@ export default function Timer() {
   // which is a thumb's worth.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${boxClamp(0.5, 1.5, 3.7, 0.85)} ${fitClamp(0.6, 2.8, 1.7)}`,
-    fontSize: boxClamp(0.85, 2.2, 5.5, 1.4),
+    padding: `${boxClamp(0.3, 1.5, 3.7, 0.85)} ${fitClamp(0.45, 2.8, 1.7)}`,
+    fontSize: boxClamp(0.7, 2.2, 5.5, 1.4),
     borderColor: color,
     color,
     // A surface-coloured chip keeps the borders readable on the coloured
@@ -1627,14 +1659,23 @@ export default function Timer() {
         className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80"
         style={{
           ...HEADER_BUTTON_SIZE,
-          borderColor: isSilentMode ? 'var(--app-ink)' : '#22c55e',
+          // Red for muted, matching the slash inside; grey for a slider at
+          // 0, which is silent but not switched off; green otherwise.
+          borderColor: isSilentMode ? '#ef4444' : volume === 0 ? 'var(--app-ink)' : '#22c55e',
           backgroundColor: 'var(--app-surface)',
           fontFamily: "'IBM Plex Mono', monospace",
         }}
-        title={isSilentMode ? 'Click to unmute' : 'Click to mute'}
+        // A slider at 0 says so, and says which control moves it: the
+        // button can't, so offering "click to unmute" there would be a
+        // button promising something it doesn't do.
+        title={isSilentMode
+          ? 'Muted — click to unmute'
+          : volume === 0
+            ? 'Volume is 0% — raise the slider to hear the alarm'
+            : 'Click to mute'}
         aria-label={isSilentMode ? 'Unmute' : 'Mute'}
       >
-        <SpeakerIcon volume={volume} muted={isSilentMode} color={isSilentMode ? 'var(--app-ink)' : '#22c55e'} />
+        <SpeakerIcon volume={volume} muted={isSilentMode} color={isSilentMode ? '#ef4444' : volume === 0 ? 'var(--app-ink)' : '#22c55e'} />
       </button>
 
       {/* Volume slider: revealed on hover/focus; releasing it previews
@@ -2179,7 +2220,7 @@ export default function Timer() {
                   at the digit size that reads as a hole rather than a
                   space. Neither line has a descender to lose — the labels
                   are digits, colons and h/m/s. */}
-              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(1.2, 2.8, 3, 2.5), letterSpacing: '0.05em' }}>
+              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(0.95, 2.8, 3, 2.5), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
               <div
@@ -2221,7 +2262,7 @@ export default function Timer() {
             <div className="text-center">
               <div
                 className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-                style={{ fontSize: shrinkClamp(0.8, 1.9, 2, 1.25), ...textGlowStyle }}
+                style={{ fontSize: shrinkClamp(0.7, 1.9, 2, 1.25), ...textGlowStyle }}
               >
                 {status}
               </div>

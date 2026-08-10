@@ -166,8 +166,13 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   // it resets between two dialogs that follow each other with no gap.
   const [dontAskAgain, setDontAskAgain] = useState(false);
   const key = dialogKey(dialog);
+  // Whether focus has been moved by hand since this dialog opened, which
+  // is what separates "Enter, having read the question" from "Enter, on
+  // the button I just tabbed to". Reset per question, like the checkbox.
+  const focusMovedRef = useRef(false);
   useEffect(() => {
     if (key !== null) setDontAskAgain(false);
+    focusMovedRef.current = false;
   }, [key]);
   // A dialog that can never be silenced renders without the row. Held
   // through the exit animation like the copy above.
@@ -193,6 +198,12 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           // reaching for the box by keyboard — throwing away the very
           // preference being reached for.
           //
+          // And except on a button, which Enter is supposed to press. That
+          // exception is the whole point of the rule above holding only
+          // while focus is where Radix left it: someone who tabbed onto
+          // CANCEL and pressed Enter was confirming instead, so the one way
+          // a keyboard user can say no deleted their presets.
+          //
           // Space answers nothing. Left to the browser it presses whatever
           // holds focus, and Radix focuses Cancel on open, so a spacebar
           // reflex cancelled the question — the same act as ESC, from a key
@@ -204,7 +215,21 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             e.stopPropagation();
             return;
           }
+          if (e.key === 'Tab') {
+            focusMovedRef.current = true;
+            return;
+          }
           if (e.key !== 'Enter') return;
+          // Once focus has been moved by hand, the button under it presses
+          // itself, whichever one that is. Radix opens with CANCEL focused
+          // and this fires for its descendants too, so without the Tab
+          // check "Enter confirms" also fired for someone who had tabbed
+          // onto CANCEL deliberately and pressed the key it advertises —
+          // the one way to say no, deleting the presets instead.
+          if (focusMovedRef.current && (e.target as HTMLElement).closest('button')) {
+            e.stopPropagation();
+            return;
+          }
           if ((e.target as HTMLElement).closest('[data-dont-ask]')) return;
           e.preventDefault();
           e.stopPropagation();

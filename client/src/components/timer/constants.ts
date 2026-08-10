@@ -15,7 +15,7 @@ export const TOGGLE_FONT_SIZE = shrinkClamp(0.65, 1.35, 1.5, 0.85);
 // One size for the whole wall clock. Its widest line has to fit the
 // digits column (40vw); the floor stops just above where a 0.9em checkbox
 // has no room inside its own border for a dot.
-export const CLOCK_FONT_SIZE = shrinkClamp(0.65, 1.5, 1.6, 1.35);
+export const CLOCK_FONT_SIZE = shrinkClamp(0.55, 1.5, 1.6, 1.35);
 // The same clock for the word counter's fullscreen header, where it gets
 // whatever the countdown, bar and buttons leave. Then capped again by
 // that leftover: the date is 17 monospace characters at 0.6em, so it
