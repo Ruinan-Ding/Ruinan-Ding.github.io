@@ -707,13 +707,21 @@ export default function Timer() {
     // muted overtime period ran the pattern to the end and marked the
     // single repeat-off ring as used, so unmuting afterwards was silent
     // for the rest of that period — the one ring had been spent on nobody.
-    // Muted, this leaves the flashing to play and the allowance intact;
-    // unmuting re-runs this effect, which rewinds the pattern and rings it
-    // properly. isSilentMode is a dependency for exactly that reason, and
-    // the tick position is a ref so the toggle continues rather than
-    // restarts whenever the ring was already audible.
-    if (!isSilentMode) alarmRungThisOvertimeRef.current = true;
-    else alarmTickRef.current = 0;
+    // isSilentMode is a dependency so unmuting comes back through here.
+    //
+    // Rewound to the top, not resumed. The pattern is 25 ticks and its
+    // last 10 are the gap between groups, so continuing from wherever the
+    // silent pass had reached meant unmuting inside that gap heard
+    // nothing at all and then stopped — which is 40% of the cycle, and
+    // exactly what "unmuting doesn't ring" was. Only on the first audible
+    // pass: once the allowance is spent, a mute/unmute mid-ring continues
+    // where it was rather than starting the bursts again.
+    if (!isSilentMode) {
+      if (!alarmRungThisOvertimeRef.current) alarmTickRef.current = 0;
+      alarmRungThisOvertimeRef.current = true;
+    } else {
+      alarmTickRef.current = 0;
+    }
 
     const pattern: boolean[] = [];
     for (let burst = 0; burst < ALARM_TOTAL_BURSTS; burst++) {
@@ -724,18 +732,15 @@ export default function Timer() {
 
     const playTick = () => {
       // With repeat off the ring is one full pass through the pattern,
-      // every burst of it, not just the first. A muted pass leaves the
-      // allowance unspent, so it doesn't end here — it keeps flashing to
-      // the end of the overtime period, and unmuting still gets a ring.
+      // every burst of it, not just the first. A silent pass ends here too
+      // rather than flashing on forever — what it leaves behind is the
+      // allowance, so unmuting starts a fresh, audible one.
       if (!isAlarmLooping && alarmTickRef.current >= pattern.length) {
-        if (alarmRungThisOvertimeRef.current) {
-          if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
-          beepIntervalRef.current = null;
-          setIsAlarmRinging(false);
-          setHasRungOut(true);
-          return;
-        }
-        alarmTickRef.current = 0;
+        if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
+        beepIntervalRef.current = null;
+        setIsAlarmRinging(false);
+        setHasRungOut(true);
+        return;
       }
       if (pattern[alarmTickRef.current % pattern.length]) {
         if (!isSilentModeRef.current) beep(...TONES.alarm);
