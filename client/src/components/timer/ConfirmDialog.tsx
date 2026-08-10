@@ -87,11 +87,14 @@ const getCopy = (dialog: DialogState) => {
       const { unit, value, state } = dialog.data;
       return {
         title: 'ADJUST TIME',
-        // An unstarted timer has no run to restart, and saying it would
-        // suggest this throws something away.
+        // Two different acts under one title. Idle, these fields are the
+        // timer's setup and this sets what it starts from. Running or
+        // paused they're the time left, and this moves that without
+        // touching the total — which is what STOP and RESET go back to,
+        // and what the bar is drawn against.
         description: state === 'unstarted'
           ? `Change ${unit} to ${value}? That's the time the timer will start from.`
-          : `Change ${unit} to ${value}? The timer will restart from the new time.`,
+          : `Change the remaining ${unit} to ${value}? The configured time stays the same.`,
         action: 'CONFIRM',
       };
     }

@@ -1186,25 +1186,40 @@ export default function Timer() {
     []
   );
 
-  // Applies a change to one unit and restarts the countdown from the new
-  // total. A running timer keeps running from the top, a paused one waits
-  // there, a ringing one restarts.
+  // The only place a field edit lands, and it means two different things
+  // either side of START.
   //
-  // The only place a field edit lands. Applying it up front and undoing it
-  // on dismiss meant the configured total changed underneath the dialog
-  // still asking whether to change it. `previous` is passed in because a
-  // confirmed call needs the value it changed from to pick the flash
-  // direction, after `configured` has moved on.
+  // Idle, the fields are the timer's setup: an edit sets the configured
+  // total and the countdown snaps to it.
+  //
+  // Running or paused, the fields are the time left, ticking down. An edit
+  // there moves the remaining time and leaves the total alone — so STOP
+  // and RESET still return to what was configured, and the bar keeps the
+  // scale it was drawn at. Which is what lets remaining exceed the bar;
+  // see isOverBar.
+  //
+  // `previous` is passed in because a confirmed call needs the value it
+  // changed from to pick the flash direction, after the displayed parts
+  // have moved on. Applying up front and undoing on dismiss meant the
+  // total changed underneath the dialog still asking whether to change it.
   const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
-    setterFor(unit)(value);
-    if (timeRef.current.seconds < 0) setIsPaused(false);
-    restartCountdown(toTotalSeconds({ ...configured, [unit]: value }));
+    if (hasRunToLose()) {
+      // Off the live remaining time rather than `configured`, which is no
+      // longer what these fields are showing.
+      const shown = fromTotalSeconds(Math.max(0, timeRef.current.seconds));
+      clearAlarmInterval();
+      setTime({ seconds: toTotalSeconds({ ...shown, [unit]: value }), milliseconds: 0 });
+    } else {
+      setterFor(unit)(value);
+      if (timeRef.current.seconds < 0) setIsPaused(false);
+      restartCountdown(toTotalSeconds({ ...configured, [unit]: value }));
+    }
     // The hour digit drops out of the display at 0, so there's nothing
     // left to draw attention to.
     if (unit !== 'hours' || value > 0) {
       flashSetterFor(unit)((prev) => ({ token: prev.token + 1, direction: value >= previous ? 'inc' : 'dec' }));
     }
-  }, [setterFor, flashSetterFor, configured]);
+  }, [hasRunToLose, setterFor, flashSetterFor, configured]);
 
   // Changing a field asks first, once per timer state, for all three
   // fields together — but only while there's a run to restart. Setting a
@@ -1216,7 +1231,13 @@ export default function Timer() {
   // intent; and pausing to nudge a minute, resuming, then pausing to nudge
   // again is still the same question about the same paused timer.
   const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
-    const previous = configured[unit];
+    // Compared against what the field is showing, not against the
+    // configured total: while a run is on the clock those are different
+    // numbers, and reading the wrong one makes an arrow that changes the
+    // display look like a no-op and skip.
+    const previous = hasRunToLose()
+      ? fromTotalSeconds(Math.max(0, timeRef.current.seconds))[unit]
+      : configured[unit];
     if (value === previous) return;
 
     const state = timerStateKind();
@@ -1399,6 +1420,16 @@ export default function Timer() {
   const configuredMs = configuredTotalSeconds * 1000;
   const remainingMs = Math.max(0, seconds * 1000 + milliseconds);
   const timeFraction = configuredMs > 0 ? Math.min(1, remainingMs / configuredMs) : 0;
+  // What the HOURS/MINUTES/SECONDS fields show: the time left while a run
+  // is on the clock, the configured time otherwise. Clamped at zero rather
+  // than following the count-up, since these three boxes are unsigned and
+  // the digits above already carry the overtime.
+  const fieldParts = hasRunToLose() ? fromTotalSeconds(Math.max(0, seconds)) : configured;
+  // Remaining past the end of the bar, which an edit to those fields can
+  // do now that they move the run without moving its total. There's no
+  // honest fill for "more than full", so the track waves green until the
+  // countdown comes back into range and the drain picks up from there.
+  const isOverBar = configuredMs > 0 && remainingMs > configuredMs;
   // Pausing mid-overtime would otherwise leave the bar at 0% and
   // invisible, so it stays full and red instead.
   const isPausedOvertime = isPaused && seconds < 0;
@@ -1477,15 +1508,22 @@ export default function Timer() {
           {formatEntryLabel(fromTotalSeconds(barHover.seconds))}
         </div>
       )}
-      {/* The animation's background-color wins over the inline hue. Both
-          bar animations run out of step with the window's own flash so the
+      {/* The animation's background-color wins over the inline hue. Every
+          bar animation runs out of step with the window's own flash so the
           bar stays visible against it: paused alternates yellow at a
-          quarter of the window's rate, and a red bar only flashes while
-          actually ringing, or paused mid-overtime with repeat on. */}
+          quarter of the window's rate, a red bar only flashes while
+          actually ringing or paused mid-overtime with repeat on, and the
+          over-range wave is a green sweep along a full track — a fill that
+          can't say how full it is, saying that instead. */}
       <div
-        className={isAlarmRinging || (isPausedOvertime && isAlarmLooping) ? 'animate-alarmFlashBar' : isPaused && !isPausedOvertime ? 'animate-pauseFlashBar' : ''}
+        className={
+          isOverBar ? 'animate-waveGreenBar'
+            : isAlarmRinging || (isPausedOvertime && isAlarmLooping) ? 'animate-alarmFlashBar'
+              : isPaused && !isPausedOvertime ? 'animate-pauseFlashBar'
+                : ''
+        }
         style={{
-          width: `${(isBarRedState ? 1 : timeFraction) * 100}%`,
+          width: `${(isBarRedState || isOverBar ? 1 : timeFraction) * 100}%`,
           height: '100%',
           backgroundColor: barFillColor,
         }}
@@ -1888,9 +1926,9 @@ export default function Timer() {
         className="border-4 border-white bg-black flex flex-col w-fit time-fields-box"
         style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
       >
-        <TimeField label="HOURS" placeholder="HH" value={hours} max={MAX_HOURS} stacked={isTimeFieldsStacked} onRequestChange={handleHoursChange} />
-        <TimeField label="MINUTES" placeholder="MM" value={minutes} max={MAX_MINUTES} stacked={isTimeFieldsStacked} onRequestChange={handleMinutesChange} />
-        <TimeField label="SECONDS" placeholder="SS" value={timerSeconds} max={MAX_SECONDS} stacked={isTimeFieldsStacked} onRequestChange={handleSecondsChange} />
+        <TimeField label="HOURS" placeholder="HH" value={fieldParts.hours} max={MAX_HOURS} stacked={isTimeFieldsStacked} onRequestChange={handleHoursChange} />
+        <TimeField label="MINUTES" placeholder="MM" value={fieldParts.minutes} max={MAX_MINUTES} stacked={isTimeFieldsStacked} onRequestChange={handleMinutesChange} />
+        <TimeField label="SECONDS" placeholder="SS" value={fieldParts.seconds} max={MAX_SECONDS} stacked={isTimeFieldsStacked} onRequestChange={handleSecondsChange} />
       </div>
     </div>
   );

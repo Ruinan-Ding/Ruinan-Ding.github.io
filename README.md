@@ -18,7 +18,7 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 
 ## Usage
 
-Set a time with the input fields or a preset, then press START (or Enter). PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Confirmation dialogs take Enter for yes and Esc for no. Everything persists across page reloads; the bin button in the top-right restores the site to defaults.
+Set a time with the input fields or a preset, then press START (or Enter). Once it's running those fields become the time left, ticking down — editing one moves the run without changing the total, so STOP still returns to what you configured. PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Confirmation dialogs take Enter for yes and Esc for no. Everything persists across page reloads; the bin button in the top-right restores the site to defaults.
 
 Tip: for a stopwatch, turn off the alarm repeat toggle and set the time to 00:00:00 — it rings once, then keeps counting silently.
 
