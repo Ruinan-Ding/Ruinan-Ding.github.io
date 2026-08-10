@@ -206,8 +206,13 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
         // confirms untouched, and CANCEL cancels once you move to it. The
         // buttons keep their own contract and the special case is gone.
         onOpenAutoFocus={(e) => {
+          // Only take the focus over if there's something to take it to.
+          // preventDefault with nothing focused afterwards leaves it on the
+          // body, where ENTER and ESC reach the window's timer shortcuts
+          // and act on the run behind the dialog.
+          if (!actionRef.current) return;
           e.preventDefault();
-          actionRef.current?.focus();
+          actionRef.current.focus();
         }}
         onKeyDown={(e) => {
           // Space answers nothing. Left to the browser it presses whatever
@@ -248,11 +253,11 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
         <div className="flex gap-3 justify-end items-center">
           {acknowledgeRef.current ? (
             // One button, and it's the Cancel element rather than the
-            // Action on purpose: Radix focuses Cancel when the dialog
-            // opens, and with no Cancel to find it focuses nothing at all,
-            // which left ENTER and ESC going to the page behind the dialog.
-            // Nothing is lost by it being Cancel, since an acknowledgement
-            // has nothing to decline and all three do the same thing.
+            // Action on purpose: Radix wants a Cancel in an AlertDialog,
+            // and an acknowledgement has nothing to decline — ENTER, ESC
+            // and the click all land on the same result, which is what the
+            // label says. It carries actionRef like the Action does in the
+            // two-button case, so ENTER opens pointed at it either way.
             <AlertDialogCancel
               ref={actionRef}
               onClick={() => onConfirm(dontAskAgain)}
