@@ -63,6 +63,11 @@ const getCopy = (dialog: DialogState) => {
             action: 'SWITCH',
           };
       }
+      // Unreachable while the union holds, and here so that stops being
+      // load-bearing: without it a mode added later falls through into
+      // 'seek', reads targetSeconds off a TimeParts and renders
+      // "Move the timer to undefined:NaN?" with no type error.
+      return null;
     }
     case 'seek': {
       const label = formatEntryLabel(fromTotalSeconds(dialog.data.targetSeconds));
@@ -141,7 +146,7 @@ const getCopy = (dialog: DialogState) => {
       return {
         title: 'TURN OFF CONFIRMATIONS',
         description:
-          "Turn off confirmations? Stopping, resetting, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset, clearing history, correcting an out-of-range preset, pointing out a preset you already have and hiding the website link will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice. To silence just one of these instead, tick \"Don't ask this again\" in its own dialog.",
+          "Turn off confirmations? Stopping, resetting, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset, clearing presets or history, correcting an out-of-range preset, pointing out a preset you already have and hiding the website link will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice. To silence just one of these instead, tick \"Don't ask this again\" in its own dialog.",
         action: 'TURN OFF',
       };
     case 'clearWordCounter':
@@ -169,14 +174,12 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   // it resets between two dialogs that follow each other with no gap.
   const [dontAskAgain, setDontAskAgain] = useState(false);
   const key = dialogKey(dialog);
-  // Whether focus has been moved by hand since this dialog opened, which
-  // is what separates "Enter, having read the question" from "Enter, on
-  // the button I just tabbed to". Reset per question, like the checkbox.
-  const focusMovedRef = useRef(false);
   useEffect(() => {
     if (key !== null) setDontAskAgain(false);
-    focusMovedRef.current = false;
   }, [key]);
+  // The button ENTER should land on when the dialog opens: the action on a
+  // two-button dialog, the single OK on an acknowledgement.
+  const actionRef = useRef<HTMLButtonElement>(null);
   // A dialog that can never be silenced renders without the row. Held
   // through the exit animation like the copy above.
   const suppressibleRef = useRef(false);
@@ -188,55 +191,36 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
     <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss(dontAskAgain)}>
       <AlertDialogContent
         className="bg-black border-4 border-white p-4 gap-3"
+        // Focus the answer, don't intercept the key. Radix opens with
+        // CANCEL focused, so ENTER — which this app advertises as yes —
+        // landed on no, and the fix for that was a handler that confirmed
+        // whatever held focus. Which meant tabbing onto CANCEL and pressing
+        // the key printed on it confirmed as well: the one way a keyboard
+        // user says no, deleting their presets. Guarding that on "has focus
+        // moved" only pushed the hole around — a keydown listener for Tab
+        // can't see focus moved by mouse, by arrow key, or by anything
+        // else.
+        //
+        // Putting focus where the default action already is needs no
+        // interception at all: ENTER presses what it is pointed at, so it
+        // confirms untouched, and CANCEL cancels once you move to it. The
+        // buttons keep their own contract and the special case is gone.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          actionRef.current?.focus();
+        }}
         onKeyDown={(e) => {
-          // Enter confirms whatever the dialog asked, not whichever button
-          // happens to hold focus — Radix focuses Cancel on open, so the
-          // default would answer no to a question the key is meant to
-          // answer yes to. preventDefault is what stops that, and
-          // stopPropagation keeps the same keystroke from carrying on to
-          // the window listener and starting the timer behind the dialog.
-          //
-          // Except on the "don't ask again" checkbox, where Enter ticks it,
-          // and confirming would answer the dialog out from under someone
-          // reaching for the box by keyboard — throwing away the very
-          // preference being reached for.
-          //
-          // And except on a button, which Enter is supposed to press. That
-          // exception is the whole point of the rule above holding only
-          // while focus is where Radix left it: someone who tabbed onto
-          // CANCEL and pressed Enter was confirming instead, so the one way
-          // a keyboard user can say no deleted their presets.
-          //
           // Space answers nothing. Left to the browser it presses whatever
-          // holds focus, and Radix focuses Cancel on open, so a spacebar
-          // reflex cancelled the question — the same act as ESC, from a key
-          // nothing in the dialog offers as an answer. ENTER confirms and
-          // ESC cancels, and both say so on the buttons.
-          if (e.key === ' ') {
-            if ((e.target as HTMLElement).closest('[data-dont-ask]')) return;
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-          if (e.key === 'Tab') {
-            focusMovedRef.current = true;
-            return;
-          }
-          if (e.key !== 'Enter') return;
-          // Once focus has been moved by hand, the button under it presses
-          // itself, whichever one that is. Radix opens with CANCEL focused
-          // and this fires for its descendants too, so without the Tab
-          // check "Enter confirms" also fired for someone who had tabbed
-          // onto CANCEL deliberately and pressed the key it advertises —
-          // the one way to say no, deleting the presets instead.
-          if (focusMovedRef.current && (e.target as HTMLElement).closest('button')) {
-            e.stopPropagation();
-            return;
-          }
+          // holds focus, so a spacebar reflex answered a question it
+          // doesn't advertise an answer to. ENTER confirms and ESC cancels,
+          // and both say so on the buttons.
+          //
+          // Except on the "don't ask again" checkbox, which Space ticks —
+          // that's the one control here Space belongs to.
+          if (e.key !== ' ') return;
           if ((e.target as HTMLElement).closest('[data-dont-ask]')) return;
           e.preventDefault();
           e.stopPropagation();
-          onConfirm(dontAskAgain);
         }}
       >
         <AlertDialogHeader>
@@ -270,6 +254,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // Nothing is lost by it being Cancel, since an acknowledgement
             // has nothing to decline and all three do the same thing.
             <AlertDialogCancel
+              ref={actionRef}
               onClick={() => onConfirm(dontAskAgain)}
               className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
             >
@@ -284,6 +269,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
                 CANCEL <span className="opacity-60 font-normal">(ESC)</span>
               </AlertDialogCancel>
               <AlertDialogAction
+                ref={actionRef}
                 onClick={() => onConfirm(dontAskAgain)}
                 className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
               >

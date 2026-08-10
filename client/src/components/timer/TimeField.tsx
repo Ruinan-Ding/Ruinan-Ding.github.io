@@ -9,6 +9,9 @@ interface TimeFieldProps {
   placeholder: string;
   value: number;
   max: number;
+  // Whether `value` is the ticking remaining time rather than a setting
+  // sitting still. Only the chevrons' disabled state cares.
+  live: boolean;
   // Label above the digit box rather than beside it: a third of the width
   // at roughly 1.4x the height. Driven from Timer so all three switch
   // together.
@@ -31,7 +34,7 @@ const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.7, 1.2, 1.35, 1.25), height: sh
 // Unlike the preset input, this one doesn't need an onFocus pinCaret:
 // focusing always changes the displayed value (blank to placeholder), and
 // useDigitEntry's value-change effect re-pins the caret for us.
-function TimeField({ label, placeholder, value, max, stacked, onRequestChange }: TimeFieldProps) {
+function TimeField({ label, placeholder, value, max, live, stacked, onRequestChange }: TimeFieldProps) {
   const clamp = (next: number) => Math.max(0, Math.min(max, next));
   const step = (base: number, direction: number) => clamp(base + direction);
 
@@ -141,7 +144,13 @@ function TimeField({ label, placeholder, value, max, stacked, onRequestChange }:
         <div className="flex flex-col gap-1">
           <button
             onClick={() => onRequestChange(step(value, 1))}
-            disabled={value >= max}
+            // Not disabled at the ends of the range while `value` is a
+            // live readout: the seconds field passes 0 and 59 once a
+            // minute, and greying an arrow out for a second each time —
+            // on a field that is otherwise always adjustable — turns a
+            // reach for it into a dead click. step() clamps anyway, so the
+            // press at the end is a no-op rather than a wrap.
+            disabled={!live && value >= max}
             aria-label={`Increase ${label.toLowerCase()}`}
             className={chevronButtonClass}
             style={chevronButtonStyle}
@@ -150,7 +159,7 @@ function TimeField({ label, placeholder, value, max, stacked, onRequestChange }:
           </button>
           <button
             onClick={() => onRequestChange(step(value, -1))}
-            disabled={value <= 0}
+            disabled={!live && value <= 0}
             aria-label={`Decrease ${label.toLowerCase()}`}
             className={chevronButtonClass}
             style={chevronButtonStyle}

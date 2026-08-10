@@ -524,13 +524,29 @@ export default function Timer() {
     return 'unstarted';
   }, [isRunning, isPaused]);
 
-  // The two states with a run on the clock to lose. A ringing timer has
-  // only a count-up reading, and an unstarted one has nothing at all, so
-  // neither is worth a dialog between you and what you just clicked.
+  // Two different questions, and folding them together was a bug.
+  //
+  // hasRunToLose is about confirmations: which states are worth a dialog
+  // between you and what you just clicked. A ringing timer is one you're
+  // trying to deal with and an unstarted one has nothing at stake, so
+  // neither asks.
+  //
+  // isLiveRun is about what the time fields MEAN: any started timer,
+  // whichever side of zero it's on. Reading the confirmation question here
+  // instead made the fields snap from 00:00:00 back to the configured
+  // total the instant the countdown crossed zero, because a ringing timer
+  // has no run to lose but very much has a run.
   const hasRunToLose = useCallback(() => {
     const state = timerStateKind();
     return state === 'running' || state === 'paused';
   }, [timerStateKind]);
+  const isLiveRun = isRunning || isPaused;
+  // Mirrored, because applyAdjustment is reached from a dialog confirm as
+  // well as directly, and between opening that dialog and answering it the
+  // countdown can cross zero. Read off state, the branch taken at confirm
+  // could be the opposite of the one the dialog described.
+  const isLiveRunRef = useRef(isLiveRun);
+  isLiveRunRef.current = isLiveRun;
 
   // One key per hook, so each writes only when its own value changes. A
   // single effect for all fourteen means a single dependency list, and
@@ -957,13 +973,16 @@ export default function Timer() {
     setIsPaused(false);
   };
 
-  // Past zero, both of these go straight through. An alarm that's going
-  // off is something you're trying to make stop, and a dialog between the
-  // button and the silence is the wrong thing to meet there — the count-up
-  // reading it discards is the cost, and mute and repeat-off are still the
-  // way to keep one.
+  // An alarm actually going off goes straight through: it's something
+  // you're trying to make stop, and a dialog between the button and the
+  // silence is the wrong thing to meet there. Paused mid-overtime is not
+  // that — it's silent, there's nothing to escape, and the count-up
+  // reading on screen is real elapsed time that one stray click would
+  // take. A reloaded run comes back paused, so that's the state a
+  // finished stopwatch is usually sitting in.
+  const isRingingNow = isOvertime && !isPaused;
   const handleStopClick = () => {
-    if (isOvertime) {
+    if (isRingingNow) {
       handleConfirmStop();
       return;
     }
@@ -977,7 +996,7 @@ export default function Timer() {
   };
 
   const handleResetClick = () => {
-    if (isOvertime) {
+    if (isRingingNow) {
       handleConfirmReset();
       return;
     }
@@ -1019,9 +1038,25 @@ export default function Timer() {
     }
   }, [loadEntry, isSilentMode, beep]);
 
-  // Picking a row runs it. It asks first only where there's a run on the
-  // clock to lose — counting down, or paused mid-count. A ringing timer
-  // and an unstarted one go straight through.
+  // Running a picked time, from the list or from the add box. Both entry
+  // points promise the same words and the same "don't ask again" scope, so
+  // they share the one gate rather than each carrying a copy of it —
+  // duplicated, the next change to it lands in one place and the two
+  // silently diverge.
+  //
+  // It asks only where there's a run on the clock to lose: counting down,
+  // or paused mid-count. A ringing timer and an unstarted one go straight
+  // through. Paused keeps its own wording, since what it discards is the
+  // remaining time rather than progress in flight.
+  const switchToEntry = useCallback((parts: TimeParts) => {
+    if (!hasRunToLose()) {
+      applySwitch(parts, true);
+      return;
+    }
+    const mode = isPaused ? 'loadOnly' : 'switchRunning';
+    askThenRun({ type: 'switch', data: parts, mode }, () => applySwitch(parts, true));
+  }, [hasRunToLose, isPaused, applySwitch, askThenRun]);
+
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
     // Flashed on the click rather than when the switch applies: simpler
@@ -1029,15 +1064,8 @@ export default function Timer() {
     // leaves a harmless flash. The panels check loaded before inserted, so
     // loading a just-created entry goes green rather than staying yellow.
     setLoadedEntry((prev) => bumpFlash(prev, entry.id));
-    if (!hasRunToLose()) {
-      applySwitch(parts, true);
-      return;
-    }
-    // Paused keeps its own wording and its own "don't ask again" scope:
-    // what it discards is the remaining time, not progress in flight.
-    const mode = isPaused ? 'loadOnly' : 'switchRunning';
-    askThenRun({ type: 'switch', data: parts, mode }, () => applySwitch(parts, true));
-  }, [hasRunToLose, isPaused, applySwitch, askThenRun]);
+    switchToEntry(parts);
+  }, [switchToEntry]);
 
   const handleConfirmSwitch = (parts: TimeParts, start: boolean) => {
     applySwitch(parts, start);
@@ -1069,19 +1097,13 @@ export default function Timer() {
     const id = uniqueId();
     setPresets((prev) => [...prev, { id, ...parts, timestamp: 0 }]);
     setInsertedPreset((prev) => bumpFlash(prev, id));
-    // Adding a time is a request to use it, so it runs — on the same terms
-    // as clicking the row afterwards, in the same words and with the same
-    // "don't ask again" scope.
+    // Adding a time is a request to use it, so it runs, through the same
+    // gate as clicking the row afterwards.
     // An out-of-range entry never reaches here: the panel sends it to the
     // correction dialog first, and only a corrected time is added.
-    if (!hasRunToLose()) {
-      applySwitch(parts, true);
-    } else {
-      const mode = isPaused ? 'loadOnly' : 'switchRunning';
-      askThenRun({ type: 'switch', data: parts, mode }, () => applySwitch(parts, true));
-    }
+    switchToEntry(parts);
     return true;
-  }, [presets, hasRunToLose, isPaused, applySwitch, askThenRun]);
+  }, [presets, switchToEntry]);
 
   // Two steps, so the delete animation plays after the question is
   // answered rather than before. Only a confirmed removal sets this, which
@@ -1203,15 +1225,16 @@ export default function Timer() {
   // have moved on. Applying up front and undoing on dismiss meant the
   // total changed underneath the dialog still asking whether to change it.
   const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
-    if (hasRunToLose()) {
+    if (isLiveRunRef.current) {
       // Off the live remaining time rather than `configured`, which is no
-      // longer what these fields are showing.
+      // longer what these fields are showing. Past zero that clamps to
+      // 00:00:00, so an edit there sets the new remaining outright, which
+      // is also what lifts the timer back out of overtime.
       const shown = fromTotalSeconds(Math.max(0, timeRef.current.seconds));
       clearAlarmInterval();
       setTime({ seconds: toTotalSeconds({ ...shown, [unit]: value }), milliseconds: 0 });
     } else {
       setterFor(unit)(value);
-      if (timeRef.current.seconds < 0) setIsPaused(false);
       restartCountdown(toTotalSeconds({ ...configured, [unit]: value }));
     }
     // The hour digit drops out of the display at 0, so there's nothing
@@ -1219,7 +1242,7 @@ export default function Timer() {
     if (unit !== 'hours' || value > 0) {
       flashSetterFor(unit)((prev) => ({ token: prev.token + 1, direction: value >= previous ? 'inc' : 'dec' }));
     }
-  }, [hasRunToLose, setterFor, flashSetterFor, configured]);
+  }, [setterFor, flashSetterFor, configured]);
 
   // Changing a field asks first, once per timer state, for all three
   // fields together — but only while there's a run to restart. Setting a
@@ -1235,7 +1258,7 @@ export default function Timer() {
     // configured total: while a run is on the clock those are different
     // numbers, and reading the wrong one makes an arrow that changes the
     // display look like a no-op and skip.
-    const previous = hasRunToLose()
+    const previous = isLiveRun
       ? fromTotalSeconds(Math.max(0, timeRef.current.seconds))[unit]
       : configured[unit];
     if (value === previous) return;
@@ -1254,7 +1277,7 @@ export default function Timer() {
       return;
     }
     applyAdjustment(unit, value, previous);
-  }, [configured, timerStateKind, hasRunToLose, applyAdjustment, askThenRun]);
+  }, [configured, isLiveRun, timerStateKind, hasRunToLose, applyAdjustment, askThenRun]);
 
   const handleHoursChange = useCallback((value: number) => requestConfiguredChange('hours', value), [requestConfiguredChange]);
   const handleMinutesChange = useCallback((value: number) => requestConfiguredChange('minutes', value), [requestConfiguredChange]);
@@ -1287,15 +1310,11 @@ export default function Timer() {
     restartRunFade();
   };
 
-  // Same terms as the fields and the list: only a run on the clock is
-  // worth a question. Seeking a ringing timer moves a count-up reading,
-  // and seeking an idle one sets the configured time, which is what the
-  // fields do without asking either.
+  // Always asks. The track is 8px tall and sits right under the digits,
+  // and on an idle timer a seek rewrites the configured time outright, so
+  // a stray click is expensive in every state — including the two that
+  // skip the question elsewhere.
   const requestSeek = (targetSeconds: number) => {
-    if (!hasRunToLose()) {
-      applySeek(targetSeconds);
-      return;
-    }
     const mode = !isRunning ? 'idle' : isPaused ? 'paused' : 'running';
     askThenRun({ type: 'seek', data: { targetSeconds, mode } }, () => applySeek(targetSeconds));
   };
@@ -1424,7 +1443,7 @@ export default function Timer() {
   // is on the clock, the configured time otherwise. Clamped at zero rather
   // than following the count-up, since these three boxes are unsigned and
   // the digits above already carry the overtime.
-  const fieldParts = hasRunToLose() ? fromTotalSeconds(Math.max(0, seconds)) : configured;
+  const fieldParts = isLiveRun ? fromTotalSeconds(Math.max(0, seconds)) : configured;
   // Remaining past the end of the bar, which an edit to those fields can
   // do now that they move the run without moving its total. There's no
   // honest fill for "more than full", so the track waves green until the
@@ -1926,9 +1945,9 @@ export default function Timer() {
         className="border-4 border-white bg-black flex flex-col w-fit time-fields-box"
         style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
       >
-        <TimeField label="HOURS" placeholder="HH" value={fieldParts.hours} max={MAX_HOURS} stacked={isTimeFieldsStacked} onRequestChange={handleHoursChange} />
-        <TimeField label="MINUTES" placeholder="MM" value={fieldParts.minutes} max={MAX_MINUTES} stacked={isTimeFieldsStacked} onRequestChange={handleMinutesChange} />
-        <TimeField label="SECONDS" placeholder="SS" value={fieldParts.seconds} max={MAX_SECONDS} stacked={isTimeFieldsStacked} onRequestChange={handleSecondsChange} />
+        <TimeField label="HOURS" placeholder="HH" value={fieldParts.hours} max={MAX_HOURS} live={isLiveRun} stacked={isTimeFieldsStacked} onRequestChange={handleHoursChange} />
+        <TimeField label="MINUTES" placeholder="MM" value={fieldParts.minutes} max={MAX_MINUTES} live={isLiveRun} stacked={isTimeFieldsStacked} onRequestChange={handleMinutesChange} />
+        <TimeField label="SECONDS" placeholder="SS" value={fieldParts.seconds} max={MAX_SECONDS} live={isLiveRun} stacked={isTimeFieldsStacked} onRequestChange={handleSecondsChange} />
       </div>
     </div>
   );
@@ -2201,7 +2220,7 @@ export default function Timer() {
               // its font-size under leading-none, and the drain bar below,
               // which takes its height and its margin from the digit size
               // and measures another 0.24x. So the content is the reserve
-              // below plus 1.24x font-size, and 1.27 is the margin on that.
+              // below plus 1.24x font-size, and 1.29 is the margin on that.
               // Every 0.01 of margin here is ~5px of dead space above the
               // clock and below the hints on a 1080-tall window, which is
               // what it buys back.

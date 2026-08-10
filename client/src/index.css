@@ -524,10 +524,14 @@
 /* The line under the word counter's two filter switches is one line or
    nothing. Wrapped, a sentence you've already read cost the row twice the
    height, and that height comes straight off the typing area.
-   ~305px is what it measures at its floor size, which is the only range
-   where the column is ever this narrow — above it the column grows far
+   ~374px is what the longest of them measures at its floor size — the
+   wording is conditional now, and "Turn off alphanumeric words to count
+   everything, like a classic word processor" is 78 characters against the
+   64 the old 320px figure was calibrated to. Undersized, the cutoff let a
+   nowrap line overflow its min-w-0 column and run under Copy/Clear. Only
+   the floor range is ever this narrow; above it the column grows far
    faster than the font does, so this never hides a hint that would fit. */
-@container counter-switches (max-width: 320px) {
+@container counter-switches (max-width: 390px) {
   .counter-hint {
     display: none;
   }
