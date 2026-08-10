@@ -703,25 +703,12 @@ export default function Timer() {
       setHasRungOut(true);
       return;
     }
-    // Spent by a ring that was heard, not by one that only flashed. A
-    // muted overtime period ran the pattern to the end and marked the
-    // single repeat-off ring as used, so unmuting afterwards was silent
-    // for the rest of that period — the one ring had been spent on nobody.
-    // isSilentMode is a dependency so unmuting comes back through here.
-    //
-    // Rewound to the top, not resumed. The pattern is 25 ticks and its
-    // last 10 are the gap between groups, so continuing from wherever the
-    // silent pass had reached meant unmuting inside that gap heard
-    // nothing at all and then stopped — which is 40% of the cycle, and
-    // exactly what "unmuting doesn't ring" was. Only on the first audible
-    // pass: once the allowance is spent, a mute/unmute mid-ring continues
-    // where it was rather than starting the bursts again.
-    if (!isSilentMode) {
-      if (!alarmRungThisOvertimeRef.current) alarmTickRef.current = 0;
-      alarmRungThisOvertimeRef.current = true;
-    } else {
-      alarmTickRef.current = 0;
-    }
+    // Spent by the overtime period, not by whether anyone heard it: a
+    // muted ring still counts as the one ring repeat-off allows, so
+    // unmuting part-way through doesn't start another. Unmuting mid-ring
+    // does pick up the beeps from the next tick, since playTick reads mute
+    // through a ref, but it won't replay what it already flashed.
+    alarmRungThisOvertimeRef.current = true;
 
     const pattern: boolean[] = [];
     for (let burst = 0; burst < ALARM_TOTAL_BURSTS; burst++) {
@@ -732,9 +719,7 @@ export default function Timer() {
 
     const playTick = () => {
       // With repeat off the ring is one full pass through the pattern,
-      // every burst of it, not just the first. A silent pass ends here too
-      // rather than flashing on forever — what it leaves behind is the
-      // allowance, so unmuting starts a fresh, audible one.
+      // every burst of it, not just the first.
       if (!isAlarmLooping && alarmTickRef.current >= pattern.length) {
         if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
         beepIntervalRef.current = null;
@@ -760,7 +745,7 @@ export default function Timer() {
       setIsAlarmRinging(false);
       setIsBeepFlash(false);
     };
-  }, [isAlarmActive, isAlarmLooping, isSilentMode, beep]);
+  }, [isAlarmActive, isAlarmLooping, beep]);
 
   // Leaving mid-run throws the run away, so it asks first. The browser
   // owns this one: its own wording, no styling, and it stays quiet until
