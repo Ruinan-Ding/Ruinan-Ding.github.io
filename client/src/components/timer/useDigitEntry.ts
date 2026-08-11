@@ -125,6 +125,38 @@ export function useDigitEntry(
     handlersRef.current.setValue(next);
   };
 
+  // A typed digit replaces the one under the caret. Nothing shifts along
+  // to make room for it: these are fixed-width numbers, and pushing the
+  // digits right turned typing a correction into "1:92:34" — the digit you
+  // meant to replace still there, one place over.
+  //
+  // Only at the end, where there is nothing to replace, does it extend the
+  // number: appended if the box has room, and if not, a leading zero gives
+  // way to it. With no zero left to shed the box is full and the keystroke
+  // is refused rather than pushing a real digit out.
+  const handleDigit = (e: React.KeyboardEvent<HTMLInputElement>, typed: string) => {
+    e.preventDefault();
+    const el = e.currentTarget;
+    const shown = el.value;
+    const start = el.selectionStart ?? shown.length;
+    const end = el.selectionEnd ?? start;
+    const digits = shown.replace(/\D/g, '');
+    const from = digitsBefore(shown, start);
+    const to = digitsBefore(shown, end);
+    const next = from !== to
+      ? digits.slice(0, from) + typed + digits.slice(to)   // over a selection
+      : from < digits.length
+        ? digits.slice(0, from) + typed + digits.slice(from + 1)  // over a digit
+        : digits + typed;                                   // past the last one
+    // Counted from the right, so shedding zeros off the left can't move it.
+    const caretFromRight = next.length - (from + 1);
+    let capped = next;
+    while (capped.length > maxDigits && capped.startsWith('0')) capped = capped.slice(1);
+    if (capped.length > maxDigits) return;
+    pendingCaretRef.current = Math.max(0, caretFromRight);
+    handlersRef.current.setValue(capped);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' || e.key === 'Delete') {
       handleDelete(e, e.key === 'Delete');
@@ -149,9 +181,13 @@ export function useDigitEntry(
     // Left/Right/Home/End, Shift-selection and every clipboard shortcut
     // keep their defaults — that is the point of the rework.
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/^\d$/.test(e.key)) {
+      handleDigit(e, e.key);
+      return;
+    }
     // A character the value can't hold. "-" is let through to onChange,
     // which reads it as the sign toggle and drops it from the digits.
-    if (e.key.length === 1 && !/[\d-]/.test(e.key)) e.preventDefault();
+    if (e.key.length === 1 && e.key !== '-') e.preventDefault();
   };
 
   return { handleChange, handleKeyDown };
