@@ -41,14 +41,17 @@ export const HEADER_CORNER_RESERVE = `calc(3 * ${HEADER_BUTTON_SIZE.width} + 48p
 // focused field. See --list-row-floor in index.css.
 export const LIST_ROW_FONT_SIZE = 'clamp(var(--list-row-floor), min(2.2vw, 2.8dvh), 1.75rem)';
 
-// "99:59:59" is 8 glyphs at this font's 0.6em advance plus 0.3em of side
-// padding. The +10px is border-4 (8px) plus 2px of slack, since em widths
-// land on fractions and an exact fit is no fit at all.
+// "-99:59:59" is 9 glyphs at this font's 0.6em advance plus 0.3em of side
+// padding either side. Nine, not eight, and for every row rather than only
+// the ones that need it: a time can carry a minus now, and sizing to the
+// content would make one row wider than the column of boxes beside it.
+// The +10px is border-4 (8px) plus 2px of slack, since em widths land on
+// fractions and an exact fit is no fit at all.
 // Off LIST_ROW_FONT_SIZE rather than the element's own em, which is the
 // same number until something overrides one box's font-size and that box
 // silently becomes a different width from the rest of the column. The
 // sidebar reserves this width once, from this same expression.
-const LIST_ROW_LABEL_EM = 5.4;
+const LIST_ROW_LABEL_EM = 6;
 export const LIST_ROW_BOX_WIDTH = `calc(${LIST_ROW_LABEL_EM} * ${LIST_ROW_FONT_SIZE} + 10px)`;
 export const LIST_ROW_BUTTON_STYLE = {
   fontFamily: "'IBM Plex Mono', monospace",

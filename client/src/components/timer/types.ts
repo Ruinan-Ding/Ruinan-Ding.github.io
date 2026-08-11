@@ -53,6 +53,9 @@ export type DialogState =
   // corrected silently while it's still being typed. `add` is whether the
   // commit was an add or just leaving the field.
   | { type: 'correctPreset'; data: { typed: string; corrected: string; digits: string; add: boolean } }
+  // The same report for the HOURS/MINUTES/SECONDS boxes, which can now
+  // carry past the end of the range the same way a typed preset can.
+  | { type: 'correctTime'; data: { typed: string; corrected: string } }
   // Adding a time the list already holds. Nothing to decide either: it says
   // so and points at the row that time is already in.
   | { type: 'duplicatePreset'; data: { id: string; label: string } }

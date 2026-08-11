@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { countColor, LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS, PRESETS_WARN, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_HEADING_FONT_SIZE } from './constants';
-import { formatEntryLabel, isPresetOutOfRange, pad, parsePresetDigits, presetDigits, presetDigitsFromParts, rawPresetDigits } from './format';
+import { formatEntryLabel, isPresetOutOfRange, pad, parsePresetDigits, presetDigitsFromParts, rawPresetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
@@ -149,12 +149,8 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
 
   const handleAdd = () => handleCommit(true);
 
-  const { handleKeyDown, handlePaste, handleSelect, pinCaret } = useDigitEntry(inputRef, inputValue, {
-    append: (text) => {
-      const typed = presetDigits(text);
-      if (typed) setDigits((prev) => (prev + typed).slice(0, 6));
-    },
-    remove: () => setDigits((prev) => prev.slice(0, -1)),
+  const { handleChange, handleKeyDown } = useDigitEntry(inputRef, 6, {
+    setValue: setDigits,
     onCommit: handleAdd,
     onToggleSign: () => setNegative((prev) => !prev),
   });
@@ -304,18 +300,13 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
               title={atCapacity ? `Preset limit reached (${MAX_PRESETS})` : undefined}
               aria-label="New preset time"
               value={inputValue}
-              onChange={() => {}}
+              onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
               onBlur={handleBlur}
               // Typing ends the flash early. The segments underneath are a
               // still image of what the correction did, and they'd stop
               // matching the moment the value changed under them.
-              onFocus={(e) => {
-                setCorrectedUnits(null);
-                pinCaret(e.target);
-              }}
-              onSelect={handleSelect}
+              onFocus={() => setCorrectedUnits(null)}
               className="border-4 border-white font-bold transition-colors duration-0 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 // The same box as a preset or history row: this is the

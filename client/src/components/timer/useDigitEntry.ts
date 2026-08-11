@@ -1,10 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 
 interface DigitEntryHandlers {
-  /** append raw text; the owner filters non-digits and enforces its cap */
-  append: (text: string) => void;
-  /** remove the last digit */
-  remove: () => void;
+  /** the whole value after an edit, already filtered to digits and capped */
+  setValue: (digits: string) => void;
   /** Enter, with or without modifiers */
   onCommit?: () => void;
   /** Escape */
@@ -15,60 +13,73 @@ interface DigitEntryHandlers {
   onToggleSign?: () => void;
 }
 
-// Shared plumbing for the calculator-style digit inputs: digits enter from
-// the right, the caret stays pinned at the end, and every entry path
-// funnels into the same append/remove pair.
+// Shared plumbing for the two time inputs. They are ordinary text boxes:
+// the caret goes where you put it, selections work, and Backspace, Delete,
+// cut, drag and paste all behave the way they do anywhere else. What's
+// left here is the filter — digits reach the value, "-" is a sign toggle,
+// nothing else gets in — plus Enter, Escape and the arrows.
 //
-// Physical keys are handled on keydown. Soft keyboards sending
-// key='Unidentified', paste and drop arrive through a native beforeinput
-// listener instead: React's synthetic onBeforeInput is synthesised from
-// textInput/keypress and never fires for deletions, nor for paste in
-// Firefox. onPaste stays as a fallback for engines without beforeinput.
+// The calculator entry this replaces pinned the caret to the end and
+// appended from the right, so fixing a typo in the middle meant deleting
+// everything after it.
+//
+// onChange rather than a beforeinput listener: reading the box after the
+// browser has already edited it covers every path into it at once,
+// including soft keyboards that report key='Unidentified' and the
+// deletions React's synthetic onBeforeInput never fires for.
 export function useDigitEntry(
   inputRef: React.RefObject<HTMLInputElement | null>,
-  value: string,
+  maxDigits: number,
   handlers: DigitEntryHandlers
 ) {
-  // The native listener registers once; this keeps its handlers fresh.
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
 
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    const handleBeforeInput = (e: InputEvent) => {
-      // Composition edits settle through the controlled value instead.
-      if (e.isComposing) return;
+  // The sign lives outside the digits, so a "-" typed or pasted anywhere
+  // in the box toggles it and never lands in the value itself.
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (raw.includes('-')) handlersRef.current.onToggleSign?.();
+    handlersRef.current.setValue(raw.replace(/\D/g, '').slice(0, maxDigits));
+  };
+
+  // How many digits sit before an index in the displayed string. The box
+  // shows a formatted time — "12:05" — and the value behind it is just its
+  // digits, so this is what maps a caret in one onto a position in the
+  // other.
+  const digitsBefore = (shown: string, index: number) => shown.slice(0, index).replace(/\D/g, '').length;
+
+  // Deletions are done by digit rather than left to the filter. Backspace
+  // over the ":" in "12:05" removes a character the value never held, so
+  // the filtered result came back identical and the key did nothing at
+  // all — you had to press it twice, once for a separator you couldn't
+  // see the point of.
+  const handleDelete = (e: React.KeyboardEvent<HTMLInputElement>, forward: boolean) => {
+    const el = e.currentTarget;
+    const shown = el.value;
+    const start = el.selectionStart ?? shown.length;
+    const end = el.selectionEnd ?? start;
+    const digits = shown.replace(/\D/g, '');
+    let from = digitsBefore(shown, start);
+    let to = digitsBefore(shown, end);
+    // A collapsed caret takes the digit on the side the key points at.
+    if (from === to) {
+      if (forward) to = from + 1;
+      else from = from - 1;
+    }
+    if (from < 0 || to > digits.length || from >= to) {
       e.preventDefault();
-      if (e.inputType.startsWith('delete')) {
-        handlersRef.current.remove();
-      } else {
-        const data = e.data ?? e.dataTransfer?.getData('text') ?? '';
-        if (data) handlersRef.current.append(data);
-      }
-    };
-    el.addEventListener('beforeinput', handleBeforeInput);
-    return () => el.removeEventListener('beforeinput', handleBeforeInput);
-  }, [inputRef]);
-
-  // Keeps the caret parked at the end as the value changes.
-  useEffect(() => {
-    const el = inputRef.current;
-    if (el && document.activeElement === el) {
-      el.setSelectionRange(el.value.length, el.value.length);
+      return;
     }
-  }, [inputRef, value]);
-
-  // Digits enter from the right, so the caret belongs at the end. onSelect
-  // catches every way it could move: click, drag, arrow keys.
-  const pinCaret = (el: HTMLInputElement) => {
-    const end = el.value.length;
-    if (el.selectionStart !== end || el.selectionEnd !== end) {
-      el.setSelectionRange(end, end);
-    }
+    e.preventDefault();
+    handlersRef.current.setValue(digits.slice(0, from) + digits.slice(to));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      handleDelete(e, e.key === 'Delete');
+      return;
+    }
     if (e.key === 'Enter') {
       // Or the same keypress activates whatever button a confirmation
       // dialog focuses as it opens.
@@ -80,45 +91,21 @@ export function useDigitEntry(
       handlersRef.current.onCancel?.();
       return;
     }
-    if (e.key === 'Backspace' || e.key === 'Delete') {
-      // Modifiers included, so Ctrl+Backspace still deletes one digit.
-      e.preventDefault();
-      handlersRef.current.remove();
-      return;
-    }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
       handlersRef.current.onStep?.(e.key === 'ArrowUp' ? 1 : -1);
       return;
     }
-    // Ctrl+V/C/A keep their defaults: cancelling the keydown would cancel
-    // the paste it triggers.
-    if (e.ctrlKey || e.metaKey) return;
-    // A toggle rather than a character: pressing it again takes the sign
-    // back off, and it works from anywhere in the entry rather than only
-    // in front. The digits it would otherwise be filtered out of never see
-    // it — the sign isn't part of them.
-    if (e.key === '-' && handlersRef.current.onToggleSign) {
-      e.preventDefault();
-      handlersRef.current.onToggleSign();
-      return;
-    }
-    if (/^\d$/.test(e.key)) {
-      e.preventDefault();
-      handlersRef.current.append(e.key);
-    } else if (e.key.length === 1) {
-      e.preventDefault();
-    }
+    // Left/Right/Home/End, Shift-selection and every clipboard shortcut
+    // keep their defaults — that is the point of the rework.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // A character the value can't hold. "-" is let through to onChange,
+    // which reads it as the sign toggle and drops it from the digits.
+    if (e.key.length === 1 && !/[\d-]/.test(e.key)) e.preventDefault();
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    handlersRef.current.append(e.clipboardData.getData('text'));
-  };
+  // Kept so callers can still reach the element for focus/blur.
+  void inputRef;
 
-  const handleSelect = (e: React.SyntheticEvent<HTMLInputElement>) => {
-    pinCaret(e.target as HTMLInputElement);
-  };
-
-  return { handleKeyDown, handlePaste, handleSelect, pinCaret };
+  return { handleChange, handleKeyDown };
 }

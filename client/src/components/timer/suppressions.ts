@@ -48,7 +48,7 @@ export const dialogKey = (dialog: DialogState): string | null => {
 // They get one OK and no CANCEL, and dismissing lands on the same result
 // as OK does, since there's nothing there to decline.
 export const isAcknowledgement = (dialog: DialogState): boolean =>
-  dialog.type === 'correctPreset' || dialog.type === 'duplicatePreset';
+  dialog.type === 'correctPreset' || dialog.type === 'correctTime' || dialog.type === 'duplicatePreset';
 
 export const isDialogSuppressed = (dialog: DialogState): boolean => {
   const key = dialogKey(dialog);

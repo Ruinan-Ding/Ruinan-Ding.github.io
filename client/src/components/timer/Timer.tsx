@@ -13,8 +13,8 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_PRESETS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
-import { formatDateParts, formatEntryLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
+import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
 import { boxClamp, fitClamp, shrinkClamp } from './responsive';
 import { isAcknowledgement, isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
@@ -78,8 +78,19 @@ const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: 
 // The widest time the three boxes can say, either side of zero. Stepping or
 // typing past it stops there rather than wrapping: 99:59:59 is the end of
 // the range, not a point on a circle.
-const MAX_TOTAL_SECONDS = MAX_HOURS * 3600 + 59 * 60 + 59;
 const clampTotal = (total: number) => Math.max(-MAX_TOTAL_SECONDS, Math.min(MAX_TOTAL_SECONDS, Math.round(total)));
+
+// The running time as the digits above read it: the two halves combined
+// and the magnitude truncated toward zero.
+//
+// Not the raw `seconds` field, which floors — past zero that is a
+// different number. At a true -2.38s it holds -3, so stepping the boxes up
+// by one landed on -2, which floors back to -3, and the boxes sat still
+// however many times you pressed. Truncating agrees with formatTime, so
+// the boxes and the countdown say the same thing and a step of one second
+// moves one second.
+const liveShownSeconds = ({ seconds, milliseconds }: { seconds: number; milliseconds: number }) =>
+  Math.trunc((seconds * 1000 + milliseconds) / 1000);
 
 // Guards both saved lists against corrupt storage. Arithmetic on a bad
 // number never throws, so a non-numeric field would slip through as NaN:
@@ -1234,7 +1245,7 @@ export default function Timer() {
   // idle these boxes are the timer's setup, running or paused they are the
   // time left and the configured total is untouched.
   const shownTotal = useCallback(
-    () => (isLiveRunRef.current ? timeRef.current.seconds : configuredTotalRef.current),
+    () => (isLiveRunRef.current ? liveShownSeconds(timeRef.current) : configuredTotalRef.current),
     []
   );
 
@@ -1272,6 +1283,15 @@ export default function Timer() {
   const requestTotalChange = useCallback((total: number, unit: TimeUnit) => {
     const previousTotal = shownTotal();
     const next = clampTotal(total);
+    // Past the end of the range, the boxes say so rather than silently
+    // landing somewhere else — the same report a typed preset gets, for
+    // the same reason: the time you end up with isn't the one you asked
+    // for, and finding that out later is worse than being told.
+    if (Math.abs(total) > MAX_TOTAL_SECONDS) {
+      applyAdjustment(next, unit, previousTotal);
+      setDialog({ type: 'correctTime', data: { typed: formatSignedLabel(total), corrected: formatSignedLabel(next) } });
+      return;
+    }
     if (next === previousTotal) return;
 
     const state = timerStateKind();
@@ -1472,7 +1492,7 @@ const handleHideWebsiteLinkClick = () => {
   // is on the clock, the configured time otherwise. Clamped at zero rather
   // than following the count-up, since these three boxes are unsigned and
   // the digits above already carry the overtime.
-  const fieldParts = signedParts(isLiveRun ? seconds : configuredTotalSeconds);
+  const fieldParts = signedParts(isLiveRun ? liveShownSeconds(time) : configuredTotalSeconds);
   // Remaining past the end of the bar, which an edit to those fields can
   // do now that they move the run without moving its total. There's no
   // honest fill for "more than full", so the track waves green until the

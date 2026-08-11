@@ -95,8 +95,6 @@ export const formatEntryLabel = (entry: Pick<TimerEntry, 'hours' | 'minutes' | '
 export const formatSignedLabel = (total: number) =>
   formatEntryLabel({ ...fromTotalSeconds(Math.abs(total)), negative: total < 0 });
 
-export const presetDigits = (input: string) => input.replace(/[^0-9]/g, '');
-
 // Digits fill from the right, calculator-style: "130" is 00h 01m 30s.
 //
 // Carried rather than clamped per unit: "161" is 1m 61s, which is 2m 01s,

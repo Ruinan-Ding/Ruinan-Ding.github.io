@@ -66,16 +66,9 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
   const shown = isEditing ? (digits === '' ? placeholder : digits) : pad(value);
   const inputValue = negative ? `-${shown}` : shown;
 
-  const appendDigits = (text: string) => {
-    const typed = text.replace(/\D/g, '');
-    // Blocks further digits at 2 rather than shifting the window along.
-    if (typed) setDigits((prev) => ((prev ?? '') + typed).slice(0, 2));
-  };
-
-  const { handleKeyDown, handlePaste, handleSelect } = useDigitEntry(inputRef, inputValue, {
-    append: appendDigits,
+  const { handleChange, handleKeyDown } = useDigitEntry(inputRef, 2, {
+    setValue: setDigits,
     onToggleSign,
-    remove: () => setDigits((prev) => (prev ?? '').slice(0, -1)),
     // Committing is blurring; handleBlur applies the digits.
     onCommit: () => inputRef.current?.blur(),
     onCancel: () => {
@@ -125,7 +118,9 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
         {label}:
       </label>
       <div className="flex items-center flex-shrink-0" style={{ gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}>
-        <div className="relative flex-shrink-0" style={{ width: 'clamp(2.5rem, 6vw, 4rem)' }}>
+        {/* Three glyphs, not two: any of these boxes can be the one wearing
+            the minus, and a box that only fits its own digits clips it. */}
+        <div className="relative flex-shrink-0" style={{ width: 'clamp(3.1rem, 7.4vw, 5rem)' }}>
           {digits === '' && (
             <div
               className="absolute inset-0 flex items-center justify-center font-bold pointer-events-none zoom-safe-text"
@@ -143,12 +138,14 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
             placeholder={placeholder}
             aria-label={label}
             value={inputValue}
-            onFocus={() => setDigits('')}
+            // Hands the current value over to be edited rather than
+            // blanking the box: with a free caret there is something worth
+            // keeping, and clearing it forced a full retype to change one
+            // digit.
+            onFocus={() => setDigits(pad(value))}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onSelect={handleSelect}
-            onChange={() => {}}
+            onChange={handleChange}
             className="bg-black border-4 border-white font-bold text-center outline-none w-full zoom-safe-text"
             style={{
               fontFamily: "'IBM Plex Mono', monospace",

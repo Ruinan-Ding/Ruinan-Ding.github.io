@@ -140,6 +140,12 @@ const getCopy = (dialog: DialogState) => {
         description: `${dialog.data.typed} isn't a valid time — minutes and seconds only go up to 59, and hours to 99. It's been corrected to ${dialog.data.corrected}.`,
         action: 'OK',
       };
+    case 'correctTime':
+      return {
+        title: 'TIME CORRECTED',
+        description: `${dialog.data.typed} is past the longest time this can hold. It's been corrected to ${dialog.data.corrected}.`,
+        action: 'OK',
+      };
     case 'duplicatePreset':
       return {
         title: 'ALREADY SAVED',
