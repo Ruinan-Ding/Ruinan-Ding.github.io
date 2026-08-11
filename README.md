@@ -18,7 +18,7 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 
 ## Usage
 
-Set a time with the input fields or a preset, then press START (or Enter). Once it's running those fields become the time left, ticking down — editing one moves the run without changing the total, so STOP still returns to what you configured. PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Confirmation dialogs take Enter for yes and Esc for no. Everything persists across page reloads; the bin button in the top-right restores the site to defaults.
+Set a time with the input fields or a preset, then press START (or Enter). Once it's running those fields become the time left, ticking down — editing one moves the run without changing the total, so STOP still returns to what you configured. The three boxes are one signed time: 61 in the seconds carries to 1:01, stepping 59 up carries too, stepping 00:00:00 down goes to -00:00:01, and "-" flips the sign onto the largest unit that has a number. Past zero, stepping back up is the way out of overtime. PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Confirmation dialogs take Enter for yes and Esc for no. Everything persists across page reloads; the bin button in the top-right restores the site to defaults.
 
 Tip: for a stopwatch, turn off the alarm repeat toggle and set the time to 00:00:00 — it rings once, then keeps counting silently.
 

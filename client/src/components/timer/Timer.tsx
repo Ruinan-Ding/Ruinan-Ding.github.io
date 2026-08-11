@@ -13,8 +13,8 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_MINUTES, MAX_PRESETS, MAX_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
-import { formatDateParts, formatEntryLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, toTotalSeconds } from './format';
+import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_PRESETS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
+import { formatDateParts, formatEntryLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
 import { boxClamp, fitClamp, shrinkClamp } from './responsive';
 import { isAcknowledgement, isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
@@ -74,6 +74,12 @@ function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean;
 }
 
 const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: (prev?.token ?? 0) + 1 });
+
+// The widest time the three boxes can say, either side of zero. Stepping or
+// typing past it stops there rather than wrapping: 99:59:59 is the end of
+// the range, not a point on a circle.
+const MAX_TOTAL_SECONDS = MAX_HOURS * 3600 + 59 * 60 + 59;
+const clampTotal = (total: number) => Math.max(-MAX_TOTAL_SECONDS, Math.min(MAX_TOTAL_SECONDS, Math.round(total)));
 
 // Guards both saved lists against corrupt storage. Arithmetic on a bad
 // number never throws, so a non-numeric field would slip through as NaN:
@@ -150,6 +156,10 @@ export default function Timer() {
 
   const [isRunning, setIsRunning] = useState(wasActive);
   const [isPaused, setIsPaused] = useState(wasActive);
+  // The configured time's sign. Kept beside the three magnitudes rather
+  // than folded into them, so every existing save still reads back and a
+  // negative setup is one extra boolean rather than a new number format.
+  const [isConfiguredNegative, setIsConfiguredNegative] = useState(() => readBoolean(STORAGE_KEYS.configuredNegative, false));
   const [isSilentMode, setIsSilentMode] = useState(() => readBoolean(STORAGE_KEYS.silentMode, false));
   const [volume, setVolume] = useState(() => {
     const saved = readJSON<unknown>(STORAGE_KEYS.volume, null);
@@ -493,7 +503,10 @@ export default function Timer() {
     () => ({ hours, minutes, seconds: timerSeconds }),
     [hours, minutes, timerSeconds]
   );
-  const configuredTotalSeconds = toTotalSeconds(configured);
+  const configuredTotalSeconds = toSignedTotal(configured, isConfiguredNegative);
+  // Read by the field callbacks, which must not re-memoise on every tick.
+  const configuredTotalRef = useRef(configuredTotalSeconds);
+  configuredTotalRef.current = configuredTotalSeconds;
   // A timer sitting idle at its configured time has nothing for STOP or
   // RESET to act on.
   const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
@@ -560,6 +573,7 @@ export default function Timer() {
     writeJSON(STORAGE_KEYS.timerState, { seconds, isPaused, isRunning, hours, minutes, timerSeconds });
   }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds]);
   usePersisted(STORAGE_KEYS.history, history);
+  usePersisted(STORAGE_KEYS.configuredNegative, isConfiguredNegative);
   usePersisted(STORAGE_KEYS.silentMode, isSilentMode);
   usePersisted(STORAGE_KEYS.presets, presets);
   usePersisted(STORAGE_KEYS.volume, volume);
@@ -1012,11 +1026,12 @@ export default function Timer() {
     closeDialog();
   };
 
-  const loadEntry = useCallback((parts: TimeParts) => {
+  const loadEntry = useCallback((parts: TimeParts, negative = false) => {
     setHours(parts.hours);
     setMinutes(parts.minutes);
     setTimerSeconds(parts.seconds);
-    setTime({ seconds: toTotalSeconds(parts), milliseconds: 0 });
+    setIsConfiguredNegative(negative);
+    setTime({ seconds: toSignedTotal(parts, negative), milliseconds: 0 });
   }, []);
 
   // The one switch sequence. start=false loads the preset without running
@@ -1026,9 +1041,9 @@ export default function Timer() {
   // function left out of that dependency list it was correct only because
   // the list happened to name its transitive deps, and anything added here
   // that read fresh state would have gone stale silently.
-  const applySwitch = useCallback((parts: TimeParts, start: boolean) => {
+  const applySwitch = useCallback((parts: TimeParts, start: boolean, negative = false) => {
     clearAlarmInterval();
-    loadEntry(parts);
+    loadEntry(parts, negative);
     setIsPaused(false);
     setIsRunning(start);
     if (start) {
@@ -1048,13 +1063,14 @@ export default function Timer() {
   // or paused mid-count. A ringing timer and an unstarted one go straight
   // through. Paused keeps its own wording, since what it discards is the
   // remaining time rather than progress in flight.
-  const switchToEntry = useCallback((parts: TimeParts) => {
+  const switchToEntry = useCallback((parts: TimeParts, negative = false) => {
+    const signed = { ...parts, negative };
     if (!hasRunToLose()) {
-      applySwitch(parts, true);
+      applySwitch(parts, true, negative);
       return;
     }
     const mode = isPaused ? 'loadOnly' : 'switchRunning';
-    askThenRun({ type: 'switch', data: parts, mode }, () => applySwitch(parts, true));
+    askThenRun({ type: 'switch', data: signed, mode }, () => applySwitch(parts, true, negative));
   }, [hasRunToLose, isPaused, applySwitch, askThenRun]);
 
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
@@ -1064,11 +1080,11 @@ export default function Timer() {
     // leaves a harmless flash. The panels check loaded before inserted, so
     // loading a just-created entry goes green rather than staying yellow.
     setLoadedEntry((prev) => bumpFlash(prev, entry.id));
-    switchToEntry(parts);
+    switchToEntry(parts, entry.negative === true);
   }, [switchToEntry]);
 
-  const handleConfirmSwitch = (parts: TimeParts, start: boolean) => {
-    applySwitch(parts, start);
+  const handleConfirmSwitch = (parts: TimeParts, start: boolean, negative = false) => {
+    applySwitch(parts, start, negative);
     closeDialog();
   };
 
@@ -1079,9 +1095,14 @@ export default function Timer() {
   //
   // Matched on the time, not the label: formatEntryLabel drops leading
   // zeroes, so 1:05 and 0:01:05 print the same and are the same preset.
-  const handleAddPreset = useCallback((parts: TimeParts): boolean => {
+  const handleAddPreset = useCallback((parts: TimeParts & { negative?: boolean }): boolean => {
+    const negative = parts.negative === true;
+    // The sign is part of the time: -1:05 and 1:05 are different presets,
+    // and matching without it would refuse the second as a duplicate of
+    // the first.
     const existing = presets.find(
       (p) => (p.hours ?? 0) === parts.hours && p.minutes === parts.minutes && p.seconds === parts.seconds
+        && (p.negative === true) === negative
     );
     if (existing) {
       // The flash comes after the notice rather than under it, where the
@@ -1095,13 +1116,13 @@ export default function Timer() {
     }
     if (presets.length >= MAX_PRESETS) return false;
     const id = uniqueId();
-    setPresets((prev) => [...prev, { id, ...parts, timestamp: 0 }]);
+    setPresets((prev) => [...prev, { id, ...parts, negative, timestamp: 0 }]);
     setInsertedPreset((prev) => bumpFlash(prev, id));
     // Adding a time is a request to use it, so it runs, through the same
     // gate as clicking the row afterwards.
     // An out-of-range entry never reaches here: the panel sends it to the
     // correction dialog first, and only a corrected time is added.
-    switchToEntry(parts);
+    switchToEntry(parts, negative);
     return true;
   }, [presets, switchToEntry]);
 
@@ -1198,97 +1219,104 @@ export default function Timer() {
     [askThenRun, handleClearHistory]
   );
 
-  const setterFor = useCallback(
-    (unit: TimeUnit) => (unit === 'hours' ? setHours : unit === 'minutes' ? setMinutes : setTimerSeconds),
-    []
-  );
-
   const flashSetterFor = useCallback(
     (unit: TimeUnit) => (unit === 'hours' ? setHoursFlash : unit === 'minutes' ? setMinutesFlash : setSecondsFlash),
     []
   );
 
-  // The only place a field edit lands, and it means two different things
-  // either side of START.
+  // The whole time the three boxes are showing, as one signed number, and
+  // the one place it is written back. Everything the boxes can do — typing
+  // 61 into seconds, stepping 59 up, stepping 00:00:00 down, pressing "-" —
+  // is a new value for this, and the carries and borrows come out of the
+  // arithmetic rather than out of rules per unit.
   //
-  // Idle, the fields are the timer's setup: an edit sets the configured
-  // total and the countdown snaps to it.
-  //
-  // Running or paused, the fields are the time left, ticking down. An edit
-  // there moves the remaining time and leaves the total alone — so STOP
-  // and RESET still return to what was configured, and the bar keeps the
-  // scale it was drawn at. Which is what lets remaining exceed the bar;
-  // see isOverBar.
-  //
-  // `previous` is passed in because a confirmed call needs the value it
-  // changed from to pick the flash direction, after the displayed parts
-  // have moved on. Applying up front and undoing on dismiss meant the
-  // total changed underneath the dialog still asking whether to change it.
-  const applyAdjustment = useCallback((unit: TimeUnit, value: number, previous: number) => {
-    if (isLiveRunRef.current) {
-      // Off the live remaining time rather than `configured`, which is no
-      // longer what these fields are showing. Past zero that clamps to
-      // 00:00:00, so an edit there sets the new remaining outright, which
-      // is also what lifts the timer back out of overtime.
-      const shown = fromTotalSeconds(Math.max(0, timeRef.current.seconds));
-      clearAlarmInterval();
-      setTime({ seconds: toTotalSeconds({ ...shown, [unit]: value }), milliseconds: 0 });
-    } else {
-      setterFor(unit)(value);
-      restartCountdown(toTotalSeconds({ ...configured, [unit]: value }));
-    }
-    // The hour digit drops out of the display at 0, so there's nothing
-    // left to draw attention to.
-    if (unit !== 'hours' || value > 0) {
-      flashSetterFor(unit)((prev) => ({ token: prev.token + 1, direction: value >= previous ? 'inc' : 'dec' }));
-    }
-  }, [setterFor, flashSetterFor, configured]);
+  // Which number it is depends on the same isLiveRun split as before:
+  // idle these boxes are the timer's setup, running or paused they are the
+  // time left and the configured total is untouched.
+  const shownTotal = useCallback(
+    () => (isLiveRunRef.current ? timeRef.current.seconds : configuredTotalRef.current),
+    []
+  );
 
-  // Changing a field asks first, once per timer state, for all three
-  // fields together — but only while there's a run to restart. Setting a
-  // timer up is what these fields are for, and a ringing one has nothing
-  // left to lose, so neither of those meets a dialog.
+  const applyAdjustment = useCallback((total: number, unit: TimeUnit, previousTotal: number) => {
+    const next = clampTotal(total);
+    if (isLiveRunRef.current) {
+      clearAlarmInterval();
+      setTime({ seconds: next, milliseconds: 0 });
+    } else {
+      const magnitude = fromTotalSeconds(Math.abs(next));
+      setHours(magnitude.hours);
+      setMinutes(magnitude.minutes);
+      setTimerSeconds(magnitude.seconds);
+      setIsConfiguredNegative(next < 0);
+      restartCountdown(next);
+    }
+    // The unit the click was on, flashed in the direction the whole time
+    // moved. A carry changes two boxes and the one you touched is the one
+    // worth pointing at; the hour digit drops out of the display at 0, so
+    // there is nothing there to draw attention to.
+    if (unit !== 'hours' || Math.abs(next) >= 3600) {
+      flashSetterFor(unit)((prev) => ({ token: prev.token + 1, direction: next >= previousTotal ? 'inc' : 'dec' }));
+    }
+  }, [flashSetterFor]);
+
+  // Asks first, once per timer state, for all three boxes together — but
+  // only while there's a run to restart. Setting a timer up is what these
+  // boxes are for, and a ringing one has nothing left to lose, so neither
+  // of those meets a dialog.
   //
   // Tracked by state kind rather than by transition, because setting a
-  // timer up means touching two or three fields in a row, which is one
+  // timer up means touching two or three boxes in a row, which is one
   // intent; and pausing to nudge a minute, resuming, then pausing to nudge
   // again is still the same question about the same paused timer.
-  const requestConfiguredChange = useCallback((unit: TimeUnit, value: number) => {
-    // Compared against what the field is showing, not against the
-    // configured total: while a run is on the clock those are different
-    // numbers, and reading the wrong one makes an arrow that changes the
-    // display look like a no-op and skip.
-    const previous = isLiveRun
-      ? fromTotalSeconds(Math.max(0, timeRef.current.seconds))[unit]
-      : configured[unit];
-    if (value === previous) return;
+  const requestTotalChange = useCallback((total: number, unit: TimeUnit) => {
+    const previousTotal = shownTotal();
+    const next = clampTotal(total);
+    if (next === previousTotal) return;
 
     const state = timerStateKind();
     if (hasRunToLose() && !askedAdjustInStatesRef.current.has(state)) {
-      const next: DialogState = { type: 'adjust', data: { unit, value, previous, state } };
+      const dialog: DialogState = { type: 'adjust', data: { totalSeconds: next, previousTotal, unit, state } };
       // Marked before asking, not after confirming: a cancelled question
       // was still asked. The dismiss handler clears it again so cancelling
       // doesn't hand the next adjustment a free pass.
       askedAdjustInStatesRef.current.add(state);
-      askThenRun(next, () => {
+      askThenRun(dialog, () => {
         askedAdjustInStatesRef.current.delete(state);
-        applyAdjustment(unit, value, previous);
+        applyAdjustment(next, unit, previousTotal);
       });
       return;
     }
-    applyAdjustment(unit, value, previous);
-  }, [configured, isLiveRun, timerStateKind, hasRunToLose, applyAdjustment, askThenRun]);
+    applyAdjustment(next, unit, previousTotal);
+  }, [shownTotal, timerStateKind, hasRunToLose, applyAdjustment, askThenRun]);
 
-  const handleHoursChange = useCallback((value: number) => requestConfiguredChange('hours', value), [requestConfiguredChange]);
-  const handleMinutesChange = useCallback((value: number) => requestConfiguredChange('minutes', value), [requestConfiguredChange]);
-  const handleSecondsChange = useCallback((value: number) => requestConfiguredChange('seconds', value), [requestConfiguredChange]);
+  // A typed commit replaces one unit's magnitude and keeps the sign. 61
+  // arrives here as 61 and toSignedTotal turns the whole thing into 1m 01s.
+  const changeUnit = useCallback((unit: TimeUnit, value: number) => {
+    const shown = signedParts(shownTotal());
+    requestTotalChange(toSignedTotal({ ...shown, [unit]: value }, shown.negative), unit);
+  }, [shownTotal, requestTotalChange]);
 
-  const handleConfirmAdjust = (unit: TimeUnit, value: number, previous: number) => {
-    applyAdjustment(unit, value, previous);
-    closeDialog();
-  };
+  const handleHoursChange = useCallback((value: number) => changeUnit('hours', value), [changeUnit]);
+  const handleMinutesChange = useCallback((value: number) => changeUnit('minutes', value), [changeUnit]);
+  const handleSecondsChange = useCallback((value: number) => changeUnit('seconds', value), [changeUnit]);
 
-  const handleHideWebsiteLinkClick = () => {
+  // A chevron moves the whole time, which is what makes stepping up out of
+  // overtime the way back to a running countdown.
+  const handleStepTotal = useCallback((deltaSeconds: number) => {
+    const unit: TimeUnit = Math.abs(deltaSeconds) >= 3600 ? 'hours' : Math.abs(deltaSeconds) >= 60 ? 'minutes' : 'seconds';
+    requestTotalChange(shownTotal() + deltaSeconds, unit);
+  }, [shownTotal, requestTotalChange]);
+
+  // "-" flips the sign of the whole time from whichever box it was typed
+  // in; the display decides which one wears it.
+  const handleToggleSign = useCallback(() => {
+    const total = shownTotal();
+    if (total === 0) return;
+    requestTotalChange(-total, signedParts(total).signUnit ?? 'seconds');
+  }, [shownTotal, requestTotalChange]);
+
+const handleHideWebsiteLinkClick = () => {
     askThenRun({ type: 'hideWebsiteLink' }, () => setIsWebsiteLinkHidden(true));
   };
 
@@ -1355,14 +1383,15 @@ export default function Timer() {
         // Every mode starts the new time; they differ only in what they
         // warned about first. The skipped-dialog path runs the same
         // applySwitch through askThenRun, and the two have to agree.
-        handleConfirmSwitch(dialog.data, true);
+        handleConfirmSwitch(dialog.data, true, dialog.data.negative === true);
         break;
       case 'seek':
         applySeek(dialog.data.targetSeconds);
         closeDialog();
         break;
       case 'adjust':
-        handleConfirmAdjust(dialog.data.unit, dialog.data.value, dialog.data.previous);
+        applyAdjustment(dialog.data.totalSeconds, dialog.data.unit, dialog.data.previousTotal);
+        closeDialog();
         break;
       case 'hideWebsiteLink':
         setIsWebsiteLinkHidden(true);
@@ -1443,7 +1472,7 @@ export default function Timer() {
   // is on the clock, the configured time otherwise. Clamped at zero rather
   // than following the count-up, since these three boxes are unsigned and
   // the digits above already carry the overtime.
-  const fieldParts = isLiveRun ? fromTotalSeconds(Math.max(0, seconds)) : configured;
+  const fieldParts = signedParts(isLiveRun ? seconds : configuredTotalSeconds);
   // Remaining past the end of the bar, which an edit to those fields can
   // do now that they move the run without moving its total. There's no
   // honest fill for "more than full", so the track waves green until the
@@ -1945,9 +1974,9 @@ export default function Timer() {
         className="border-4 border-white bg-black flex flex-col w-fit time-fields-box"
         style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
       >
-        <TimeField label="HOURS" placeholder="HH" value={fieldParts.hours} max={MAX_HOURS} live={isLiveRun} stacked={isTimeFieldsStacked} onRequestChange={handleHoursChange} />
-        <TimeField label="MINUTES" placeholder="MM" value={fieldParts.minutes} max={MAX_MINUTES} live={isLiveRun} stacked={isTimeFieldsStacked} onRequestChange={handleMinutesChange} />
-        <TimeField label="SECONDS" placeholder="SS" value={fieldParts.seconds} max={MAX_SECONDS} live={isLiveRun} stacked={isTimeFieldsStacked} onRequestChange={handleSecondsChange} />
+        <TimeField label="HOURS" placeholder="HH" value={fieldParts.hours} negative={fieldParts.signUnit === 'hours'} unitSeconds={3600} stacked={isTimeFieldsStacked} onRequestChange={handleHoursChange} onStepTotal={handleStepTotal} onToggleSign={handleToggleSign} />
+        <TimeField label="MINUTES" placeholder="MM" value={fieldParts.minutes} negative={fieldParts.signUnit === 'minutes'} unitSeconds={60} stacked={isTimeFieldsStacked} onRequestChange={handleMinutesChange} onStepTotal={handleStepTotal} onToggleSign={handleToggleSign} />
+        <TimeField label="SECONDS" placeholder="SS" value={fieldParts.seconds} negative={fieldParts.signUnit === 'seconds'} unitSeconds={1} stacked={isTimeFieldsStacked} onRequestChange={handleSecondsChange} onStepTotal={handleStepTotal} onToggleSign={handleToggleSign} />
       </div>
     </div>
   );

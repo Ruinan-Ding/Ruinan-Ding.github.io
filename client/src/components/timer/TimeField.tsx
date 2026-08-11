@@ -7,16 +7,26 @@ import { useDigitEntry } from './useDigitEntry';
 interface TimeFieldProps {
   label: string;
   placeholder: string;
+  // The magnitude of this unit. Never negative: the sign belongs to the
+  // whole time, and `negative` says whether this box is the one showing it.
   value: number;
-  max: number;
-  // Whether `value` is the ticking remaining time rather than a setting
-  // sitting still. Only the chevrons' disabled state cares.
-  live: boolean;
+  negative: boolean;
+  // Seconds this unit is worth, so a chevron can move the whole time by one
+  // of them rather than this box by one of itself. That difference is the
+  // point past zero: at -01:30, stepping the seconds box up has to reach
+  // -01:29, and adding 1 to the magnitude would reach -01:31.
+  unitSeconds: number;
   // Label above the digit box rather than beside it: a third of the width
   // at roughly 1.4x the height. Driven from Timer so all three switch
   // together.
   stacked: boolean;
+  // A typed commit: this unit's new magnitude, unclamped. 61 arrives as 61
+  // and the owner carries it.
   onRequestChange: (value: number) => void;
+  // A chevron: move the whole time by this many seconds, sign and all.
+  onStepTotal: (deltaSeconds: number) => void;
+  // "-" pressed: flip the sign of the whole time.
+  onToggleSign: () => void;
 }
 
 const chevronButtonClass =
@@ -34,9 +44,11 @@ const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.7, 1.2, 1.35, 1.25), height: sh
 // Unlike the preset input, this one doesn't need an onFocus pinCaret:
 // focusing always changes the displayed value (blank to placeholder), and
 // useDigitEntry's value-change effect re-pins the caret for us.
-function TimeField({ label, placeholder, value, max, live, stacked, onRequestChange }: TimeFieldProps) {
-  const clamp = (next: number) => Math.max(0, Math.min(max, next));
-  const step = (base: number, direction: number) => clamp(base + direction);
+function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, onRequestChange, onStepTotal, onToggleSign }: TimeFieldProps) {
+  // Only the pending digit entry is clamped, and only to what two digits
+  // can say. A committed value is left exactly as typed so the owner can
+  // carry it: clamping 61 to 59 here would silently eat the minute.
+  const clampTyped = (next: number) => Math.max(0, Math.min(99, next));
 
   // null = not editing; '' = editing but untouched (placeholder shown)
   const [digits, setDigits] = useState<string | null>(null);
@@ -47,7 +59,12 @@ function TimeField({ label, placeholder, value, max, live, stacked, onRequestCha
   // While editing and empty the value matches the placeholder's character
   // count, drawn invisible, so the caret lands after it rather than in the
   // middle of an empty box.
-  const inputValue = isEditing ? (digits === '' ? placeholder : digits) : pad(value);
+  // The sign rides in front of whatever the box is showing, typed or not:
+  // it belongs to the time rather than to the digits, so backspacing
+  // through the number never has to delete it and typing never has to
+  // preserve it.
+  const shown = isEditing ? (digits === '' ? placeholder : digits) : pad(value);
+  const inputValue = negative ? `-${shown}` : shown;
 
   const appendDigits = (text: string) => {
     const typed = text.replace(/\D/g, '');
@@ -57,6 +74,7 @@ function TimeField({ label, placeholder, value, max, live, stacked, onRequestCha
 
   const { handleKeyDown, handlePaste, handleSelect } = useDigitEntry(inputRef, inputValue, {
     append: appendDigits,
+    onToggleSign,
     remove: () => setDigits((prev) => (prev ?? '').slice(0, -1)),
     // Committing is blurring; handleBlur applies the digits.
     onCommit: () => inputRef.current?.blur(),
@@ -68,8 +86,8 @@ function TimeField({ label, placeholder, value, max, live, stacked, onRequestCha
     // been typed yet. Either way it commits on blur/Enter like typing.
     onStep: (direction) => {
       setDigits((prev) => {
-        const base = prev === null || prev === '' ? value : clamp(parseInt(prev, 10));
-        return pad(step(base, direction));
+        const base = prev === null || prev === '' ? value : clampTyped(parseInt(prev, 10));
+        return pad(clampTyped(base + direction));
       });
     },
   });
@@ -80,8 +98,8 @@ function TimeField({ label, placeholder, value, max, live, stacked, onRequestCha
     const finished = digits;
     setDigits(null);
     if (wasCancelled || finished === null || finished === '') return;
-    const next = clamp(parseInt(finished, 10));
-    if (next !== value) onRequestChange(next);
+    const next = parseInt(finished, 10);
+    if (Number.isFinite(next) && next !== value) onRequestChange(next);
   };
 
   return (
@@ -143,14 +161,13 @@ function TimeField({ label, placeholder, value, max, live, stacked, onRequestCha
         </div>
         <div className="flex flex-col gap-1">
           <button
-            onClick={() => onRequestChange(step(value, 1))}
-            // Not disabled at the ends of the range while `value` is a
-            // live readout: the seconds field passes 0 and 59 once a
-            // minute, and greying an arrow out for a second each time —
-            // on a field that is otherwise always adjustable — turns a
-            // reach for it into a dead click. step() clamps anyway, so the
-            // press at the end is a no-op rather than a wrap.
-            disabled={!live && value >= max}
+            onClick={() => onStepTotal(unitSeconds)}
+            // Never disabled. These move the whole time now, so there is no
+            // end to run into: the seconds box at 59 steps up into the next
+            // minute, and at 00:00:00 steps down into -00:00:01. The old
+            // per-unit limits also flickered once a minute against a live
+            // readout, greying an arrow out mid-reach.
+            disabled={false}
             aria-label={`Increase ${label.toLowerCase()}`}
             className={chevronButtonClass}
             style={chevronButtonStyle}
@@ -158,8 +175,8 @@ function TimeField({ label, placeholder, value, max, live, stacked, onRequestCha
             <ChevronUp style={CHEVRON_ICON_SIZE} />
           </button>
           <button
-            onClick={() => onRequestChange(step(value, -1))}
-            disabled={!live && value <= 0}
+            onClick={() => onStepTotal(-unitSeconds)}
+            disabled={false}
             aria-label={`Decrease ${label.toLowerCase()}`}
             className={chevronButtonClass}
             style={chevronButtonStyle}

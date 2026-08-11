@@ -4,6 +4,9 @@ export interface TimerEntry {
   hours?: number; // older saved data has no hours field
   minutes: number;
   seconds: number;
+  // A time that starts already past zero, counting up. Optional so every
+  // save written before it existed still reads back as positive.
+  negative?: boolean;
   timestamp: number;
 }
 
@@ -34,11 +37,14 @@ export type DialogState =
   // do it. Also the "don't ask again" scope, so silencing one doesn't
   // silence the other. Only reachable where there's a run on the clock to
   // lose — see hasRunToLose — which is why there's no idle mode.
-  | { type: 'switch'; data: TimeParts; mode: 'switchRunning' | 'loadOnly' }
+  | { type: 'switch'; data: TimeParts & { negative?: boolean }; mode: 'switchRunning' | 'loadOnly' }
   | { type: 'seek'; data: { targetSeconds: number; mode: 'idle' | 'paused' | 'running' } }
-  // `state` is which timer state the adjustment was asked in. It picks the
-  // wording and doubles as the "don't ask again" scope; see dialogKey.
-  | { type: 'adjust'; data: { unit: TimeUnit; value: number; previous: number; state: TimerStateKind } }
+  // The whole resulting time, not one unit's value: a step can carry
+  // across units, so "seconds to 60" is not a thing that can be said.
+  // `unit` is only which box was touched, for the flash. `state` is which
+  // timer state it was asked in — it picks the wording and doubles as the
+  // "don't ask again" scope; see dialogKey.
+  | { type: 'adjust'; data: { totalSeconds: number; previousTotal: number; unit: TimeUnit; state: TimerStateKind } }
   | { type: 'hideWebsiteLink' }
   | { type: 'clearHistory' }
   | { type: 'clearPresets' }

@@ -213,33 +213,22 @@
 }
 
 /* Remaining time past the end of the bar, which a field edit can do: the
-   track is full and "full" is a lie, so a lighter green sweeps along it
-   instead of sitting still. background-position rather than a colour
-   cycle, so it reads as travelling — the bar is still saying "more than
-   I can show", not flashing for attention like the paused and ringing
-   ones do. The gradient is 300% wide so one pass takes the whole track.
-   Green either way: it is the running colour, and this is a run that
-   simply has more left on it than the bar was drawn for. */
+   track is full and "full" is a lie, so it breathes green to dark and back
+   rather than sitting still. Green because that's the running colour and
+   this is a run — it just has more left on it than the bar was drawn for.
+   Slow and smooth, unlike the ringing bar's hard 0.5s snap: this is the
+   bar saying "more than I can show", not calling for attention. */
 @keyframes waveGreenBar {
-  from {
-    background-position: 200% 0;
+  0%, 100% {
+    background-color: #22c55e;
   }
-  to {
-    background-position: 0% 0;
+  50% {
+    background-color: var(--app-surface);
   }
 }
 
 .animate-waveGreenBar {
-  background-image: linear-gradient(
-    90deg,
-    #16a34a 0%,
-    #16a34a 30%,
-    #4ade80 50%,
-    #16a34a 70%,
-    #16a34a 100%
-  );
-  background-size: 300% 100%;
-  animation: waveGreenBar 1.6s linear infinite;
+  animation: waveGreenBar 1.8s ease-in-out infinite;
 }
 
 /* One-shot cues on the list rows: yellow for a row that went in, green for

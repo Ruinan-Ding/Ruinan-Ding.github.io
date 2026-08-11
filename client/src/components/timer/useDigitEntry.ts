@@ -11,6 +11,8 @@ interface DigitEntryHandlers {
   onCancel?: () => void;
   /** ArrowUp (+1) / ArrowDown (-1) */
   onStep?: (direction: 1 | -1) => void;
+  /** "-" typed: flip the sign of the value being entered */
+  onToggleSign?: () => void;
 }
 
 // Shared plumbing for the calculator-style digit inputs: digits enter from
@@ -92,6 +94,15 @@ export function useDigitEntry(
     // Ctrl+V/C/A keep their defaults: cancelling the keydown would cancel
     // the paste it triggers.
     if (e.ctrlKey || e.metaKey) return;
+    // A toggle rather than a character: pressing it again takes the sign
+    // back off, and it works from anywhere in the entry rather than only
+    // in front. The digits it would otherwise be filtered out of never see
+    // it — the sign isn't part of them.
+    if (e.key === '-' && handlersRef.current.onToggleSign) {
+      e.preventDefault();
+      handlersRef.current.onToggleSign();
+      return;
+    }
     if (/^\d$/.test(e.key)) {
       e.preventDefault();
       handlersRef.current.append(e.key);

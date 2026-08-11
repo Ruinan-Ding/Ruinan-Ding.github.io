@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import DotCheckbox from './DotCheckbox';
-import { formatEntryLabel, fromTotalSeconds } from './format';
+import { formatEntryLabel, formatSignedLabel, fromTotalSeconds } from './format';
 import { dialogKey, isAcknowledgement } from './suppressions';
 import type { DialogState } from './types';
 
@@ -89,7 +89,11 @@ const getCopy = (dialog: DialogState) => {
       };
     }
     case 'adjust': {
-      const { unit, value, state } = dialog.data;
+      const { totalSeconds, state } = dialog.data;
+      // The resulting time, not the unit that was touched: a step carries
+      // across units, so 59 seconds up is 1:00 and naming a unit would
+      // describe neither box correctly.
+      const label = formatSignedLabel(totalSeconds);
       return {
         title: 'ADJUST TIME',
         // Two different acts under one title. Idle, these fields are the
@@ -98,8 +102,8 @@ const getCopy = (dialog: DialogState) => {
         // touching the total — which is what STOP and RESET go back to,
         // and what the bar is drawn against.
         description: state === 'unstarted'
-          ? `Change ${unit} to ${value}? That's the time the timer will start from.`
-          : `Change the remaining ${unit} to ${value}? The configured time stays the same.`,
+          ? `Change the time to ${label}? That's what the timer will start from.`
+          : `Change the remaining time to ${label}? The configured time stays the same.`,
         action: 'CONFIRM',
       };
     }

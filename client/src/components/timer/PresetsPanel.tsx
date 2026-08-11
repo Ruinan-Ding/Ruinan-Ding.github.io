@@ -81,7 +81,7 @@ interface PresetsPanelProps {
   // Returns whether the preset actually went in. False when that time is
   // already listed, which is answered by flashing the existing row rather
   // than adding a second copy.
-  onAdd: (parts: TimeParts) => boolean;
+  onAdd: (parts: TimeParts & { negative?: boolean }) => boolean;
   // asks to remove; onRemove is the other half, called once the row has
   // finished animating out (see PresetRow)
   onRequestRemove: (id: string) => void;
@@ -108,6 +108,9 @@ interface PresetsPanelProps {
 // tracked instead and rendered unpadded, "1:30" rather than "00:01:30".
 function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onRequestCorrect, onClear, correction, onCorrectionApplied, onSelect, inserted, loaded, duplicate }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
+  // The sign of what's being typed, separate from the digits so "-" can be
+  // pressed anywhere in the entry and pressed again to take it back off.
+  const [negative, setNegative] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
   // Once, not once per style property: the colour and the opacity beside it
@@ -116,7 +119,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
 
   // Shows exactly what was typed, out of range and all. Correcting happens
   // once, at commit, and only after asking.
-  const displayValue = digits === '' ? '' : formatEntryLabel(rawPresetDigits(digits));
+  const displayValue = digits === '' ? '' : formatEntryLabel({ ...rawPresetDigits(digits), negative });
   // While empty, the real value matches the hint's character count, drawn
   // invisible, so the caret lands after the hint's last "S".
   const inputValue = digits === '' ? 'HH:MM:SS' : displayValue;
@@ -135,7 +138,10 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
       // Only clear if the time actually went in. A refused duplicate
       // leaves what was typed sitting there to edit, beside the row
       // flashing red to say why.
-      if (onAdd(parsePresetDigits(digits))) setDigits('');
+      if (onAdd({ ...parsePresetDigits(digits), negative })) {
+        setDigits('');
+        setNegative(false);
+      }
     } else {
       setDigits(presetDigitsFromParts(parsePresetDigits(digits)));
     }
@@ -150,6 +156,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
     },
     remove: () => setDigits((prev) => prev.slice(0, -1)),
     onCommit: handleAdd,
+    onToggleSign: () => setNegative((prev) => !prev),
   });
 
   const handleBlur = () => handleCommit(false);
@@ -172,7 +179,10 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   useEffect(() => {
     if (!correction) return;
     if (correction.add) {
-      if (onAdd(parsePresetDigits(correction.digits))) setDigits('');
+      if (onAdd({ ...parsePresetDigits(correction.digits), negative })) {
+        setDigits('');
+        setNegative(false);
+      }
     } else {
       const before = rawPresetDigits(digits);
       const after = rawPresetDigits(correction.digits);

@@ -118,6 +118,7 @@ export const STORAGE_KEYS = {
   dontAskAgain: 'timerDontAskAgain',
   clockTimeZone: 'timerClockTimeZone',
   clock24Hour: 'timerClock24Hour',
+  configuredNegative: 'timerConfiguredNegative',
 } as const;
 
 // The zone id rather than the abbreviation, so the clock follows the
@@ -170,6 +171,10 @@ export const MAX_MINUTES = 59;
 export const MAX_SECONDS = 59;
 // Both lists share the sidebar's one scrollbar, so a long list costs
 // scrollable height rather than squeezing the other one.
+// The widest time the three boxes can say, either side of zero. Stepping
+// or typing past it stops there rather than wrapping, and it's the only
+// thing a preset entry is refused for now that the units carry.
+export const MAX_TOTAL_SECONDS = 99 * 3600 + 59 * 60 + 59;
 export const MAX_PRESETS = 100;
 export const MAX_HISTORY = 1000;
 // Where each list's x/max counter starts warning. Yellow from here up to
