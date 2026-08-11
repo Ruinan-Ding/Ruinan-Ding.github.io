@@ -59,11 +59,15 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
   // While editing and empty the value matches the placeholder's character
   // count, drawn invisible, so the caret lands after it rather than in the
   // middle of an empty box.
-  // The sign rides in front of whatever the box is showing, typed or not:
-  // it belongs to the time rather than to the digits, so backspacing
-  // through the number never has to delete it and typing never has to
-  // preserve it.
-  const shown = isEditing ? (digits === '' ? placeholder : digits) : pad(value);
+  // Padded either way, so a half-typed entry reads as the number it is:
+  // one digit in a two-digit box is "07", and the leading zero is padding
+  // that the next keystroke replaces rather than a digit in its own right.
+  // Same as the preset box, which pads to its own six.
+  //
+  // The sign rides in front of whatever is showing, typed or not: it
+  // belongs to the time rather than to the digits, so backspacing through
+  // the number never has to delete it and typing never has to preserve it.
+  const shown = isEditing ? (digits === '' ? placeholder : pad(digits)) : pad(value);
   const inputValue = negative ? `-${shown}` : shown;
 
   const { handleChange, handleKeyDown } = useDigitEntry(inputRef, 2, inputValue, {
@@ -138,11 +142,11 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
             placeholder={placeholder}
             aria-label={label}
             value={inputValue}
-            // Hands the current value over to be edited rather than
-            // blanking the box: with a free caret there is something worth
-            // keeping, and clearing it forced a full retype to change one
-            // digit.
-            onFocus={() => setDigits(pad(value))}
+            // Starts empty, like the preset box: the first digit typed is
+            // the first digit of the new value, and the zeros in front of
+            // it are padding it overrides. Seeding it with the current
+            // value meant typing appended to it instead.
+            onFocus={() => setDigits('')}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onChange={handleChange}

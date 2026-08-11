@@ -1,7 +1,9 @@
 import { MAX_TOTAL_SECONDS } from './constants';
 import type { TimeParts, TimerEntry } from './types';
 
-export const pad = (value: number) => String(value).padStart(2, '0');
+// Takes the half-typed string as well as the number, since a box mid-entry
+// pads the same way a settled one does.
+export const pad = (value: number | string) => String(value).padStart(2, '0');
 
 // Intl's shortOffset reads "GMT-4", "GMT+5:30", or bare "GMT" at zero.
 // The sign and the number are the whole point here, so the prefix goes and

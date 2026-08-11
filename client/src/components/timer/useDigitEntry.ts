@@ -80,7 +80,12 @@ export function useDigitEntry(
     const raw = e.target.value;
     const caret = e.target.selectionStart ?? raw.length;
     if (raw.includes('-')) handlersRef.current.onToggleSign?.();
-    const digits = raw.replace(/\D/g, '').slice(0, maxDigits);
+    // The last N, not the first. The display pads what hasn't been typed,
+    // and once a padding zero is on screen it is indistinguishable from a
+    // typed one — so re-filtering "07" plus a keystroke gives three digits
+    // and keeping the leading two threw away the digit just pressed.
+    // Dropping from the left instead is what "fills from the right" means.
+    const digits = raw.replace(/\D/g, '').slice(-maxDigits);
     // Counted against the raw string the browser just produced, so an
     // insertion is measured where it actually happened.
     pendingCaretRef.current = Math.min(digitsAfter(raw, caret), digits.length);
