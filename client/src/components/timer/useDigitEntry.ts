@@ -80,12 +80,20 @@ export function useDigitEntry(
     const raw = e.target.value;
     const caret = e.target.selectionStart ?? raw.length;
     if (raw.includes('-')) handlersRef.current.onToggleSign?.();
-    // The last N, not the first. The display pads what hasn't been typed,
-    // and once a padding zero is on screen it is indistinguishable from a
-    // typed one — so re-filtering "07" plus a keystroke gives three digits
-    // and keeping the leading two threw away the digit just pressed.
-    // Dropping from the left instead is what "fills from the right" means.
-    const digits = raw.replace(/\D/g, '').slice(-maxDigits);
+    // Overflow drops a leading zero, and only a leading zero.
+    //
+    // The display pads what hasn't been typed, so once "07" is on screen
+    // that zero is indistinguishable from a typed one and re-filtering it
+    // with a keystroke gives three digits for a two-digit box. Shedding
+    // the zero is what makes the padding get overridden rather than
+    // appended to: 07 then 7 is 77.
+    //
+    // Once there is no zero left to shed the box is genuinely full and the
+    // keystroke is dropped. Shedding unconditionally instead made 77 then
+    // 5 into 75, which is a digit thrown away rather than one refused.
+    let digits = raw.replace(/\D/g, '');
+    while (digits.length > maxDigits && digits.startsWith('0')) digits = digits.slice(1);
+    digits = digits.slice(0, maxDigits);
     // Counted against the raw string the browser just produced, so an
     // insertion is measured where it actually happened.
     pendingCaretRef.current = Math.min(digitsAfter(raw, caret), digits.length);
