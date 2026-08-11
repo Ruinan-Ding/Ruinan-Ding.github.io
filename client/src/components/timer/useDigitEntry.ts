@@ -125,15 +125,24 @@ export function useDigitEntry(
     handlersRef.current.setValue(next);
   };
 
-  // A typed digit replaces the one under the caret. Nothing shifts along
-  // to make room for it: these are fixed-width numbers, and pushing the
-  // digits right turned typing a correction into "1:92:34" — the digit you
-  // meant to replace still there, one place over.
+  // A typed digit joins the number at its right end, wherever the caret
+  // happens to be. It is a number, not a line of text: the digits mean
+  // what they mean by their distance from the units place, so a keystroke
+  // in the middle can only be the next digit of the same number.
   //
-  // Only at the end, where there is nothing to replace, does it extend the
-  // number: appended if the box has room, and if not, a leading zero gives
-  // way to it. With no zero left to shed the box is full and the keystroke
-  // is refused rather than pushing a real digit out.
+  // Nothing to its right moves and nothing there is lost. Inserting shifted
+  // them along — correcting the 2 in 12:34 gave 1:92:34, with the digit
+  // meant to be replaced still there one place over — and overtyping ate
+  // the digit under the caret instead. Both were the box guessing at
+  // something the position does not say.
+  //
+  // Room is made on the left, where the padding is: a leading zero stands
+  // for a digit not yet typed, so it gives way. With no zero left to shed
+  // the box is full and the keystroke is refused rather than pushing a
+  // real digit out.
+  //
+  // A selection is the exception, because highlighting says exactly which
+  // digits to be rid of.
   const handleDigit = (e: React.KeyboardEvent<HTMLInputElement>, typed: string) => {
     e.preventDefault();
     const el = e.currentTarget;
@@ -143,17 +152,15 @@ export function useDigitEntry(
     const digits = shown.replace(/\D/g, '');
     const from = digitsBefore(shown, start);
     const to = digitsBefore(shown, end);
-    const next = from !== to
-      ? digits.slice(0, from) + typed + digits.slice(to)   // over a selection
-      : from < digits.length
-        ? digits.slice(0, from) + typed + digits.slice(from + 1)  // over a digit
-        : digits + typed;                                   // past the last one
-    // Counted from the right, so shedding zeros off the left can't move it.
-    const caretFromRight = next.length - (from + 1);
+    const selecting = from !== to;
+    const next = selecting ? digits.slice(0, from) + typed + digits.slice(to) : digits + typed;
+    // Counted from the right, so shedding zeros off the left cannot move
+    // it. A digit that joined at the end leaves the caret at the end.
+    const caretFromRight = selecting ? Math.max(0, next.length - (from + 1)) : 0;
     let capped = next;
     while (capped.length > maxDigits && capped.startsWith('0')) capped = capped.slice(1);
     if (capped.length > maxDigits) return;
-    pendingCaretRef.current = Math.max(0, caretFromRight);
+    pendingCaretRef.current = caretFromRight;
     handlersRef.current.setValue(capped);
   };
 
