@@ -149,7 +149,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
 
   const handleAdd = () => handleCommit(true);
 
-  const { handleChange, handleKeyDown } = useDigitEntry(inputRef, 6, {
+  const { handleChange, handleKeyDown } = useDigitEntry(inputRef, 6, inputValue, {
     setValue: setDigits,
     onCommit: handleAdd,
     onToggleSign: () => setNegative((prev) => !prev),

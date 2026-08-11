@@ -78,7 +78,10 @@ const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: 
 // The widest time the three boxes can say, either side of zero. Stepping or
 // typing past it stops there rather than wrapping: 99:59:59 is the end of
 // the range, not a point on a circle.
-const clampTotal = (total: number) => Math.max(-MAX_TOTAL_SECONDS, Math.min(MAX_TOTAL_SECONDS, Math.round(total)));
+// Clamped, not rounded: a step off a running clock lands on a fraction of
+// a second and that fraction is the whole point. Rounding it away meant
+// every step gave back what the last one gained.
+const clampTotal = (total: number) => Math.max(-MAX_TOTAL_SECONDS, Math.min(MAX_TOTAL_SECONDS, total));
 
 // The running time as the digits above read it: the two halves combined
 // and the magnitude truncated toward zero.
@@ -89,8 +92,13 @@ const clampTotal = (total: number) => Math.max(-MAX_TOTAL_SECONDS, Math.min(MAX_
 // however many times you pressed. Truncating agrees with formatTime, so
 // the boxes and the countdown say the same thing and a step of one second
 // moves one second.
-const liveShownSeconds = ({ seconds, milliseconds }: { seconds: number; milliseconds: number }) =>
-  Math.trunc((seconds * 1000 + milliseconds) / 1000);
+// The exact running time in seconds, fraction and all.
+const liveSeconds = ({ seconds, milliseconds }: { seconds: number; milliseconds: number }) =>
+  seconds + milliseconds / 1000;
+
+// The same value as the digits above read it: truncated toward zero. This
+// is what the three boxes show, and what a typed edit builds on.
+const liveShownSeconds = (time: { seconds: number; milliseconds: number }) => Math.trunc(liveSeconds(time));
 
 // Guards both saved lists against corrupt storage. Arithmetic on a bad
 // number never throws, so a non-numeric field would slip through as NaN:
@@ -1244,6 +1252,15 @@ export default function Timer() {
   // Which number it is depends on the same isLiveRun split as before:
   // idle these boxes are the timer's setup, running or paused they are the
   // time left and the configured total is untouched.
+  // Two readings of the same thing, and stepping needs the exact one.
+  // Truncating first threw away the part-second the last step had just
+  // added, so on a running clock every press gave back exactly what it
+  // gained and the boxes sat still — worst at the zero crossing, which is
+  // the one place stepping has a job to do.
+  const exactTotal = useCallback(
+    () => (isLiveRunRef.current ? liveSeconds(timeRef.current) : configuredTotalRef.current),
+    []
+  );
   const shownTotal = useCallback(
     () => (isLiveRunRef.current ? liveShownSeconds(timeRef.current) : configuredTotalRef.current),
     []
@@ -1253,14 +1270,19 @@ export default function Timer() {
     const next = clampTotal(total);
     if (isLiveRunRef.current) {
       clearAlarmInterval();
-      setTime({ seconds: next, milliseconds: 0 });
+      // Stored the way the tick stores it — floored seconds plus a
+      // positive remainder — so the countdown carries on from exactly
+      // here instead of from a rounded copy of it.
+      const totalMs = Math.round(next * 1000);
+      const whole = Math.floor(totalMs / 1000);
+      setTime({ seconds: whole, milliseconds: totalMs - whole * 1000 });
     } else {
-      const magnitude = fromTotalSeconds(Math.abs(next));
+      const magnitude = fromTotalSeconds(Math.abs(Math.trunc(next)));
       setHours(magnitude.hours);
       setMinutes(magnitude.minutes);
       setTimerSeconds(magnitude.seconds);
       setIsConfiguredNegative(next < 0);
-      restartCountdown(next);
+      restartCountdown(Math.trunc(next));
     }
     // The unit the click was on, flashed in the direction the whole time
     // moved. A carry changes two boxes and the one you touched is the one
@@ -1289,14 +1311,14 @@ export default function Timer() {
     // for, and finding that out later is worse than being told.
     if (Math.abs(total) > MAX_TOTAL_SECONDS) {
       applyAdjustment(next, unit, previousTotal);
-      setDialog({ type: 'correctTime', data: { typed: formatSignedLabel(total), corrected: formatSignedLabel(next) } });
+      setDialog({ type: 'correctTime', data: { typed: formatSignedLabel(Math.trunc(total)), corrected: formatSignedLabel(Math.trunc(next)) } });
       return;
     }
     if (next === previousTotal) return;
 
     const state = timerStateKind();
     if (hasRunToLose() && !askedAdjustInStatesRef.current.has(state)) {
-      const dialog: DialogState = { type: 'adjust', data: { totalSeconds: next, previousTotal, unit, state } };
+      const dialog: DialogState = { type: 'adjust', data: { totalSeconds: Math.trunc(next), previousTotal, unit, state } };
       // Marked before asking, not after confirming: a cancelled question
       // was still asked. The dismiss handler clears it again so cancelling
       // doesn't hand the next adjustment a free pass.
@@ -1325,16 +1347,16 @@ export default function Timer() {
   // overtime the way back to a running countdown.
   const handleStepTotal = useCallback((deltaSeconds: number) => {
     const unit: TimeUnit = Math.abs(deltaSeconds) >= 3600 ? 'hours' : Math.abs(deltaSeconds) >= 60 ? 'minutes' : 'seconds';
-    requestTotalChange(shownTotal() + deltaSeconds, unit);
-  }, [shownTotal, requestTotalChange]);
+    requestTotalChange(exactTotal() + deltaSeconds, unit);
+  }, [exactTotal, requestTotalChange]);
 
   // "-" flips the sign of the whole time from whichever box it was typed
   // in; the display decides which one wears it.
   const handleToggleSign = useCallback(() => {
-    const total = shownTotal();
+    const total = exactTotal();
     if (total === 0) return;
-    requestTotalChange(-total, signedParts(total).signUnit ?? 'seconds');
-  }, [shownTotal, requestTotalChange]);
+    requestTotalChange(-total, signedParts(shownTotal()).signUnit ?? 'seconds');
+  }, [exactTotal, shownTotal, requestTotalChange]);
 
 const handleHideWebsiteLinkClick = () => {
     askThenRun({ type: 'hideWebsiteLink' }, () => setIsWebsiteLinkHidden(true));

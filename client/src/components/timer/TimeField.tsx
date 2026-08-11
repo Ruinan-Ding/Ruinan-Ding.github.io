@@ -66,7 +66,7 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
   const shown = isEditing ? (digits === '' ? placeholder : digits) : pad(value);
   const inputValue = negative ? `-${shown}` : shown;
 
-  const { handleChange, handleKeyDown } = useDigitEntry(inputRef, 2, {
+  const { handleChange, handleKeyDown } = useDigitEntry(inputRef, 2, inputValue, {
     setValue: setDigits,
     onToggleSign,
     // Committing is blurring; handleBlur applies the digits.

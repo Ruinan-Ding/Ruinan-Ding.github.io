@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
 interface DigitEntryHandlers {
   /** the whole value after an edit, already filtered to digits and capped */
@@ -13,41 +13,79 @@ interface DigitEntryHandlers {
   onToggleSign?: () => void;
 }
 
+// How many digits sit before an index in the displayed string. The box
+// shows a formatted time — "12:05", or "-01" — and the value behind it is
+// just its digits, so this maps a caret in one onto a position in the
+// other. Separators and the sign are not positions the value has.
+const digitsBefore = (shown: string, index: number) => shown.slice(0, index).replace(/\D/g, '').length;
+
+// How many digits sit after an index — the caret's position counted from
+// the right.
+//
+// From the right, not the left, because these are numbers: they fill from
+// the bottom unit up, and the display pads what isn't typed yet. One typed
+// digit shows as "0:01", three digit characters standing for one real one,
+// so counting from the left put the caret three places from where it
+// belonged and the next keystroke landed in the middle of the padding.
+// Counted from the right there is nothing to be wrong about — the digits
+// you can see past the caret are the digits that are really there.
+const digitsAfter = (shown: string, index: number) => shown.slice(index).replace(/\D/g, '').length;
+
+// The inverse: the rightmost index with exactly `n` digits after it.
+const indexWithDigitsAfter = (shown: string, n: number) => {
+  let seen = 0;
+  for (let i = shown.length; i >= 0; i -= 1) {
+    if (seen === n) return i;
+    if (i > 0 && /\d/.test(shown[i - 1])) seen += 1;
+  }
+  return 0;
+};
+
 // Shared plumbing for the two time inputs. They are ordinary text boxes:
-// the caret goes where you put it, selections work, and Backspace, Delete,
-// cut, drag and paste all behave the way they do anywhere else. What's
-// left here is the filter — digits reach the value, "-" is a sign toggle,
+// the caret goes where you put it and stays there, selections work, and
+// cut, paste and drag behave the way they do anywhere else. What's left
+// here is the filter — digits reach the value, "-" is a sign toggle,
 // nothing else gets in — plus Enter, Escape and the arrows.
 //
-// The calculator entry this replaces pinned the caret to the end and
-// appended from the right, so fixing a typo in the middle meant deleting
-// everything after it.
-//
-// onChange rather than a beforeinput listener: reading the box after the
-// browser has already edited it covers every path into it at once,
-// including soft keyboards that report key='Unidentified' and the
-// deletions React's synthetic onBeforeInput never fires for.
+// The caret is the whole reason this is a hook rather than an onChange.
+// Both boxes are controlled and reformat as you type, so every edit
+// replaced the value and the browser parked the caret at the end. It is
+// tracked in digits, not characters, and put back after the render: type a
+// digit into the middle of "12:05" and it stays where you typed it, on
+// either side of a colon that may have moved.
 export function useDigitEntry(
   inputRef: React.RefObject<HTMLInputElement | null>,
   maxDigits: number,
+  displayValue: string,
   handlers: DigitEntryHandlers
 ) {
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
+  // Where the caret belongs once the new value has rendered, counted in
+  // digits. null between edits, so clicking somewhere is never overridden.
+  const pendingCaretRef = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    const at = pendingCaretRef.current;
+    pendingCaretRef.current = null;
+    if (!el || at === null || document.activeElement !== el) return;
+    const index = indexWithDigitsAfter(displayValue, at);
+    el.setSelectionRange(index, index);
+  }, [inputRef, displayValue]);
 
   // The sign lives outside the digits, so a "-" typed or pasted anywhere
   // in the box toggles it and never lands in the value itself.
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
+    const caret = e.target.selectionStart ?? raw.length;
     if (raw.includes('-')) handlersRef.current.onToggleSign?.();
-    handlersRef.current.setValue(raw.replace(/\D/g, '').slice(0, maxDigits));
+    const digits = raw.replace(/\D/g, '').slice(0, maxDigits);
+    // Counted against the raw string the browser just produced, so an
+    // insertion is measured where it actually happened.
+    pendingCaretRef.current = Math.min(digitsAfter(raw, caret), digits.length);
+    handlersRef.current.setValue(digits);
   };
-
-  // How many digits sit before an index in the displayed string. The box
-  // shows a formatted time — "12:05" — and the value behind it is just its
-  // digits, so this is what maps a caret in one onto a position in the
-  // other.
-  const digitsBefore = (shown: string, index: number) => shown.slice(0, index).replace(/\D/g, '').length;
 
   // Deletions are done by digit rather than left to the filter. Backspace
   // over the ":" in "12:05" removes a character the value never held, so
@@ -65,14 +103,13 @@ export function useDigitEntry(
     // A collapsed caret takes the digit on the side the key points at.
     if (from === to) {
       if (forward) to = from + 1;
-      else from = from - 1;
-    }
-    if (from < 0 || to > digits.length || from >= to) {
-      e.preventDefault();
-      return;
+      else from -= 1;
     }
     e.preventDefault();
-    handlersRef.current.setValue(digits.slice(0, from) + digits.slice(to));
+    if (from < 0 || to > digits.length || from >= to) return;
+    const next = digits.slice(0, from) + digits.slice(to);
+    pendingCaretRef.current = next.length - from;
+    handlersRef.current.setValue(next);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -103,9 +140,6 @@ export function useDigitEntry(
     // which reads it as the sign toggle and drops it from the digits.
     if (e.key.length === 1 && !/[\d-]/.test(e.key)) e.preventDefault();
   };
-
-  // Kept so callers can still reach the element for focus/blur.
-  void inputRef;
 
   return { handleChange, handleKeyDown };
 }
