@@ -597,10 +597,14 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         </div>
 
         <div className="flex items-center px-3">
+          {/* The same box as the TOTAL row at the foot of this column: same
+              width, same font, and a 1px border rather than 2. The heavier
+              border was the whole of the difference between them — it read
+              as a bolder box and stood 2px taller on an identical grid. */}
           <div className="text-white font-bold grid grid-cols-3 text-center flex-shrink-0" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
-            <div className="border-2 border-white px-1 leading-tight">L</div>
-            <div className="border-2 border-white px-1 leading-tight">W</div>
-            <div className="border-2 border-white px-1 leading-tight">C</div>
+            <div className="border border-white px-1 leading-tight">L</div>
+            <div className="border border-white px-1 leading-tight">W</div>
+            <div className="border border-white px-1 leading-tight">C</div>
           </div>
         </div>
         {/* No gap: one child, so it would only be dead height. */}
