@@ -65,6 +65,11 @@ export function useDigitEntry(
   // digits. null between edits, so clicking somewhere is never overridden.
   const pendingCaretRef = useRef<number | null>(null);
 
+  // Every render rather than every value change, because an edit that
+  // lands on the value already showing changes nothing for the effect to
+  // watch: the target was left sitting in the ref and spent at the next
+  // change it did see, dragging the caret back to an edit two
+  // interactions ago. With nothing pending this is a null check.
   useLayoutEffect(() => {
     const el = inputRef.current;
     const at = pendingCaretRef.current;
@@ -72,14 +77,20 @@ export function useDigitEntry(
     if (!el || at === null || document.activeElement !== el) return;
     const index = indexWithDigitsAfter(displayValue, at);
     el.setSelectionRange(index, index);
-  }, [inputRef, displayValue]);
+  });
 
   // The sign lives outside the digits, so a "-" typed or pasted anywhere
   // in the box toggles it and never lands in the value itself.
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     const caret = e.target.selectionStart ?? raw.length;
-    if (raw.includes('-')) handlersRef.current.onToggleSign?.();
+    // The minus already on screen is not one being typed. Cutting a digit
+    // out of "-01" hands this back "-0", and reading that as a toggle
+    // flipped the whole timer on a clipboard shortcut — and on every
+    // keystroke of an Android keyboard, which reports no key and edits the
+    // value directly. Only a "-" past the one the display already wears.
+    const beyondSign = displayValue.startsWith('-') && raw.startsWith('-') ? raw.slice(1) : raw;
+    if (beyondSign.includes('-')) handlersRef.current.onToggleSign?.();
     // Overflow drops a leading zero, and only a leading zero.
     //
     // The display pads what hasn't been typed, so once "07" is on screen
@@ -120,8 +131,16 @@ export function useDigitEntry(
     }
     e.preventDefault();
     if (from < 0 || to > digits.length || from >= to) return;
-    const next = digits.slice(0, from) + digits.slice(to);
-    pendingCaretRef.current = next.length - from;
+    // Padding again: what survives a deletion is re-padded on the way back
+    // in, so carrying its zeros forward meant "07" deleted to "0", which
+    // redrew as "00" and deleted to "0" again — the key stopped doing
+    // anything and the box could never be emptied. Shedding them lets the
+    // last digit delete back to the placeholder it started as.
+    let next = digits.slice(0, from) + digits.slice(to);
+    while (next.startsWith('0')) next = next.slice(1);
+    // Counted from the right, where every digit past the caret survives,
+    // so shedding zeros off the left cannot move it.
+    pendingCaretRef.current = digits.length - to;
     handlersRef.current.setValue(next);
   };
 
@@ -152,16 +171,23 @@ export function useDigitEntry(
     const digits = shown.replace(/\D/g, '');
     const from = digitsBefore(shown, start);
     const to = digitsBefore(shown, end);
-    const next = from !== to
-      ? digits.slice(0, from) + typed + digits.slice(to)
-      : digits.slice(0, from) + typed + digits.slice(from);
+    // Room is made before the digit goes in rather than after. Shedding
+    // afterwards could only reach a zero that had stayed leading, so a
+    // digit typed at the very left of "07" made "507" and was refused
+    // outright, with the padding it should have taken sitting one place to
+    // its right. Taken off the front of what's already there, the zero
+    // gives way wherever the caret is and the caret comes down with it.
+    let base = from !== to ? digits.slice(0, from) + digits.slice(to) : digits;
+    let at = from;
+    while (base.length >= maxDigits && base.startsWith('0')) {
+      base = base.slice(1);
+      if (at > 0) at -= 1;
+    }
+    if (base.length >= maxDigits) return;
+    const capped = base.slice(0, at) + typed + base.slice(at);
     // Counted from the right, so shedding zeros off the left cannot move
     // it: the caret ends up just after the digit it wrote.
-    const caretFromRight = Math.max(0, next.length - (from + 1));
-    let capped = next;
-    while (capped.length > maxDigits && capped.startsWith('0')) capped = capped.slice(1);
-    if (capped.length > maxDigits) return;
-    pendingCaretRef.current = caretFromRight;
+    pendingCaretRef.current = capped.length - (at + 1);
     handlersRef.current.setValue(capped);
   };
 

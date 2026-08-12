@@ -89,11 +89,16 @@ const getCopy = (dialog: DialogState) => {
       };
     }
     case 'adjust': {
-      const { totalSeconds, state } = dialog.data;
+      const { totalSeconds, state, corrected } = dialog.data;
       // The resulting time, not the unit that was touched: a step carries
       // across units, so 59 seconds up is 1:00 and naming a unit would
       // describe neither box correctly.
       const label = formatSignedLabel(totalSeconds);
+      // An overshoot says so in the same breath. It is the same news the
+      // TIME CORRECTED dialog carries on its own elsewhere, and two
+      // dialogs for one click is a click that answers a question it
+      // hasn't read yet.
+      const note = corrected ? ` ${corrected.typed} is past the longest time this can hold, so it stops there.` : '';
       return {
         title: 'ADJUST TIME',
         // Two different acts under one title. Idle, these fields are the
@@ -101,9 +106,9 @@ const getCopy = (dialog: DialogState) => {
         // paused they're the time left, and this moves that without
         // touching the total — which is what STOP and RESET go back to,
         // and what the bar is drawn against.
-        description: state === 'unstarted'
+        description: (state === 'unstarted'
           ? `Change the time to ${label}? That's what the timer will start from.`
-          : `Change the remaining time to ${label}? The configured time stays the same.`,
+          : `Change the remaining time to ${label}? The configured time stays the same.`) + note,
         action: 'CONFIRM',
       };
     }
@@ -137,7 +142,10 @@ const getCopy = (dialog: DialogState) => {
     case 'correctPreset':
       return {
         title: 'TIME CORRECTED',
-        description: `${dialog.data.typed} isn't a valid time — minutes and seconds only go up to 59, and hours to 99. It's been corrected to ${dialog.data.corrected}.`,
+        // Not per-unit limits any more: the units carry, so "1:99" is
+        // 2:39 and goes in as typed. The one thing a preset is refused for
+        // is a total past the end of the range, and that is what this says.
+        description: `${dialog.data.typed} is past the longest time this can hold. It's been corrected to ${dialog.data.corrected}.`,
         action: 'OK',
       };
     case 'correctTime':

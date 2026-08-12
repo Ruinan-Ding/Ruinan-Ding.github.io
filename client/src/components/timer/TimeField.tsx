@@ -38,12 +38,12 @@ const chevronButtonStyle = { padding: shrinkClamp(0.15, 0.4, 0.45, 0.375) };
 const FIELD_FONT_SIZE = shrinkClamp(0.75, 1.5, 1.7, 1.5);
 const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.7, 1.2, 1.35, 1.25), height: shrinkClamp(0.7, 1.2, 1.35, 1.25) };
 
-// Two-digit time input. Digits enter from the right, calculator-style, and
-// nothing is clamped or applied until the edit commits on blur or Enter.
+// Two-digit time input. A typed digit lands where the caret is and takes
+// its room off the padding, and nothing is clamped or applied until the
+// edit commits on blur or Enter.
 //
-// Unlike the preset input, this one doesn't need an onFocus pinCaret:
-// focusing always changes the displayed value (blank to placeholder), and
-// useDigitEntry's value-change effect re-pins the caret for us.
+// The caret is useDigitEntry's job: the box reformats as it's typed into,
+// so the browser would otherwise park it at the end after every keystroke.
 function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, onRequestChange, onStepTotal, onToggleSign }: TimeFieldProps) {
   // Only the pending digit entry is clamped, and only to what two digits
   // can say. A committed value is left exactly as typed so the owner can
@@ -72,7 +72,15 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
 
   const { handleChange, handleKeyDown } = useDigitEntry(inputRef, 2, inputValue, {
     setValue: setDigits,
-    onToggleSign,
+    // The sign is a change to the whole time and applies at once, so the
+    // half-typed magnitude behind it is dropped rather than left to commit
+    // later: a confirmation dialog takes the focus as it opens, and that
+    // blur was applying the digits behind the question still asking about
+    // the change. Back to untouched, showing "-SS" for what it now is.
+    onToggleSign: () => {
+      setDigits('');
+      onToggleSign();
+    },
     // Committing is blurring; handleBlur applies the digits.
     onCommit: () => inputRef.current?.blur(),
     onCancel: () => {
@@ -132,7 +140,10 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
               // theme's near-white surface the hint was invisible.
               style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: FIELD_FONT_SIZE, color: 'color-mix(in oklab, var(--app-ink) 40%, transparent)' }}
             >
-              {placeholder}
+              {/* The sign too, or focusing a negative box hid the minus:
+                  the input's own text is drawn transparent while nothing
+                  has been typed, and this is what stands in for it. */}
+              {negative ? `-${placeholder}` : placeholder}
             </div>
           )}
           <input

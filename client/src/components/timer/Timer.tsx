@@ -81,7 +81,7 @@ const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: 
 // Clamped, not rounded: a step off a running clock lands on a fraction of
 // a second and that fraction is the whole point. Rounding it away meant
 // every step gave back what the last one gained.
-const clampTotal = (total: number) => Math.max(-MAX_TOTAL_SECONDS, Math.min(MAX_TOTAL_SECONDS, total));
+const clampTotal = (total: number) => Math.max(MIN_TOTAL_SECONDS, Math.min(MAX_TOTAL_SECONDS, total));
 
 // The running time as the digits above read it: the two halves combined
 // and the magnitude truncated toward zero.
@@ -527,8 +527,10 @@ export default function Timer() {
   const configuredTotalRef = useRef(configuredTotalSeconds);
   configuredTotalRef.current = configuredTotalSeconds;
   // A timer sitting idle at its configured time has nothing for STOP or
-  // RESET to act on.
-  const isIdleAtConfigured = !isRunning && seconds >= 0 && seconds === configuredTotalSeconds;
+  // RESET to act on — whichever side of zero that time was set on. The
+  // zero guard this used to carry predates a configured time that can be
+  // negative, and left both buttons live on one.
+  const isIdleAtConfigured = !isRunning && seconds === configuredTotalSeconds;
 
   const closeDialog = () => setDialog({ type: null });
 
@@ -969,8 +971,11 @@ export default function Timer() {
     restartRunFade();
   };
 
-  const recordHistory = (parts: TimeParts) => {
-    const entry: TimerEntry = { id: uniqueId(), ...parts, timestamp: Date.now() };
+  // The sign travels with the parts. Left off, a count-up run was written
+  // down as the positive time of the same magnitude, and clicking that row
+  // loaded a countdown instead of the run it recorded.
+  const recordHistory = (parts: TimeParts, negative = false) => {
+    const entry: TimerEntry = { id: uniqueId(), ...parts, negative, timestamp: Date.now() };
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
     setInsertedHistory((prev) => bumpFlash(prev, entry.id));
   };
@@ -991,7 +996,7 @@ export default function Timer() {
       milliseconds: 0,
     }));
 
-    recordHistory(configured);
+    recordHistory(configured, isConfiguredNegative);
     setIsRunning(true);
     setIsPaused(false);
     restartRunFade();
@@ -1039,7 +1044,7 @@ export default function Timer() {
   const handleConfirmReset = () => {
     playTone('reset');
     restartCountdown(configuredTotalSeconds);
-    recordHistory(configured);
+    recordHistory(configured, isConfiguredNegative);
     setIsRunning(true);
     setIsPaused(false);
     closeDialog();
@@ -1066,7 +1071,7 @@ export default function Timer() {
     setIsPaused(false);
     setIsRunning(start);
     if (start) {
-      recordHistory(parts);
+      recordHistory(parts, negative);
       restartRunFade();
       if (!isSilentMode) beep(...TONES.start);
     }
@@ -1309,27 +1314,46 @@ export default function Timer() {
     // landing somewhere else — the same report a typed preset gets, for
     // the same reason: the time you end up with isn't the one you asked
     // for, and finding that out later is worse than being told.
-    if (Math.abs(total) > MAX_TOTAL_SECONDS) {
+    const corrected = Math.abs(total) > MAX_TOTAL_SECONDS
+      ? { typed: formatSignedLabel(Math.trunc(total)), corrected: formatSignedLabel(Math.trunc(next)) }
+      : null;
+    // Reported after the correction lands, since it says what has already
+    // happened — and through askThenRun, so its own "don't ask again"
+    // silences it. Opened straight it wrote that preference down and then
+    // never read it, and the box came back every time.
+    const applyAndReport = () => {
       applyAdjustment(next, unit, previousTotal);
-      setDialog({ type: 'correctTime', data: { typed: formatSignedLabel(Math.trunc(total)), corrected: formatSignedLabel(Math.trunc(next)) } });
+      if (corrected) askThenRun({ type: 'correctTime', data: corrected }, () => {});
+    };
+    if (next === previousTotal) {
+      // Nothing moves, but an overshoot that was refused is still worth
+      // saying — the step you pressed didn't do what it looks like it did.
+      if (corrected) askThenRun({ type: 'correctTime', data: corrected }, () => {});
       return;
     }
-    if (next === previousTotal) return;
 
     const state = timerStateKind();
     if (hasRunToLose() && !askedAdjustInStatesRef.current.has(state)) {
-      const dialog: DialogState = { type: 'adjust', data: { totalSeconds: Math.trunc(next), previousTotal, unit, state } };
+      // An out-of-range edit comes through here too. Applying it up front
+      // and asking afterwards discarded a running timer with no question
+      // at all, on the one path where the answer matters most.
+      //
+      // The correction rides in this dialog's own copy rather than
+      // following it as a second one: the click that confirms is also the
+      // click that closes, so a dialog opened from the confirm handler is
+      // shut by the same event that opened it.
+      const dialog: DialogState = { type: 'adjust', data: { totalSeconds: Math.trunc(next), previousTotal, unit, state, corrected } };
       // Marked before asking, not after confirming: a cancelled question
       // was still asked. The dismiss handler clears it again so cancelling
       // doesn't hand the next adjustment a free pass.
       askedAdjustInStatesRef.current.add(state);
       askThenRun(dialog, () => {
         askedAdjustInStatesRef.current.delete(state);
-        applyAdjustment(next, unit, previousTotal);
+        applyAndReport();
       });
       return;
     }
-    applyAdjustment(next, unit, previousTotal);
+    applyAndReport();
   }, [shownTotal, timerStateKind, hasRunToLose, applyAdjustment, askThenRun]);
 
   // A typed commit replaces one unit's magnitude and keeps the sign. 61
@@ -1455,6 +1479,13 @@ const handleHideWebsiteLinkClick = () => {
         break;
       case 'correctPreset':
         setPresetCorrection({ digits: dialog.data.digits, add: dialog.data.add });
+        closeDialog();
+        break;
+      // Nothing to carry out — the correction landed before this said so —
+      // but it still has to close. Without a case of its own the switch
+      // fell through and returned, and ESC, which routes an
+      // acknowledgement through here, left the dialog standing.
+      case 'correctTime':
         closeDialog();
         break;
       case 'duplicatePreset':

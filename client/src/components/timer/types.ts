@@ -44,7 +44,10 @@ export type DialogState =
   // `unit` is only which box was touched, for the flash. `state` is which
   // timer state it was asked in — it picks the wording and doubles as the
   // "don't ask again" scope; see dialogKey.
-  | { type: 'adjust'; data: { totalSeconds: number; previousTotal: number; unit: TimeUnit; state: TimerStateKind } }
+  // `corrected` is set when the edit overshot the end of the range and was
+  // clamped to get here, so this dialog can say so itself rather than hand
+  // the same click a second dialog to close.
+  | { type: 'adjust'; data: { totalSeconds: number; previousTotal: number; unit: TimeUnit; state: TimerStateKind; corrected: { typed: string; corrected: string } | null } }
   | { type: 'hideWebsiteLink' }
   | { type: 'clearHistory' }
   | { type: 'clearPresets' }

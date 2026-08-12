@@ -170,8 +170,6 @@ export const ALARM_TOTAL_BURSTS = 3;
 export const ALARM_GROUP_GAP_TICKS = 10;
 
 export const MAX_HOURS = 99;
-export const MAX_MINUTES = 59;
-export const MAX_SECONDS = 59;
 // Both lists share the sidebar's one scrollbar, so a long list costs
 // scrollable height rather than squeezing the other one.
 // The widest time the three boxes can say, either side of zero. Stepping
