@@ -125,21 +125,19 @@ export function useDigitEntry(
     handlersRef.current.setValue(next);
   };
 
-  // A typed digit joins the number at its right end, wherever the caret
-  // happens to be. It is a number, not a line of text: the digits mean
-  // what they mean by their distance from the units place, so a keystroke
-  // in the middle can only be the next digit of the same number.
+  // A typed digit lands where the caret is. Not at the right end — that
+  // ignored where you put it — and not over the digit under it, which ate
+  // a digit you had not asked to lose.
   //
-  // Nothing to its right moves and nothing there is lost. Inserting shifted
-  // them along — correcting the 2 in 12:34 gave 1:92:34, with the digit
-  // meant to be replaced still there one place over — and overtyping ate
-  // the digit under the caret instead. Both were the box guessing at
-  // something the position does not say.
+  // Room is made on the left, off the padding. A leading zero stands for a
+  // digit not yet typed, so it is the thing that gives way, and everything
+  // to the right of the caret keeps both its value and its place: type
+  // into "07" between the 0 and the 7 and you get "57", with that 7 still
+  // the seconds it always was.
   //
-  // Room is made on the left, where the padding is: a leading zero stands
-  // for a digit not yet typed, so it gives way. With no zero left to shed
-  // the box is full and the keystroke is refused rather than pushing a
-  // real digit out.
+  // With no zero left to shed the box is full and the keystroke is
+  // refused, wherever the caret is, rather than pushing a real digit out
+  // of one end or the other.
   //
   // A selection is the exception, because highlighting says exactly which
   // digits to be rid of.
@@ -149,14 +147,17 @@ export function useDigitEntry(
     const shown = el.value;
     const start = el.selectionStart ?? shown.length;
     const end = el.selectionEnd ?? start;
+    // Off the displayed string, so the padding counts: it is what the new
+    // digit is going to take the room from.
     const digits = shown.replace(/\D/g, '');
     const from = digitsBefore(shown, start);
     const to = digitsBefore(shown, end);
-    const selecting = from !== to;
-    const next = selecting ? digits.slice(0, from) + typed + digits.slice(to) : digits + typed;
+    const next = from !== to
+      ? digits.slice(0, from) + typed + digits.slice(to)
+      : digits.slice(0, from) + typed + digits.slice(from);
     // Counted from the right, so shedding zeros off the left cannot move
-    // it. A digit that joined at the end leaves the caret at the end.
-    const caretFromRight = selecting ? Math.max(0, next.length - (from + 1)) : 0;
+    // it: the caret ends up just after the digit it wrote.
+    const caretFromRight = Math.max(0, next.length - (from + 1));
     let capped = next;
     while (capped.length > maxDigits && capped.startsWith('0')) capped = capped.slice(1);
     if (capped.length > maxDigits) return;
