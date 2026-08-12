@@ -15,7 +15,7 @@ import TimeField from './TimeField';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
 import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
-import { boxClamp, fitClamp, shrinkClamp } from './responsive';
+import { boxCap, boxClamp, fitClamp, shrinkClamp } from './responsive';
 import { isAcknowledgement, isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
@@ -1752,12 +1752,14 @@ const handleHideWebsiteLinkClick = () => {
     width: fitClamp(5.25, 18, 9.25),
   });
   // The same buttons scaled to a single header row, for the word counter's
-  // fullscreen view, which covers the real ones.
+  // fullscreen view, which covers the real ones. Every size is capped
+  // against that row — it holds one line at any width, so what doesn't fit
+  // has to come off the size rather than off the line.
   const compactControlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    height: HEADER_BUTTON_SIZE.height,
-    padding: `0 ${shrinkClamp(0.5, 1, 1.1, 0.75)}`,
-    fontSize: shrinkClamp(0.6, 1.3, 1.4, 0.9),
+    height: boxCap(HEADER_BUTTON_SIZE.height, 6.8),
+    padding: `0 ${boxCap(shrinkClamp(0.5, 1, 1.1, 0.75), 1.4)}`,
+    fontSize: boxCap(shrinkClamp(0.6, 1.3, 1.4, 0.9), 1.95),
     borderColor: color,
     color,
     backgroundColor: 'var(--app-surface)',
@@ -1847,7 +1849,12 @@ const handleHideWebsiteLinkClick = () => {
       {/* The bell is the main icon, since this is about the alarm rather
           than being a generic loop toggle. Repeat sits inside the bell's
           body as a badge for the setting itself. */}
+      {/* Named for the fullscreen row's caps in index.css, which have to
+          keep the badge smaller than the bell it sits inside. One cap for
+          every icon on that row made the two the same size, and the badge
+          is opaque: it covered the bell entirely. */}
       <Bell
+        className="ringer-bell"
         color={isAlarmLooping ? '#22c55e' : 'var(--app-ink)'}
         style={RINGER_BELL_SIZE}
       />
@@ -1855,7 +1862,7 @@ const handleHideWebsiteLinkClick = () => {
         aria-hidden
         color={isAlarmLooping ? '#22c55e' : 'var(--app-ink)'}
         fill="var(--app-surface)"
-        className="absolute"
+        className="absolute ringer-badge"
         style={{
           width: shrinkClamp(0.7, 1.6, 1.6, 1.1),
           height: shrinkClamp(0.7, 1.6, 1.6, 1.1),
@@ -1953,7 +1960,10 @@ const handleHideWebsiteLinkClick = () => {
       className="font-bold flex-shrink-0"
       style={{
         fontFamily: "'IBM Plex Mono', monospace",
-        fontSize: shrinkClamp(0.7, 1.5, 1.6, 1),
+        // Capped against the row, which is a container: "1:02:05·00 /
+        // 1:02:05" is ~12em of monospace, and the row can't wrap, so the
+        // one thing that can give is the size.
+        fontSize: boxCap(shrinkClamp(0.7, 1.5, 1.6, 1), 2),
         color: seconds < 0 ? '#ef4444' : 'var(--app-ink)',
       }}
     >
@@ -2419,10 +2429,10 @@ const handleHideWebsiteLinkClick = () => {
           clockCluster={isWordCounterFullscreen && isRowLayout ? renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE) : null}
           headerCornerWidth={headerCornerWidth}
           timerDigits={isWordCounterFullscreen ? wordCounterTimerDigits : null}
-          timerBar={isWordCounterFullscreen && isRowLayout ? renderDrainBar('clamp(3rem, 8vw, 8rem)', true) : null}
+          timerBar={isWordCounterFullscreen && isRowLayout ? renderDrainBar(boxCap('clamp(3rem, 8vw, 8rem)', 9), true) : null}
           timerControls={
             isWordCounterFullscreen ? (
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex items-center flex-shrink-0" style={{ gap: boxCap('0.375rem', 1.2) }}>
                 {renderControlButtons(compactControlButtonStyle, 'border-2')}
               </div>
             ) : null

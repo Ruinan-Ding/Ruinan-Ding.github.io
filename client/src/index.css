@@ -526,6 +526,46 @@
   }
 }
 
+/* The word counter's fullscreen header row. One line at every width, so
+   everything on it is capped to a share of the row rather than left on a
+   rem floor the window can shrink past: see boxCap in responsive.ts, which
+   does the same job for the sizes React sets inline.
+   These three come from Timer at the size its floating corners use, and
+   there's no fullscreen-only copy of that clamp to cap. max-width is how
+   you cap a size you can't see: it leaves the clamp alone until the row is
+   short enough to bite, where a min() would have needed the whole
+   expression restated here to stay in step with it.
+   Both axes, because these are squares. On the icons especially: capping
+   the width alone leaves the svg its full height and it stands taller than
+   the button around it.
+   The four figures are one ratio: each icon's own floor against the
+   button's 2rem one, so a squeezed row looks like the narrow-window row it
+   already was rather than rearranging itself. The bell fills its button and
+   the repeat badge sits inside the bell, and a single cap for every icon
+   flattened all three to the same size — the badge is opaque, so it covered
+   the bell it is a badge on.
+   The 100% term is the button's own content box, which the border takes a
+   fixed 6px out of however small the button gets. Without it the icon was
+   wider than the room inside its button, and a flex item that has to
+   shrink shrinks on the one axis: the bell came out 8 wide by 13 tall,
+   standing out through the border it sits in. */
+.fs-header-row .fs-row-icons button {
+  max-width: 6.8cqi;
+  max-height: 6.8cqi;
+}
+.fs-header-row .fs-row-icons svg {
+  max-width: min(3.7cqi, 100%);
+  max-height: min(3.7cqi, 100%);
+}
+.fs-header-row .fs-row-icons .ringer-bell {
+  max-width: min(6.1cqi, 100%);
+  max-height: min(6.1cqi, 100%);
+}
+.fs-header-row .fs-row-icons .ringer-badge {
+  max-width: min(2.4cqi, 40%);
+  max-height: min(2.4cqi, 40%);
+}
+
 /* The x/max beside PRESETS and HISTORY, on the same terms. The heading and
    Clear hold the line at every width; the count is the annotation, and
    below ~145px of heading row the sidebar cannot carry all three however

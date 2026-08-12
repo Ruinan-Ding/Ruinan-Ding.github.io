@@ -6,7 +6,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, STORAGE_KEYS, TYPES_INTO } from './constants';
 import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
-import { shrinkClamp } from './responsive';
+import { boxCap, shrinkClamp } from './responsive';
 import { isDialogSuppressed, suppressDialog } from './suppressions';
 import { capInsertion, countLabel, countStats, COUNTER_MAX, COUNTER_WARN } from './wordCount';
 import type { DialogState } from './types';
@@ -65,10 +65,13 @@ const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 // Mixed off --app-ink rather than a literal white, or the rules vanish
 // against the light theme's own near-white surface.
 const RULE_COLOR_IDLE = 'color-mix(in oklab, var(--app-ink) 35%, transparent)';
-// One under the other, so a notch under the shared TOGGLE_FONT_SIZE: they
-// no longer have to earn their place on a line with anything, and two
-// stacked rows of it read heavier than one did.
-const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.6, 1.2, 1.35, 0.78);
+// Side by side on one line, so capped against the box they share as well
+// as the viewport: the two labels together are ~31em of monospace, and at
+// a rem floor that stopped fitting long before the window stopped
+// narrowing. 3cqi of their container is what 31em of it comes to, so they
+// shrink to fit rather than clipping the second one. Above the cap — every
+// desktop width — this is the size it always was.
+const WORD_TOGGLE_FONT_SIZE = boxCap(shrinkClamp(0.6, 1.2, 1.35, 0.78), 3);
 // Copy, Clear and the full-screen icon. Smaller than the switches beside
 // them on purpose: this group never shrinks, so every pixel it takes is
 // one the switches can't have, and it's the reason they used to stack.
@@ -393,14 +396,23 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           protecting anything the moment the row overflows, which is exactly
           when the corner lands on something. Running out of width shrinks
           the clock; see its box below.
-          It stays on one line from sm up. Below that it wraps, because it
-          can't do otherwise: on a 390px phone the corner's own reservation
-          is 136px, leaving 246px for a row whose contents measure ~400 even
-          with the clock and bar dropped. Held to nowrap it put STOP under
-          the corner instead. */}
+          One line at every width, never wrapped. It used to wrap below sm
+          and drop the countdown and the buttons onto a second row, which is
+          the one thing this view can't do: it exists to keep them in reach
+          while you type. What made nowrap possible is the container below —
+          everything on the row is capped to a share of it (boxCap), so the
+          contents are a constant fraction of the room rather than a set of
+          rem floors the window can shrink past.
+          The container is the row's content box, i.e. the corner's
+          reservation is already subtracted, so the cqi caps measure the
+          space the row can actually use. */}
       <div
-        className="flex items-center gap-3 flex-wrap sm:flex-nowrap w-full"
-        style={isFullscreen ? { paddingRight: headerCornerWidth ? headerCornerWidth + 24 : HEADER_CORNER_RESERVE } : undefined}
+        className={`flex items-center w-full ${isFullscreen ? 'fs-header-row' : 'gap-3 flex-wrap sm:flex-nowrap'}`}
+        style={isFullscreen ? {
+          paddingRight: headerCornerWidth ? headerCornerWidth + 24 : HEADER_CORNER_RESERVE,
+          containerType: 'inline-size',
+          gap: boxCap('0.75rem', 2.2),
+        } : undefined}
       >
         {isFullscreen ? (
           <>
@@ -410,8 +422,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 `.flex { min-width: 0 }` overrides that, and on a phone this
                 cluster really was squeezed to 0 with its flex-shrink-0
                 buttons spilling over the timer beside it. Same remedy the
-                HOURS/MINUTES/SECONDS box needs for the same rule. */}
-            <div className="flex items-center gap-3 flex-1 min-w-min">
+                HOURS/MINUTES/SECONDS box needs for the same rule.
+                fs-row-icons is the hook for the caps in index.css: these
+                three come from Timer, at the size its floating corners use,
+                and a max-width caps them here without restating the clamp
+                that gives them that size. */}
+            <div className="flex items-center flex-1 min-w-min fs-row-icons" style={{ gap: boxCap('0.75rem', 2.2) }}>
               {!isAutoCollapsed && (
                 <HeaderToggleButton
                   onClick={toggleCollapsed}
@@ -423,9 +439,9 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               {speakerButton}
             </div>
             {/* Countdown, bar and buttons as one block that never splits.
-                gap-2 rather than the row's gap-3: this is the densest run
-                in the app, and 4px a gap is 12px across it. */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+                A smaller gap than the row's: this is the densest run in the
+                app, and a few px a gap is a dozen across it. */}
+            <div className="flex items-center flex-shrink-0" style={{ gap: boxCap('0.5rem', 1.7) }}>
               {timerDigits}
               {timerBar}
               {timerControls}
@@ -470,19 +486,25 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             items-start, because that column is three lines tall and
             centring against it pushed the buttons down the box. */}
         <div className="flex justify-between items-start gap-3 px-3 pt-1">
-          {/* One switch per line, and the line about them under both. An
-              inline-size container so the hint can tell whether it fits;
-              flex-1 rather than shrink-to-fit, since a container's own
-              size can't come from its contents. */}
+          {/* Both switches on one line, with the line about them under the
+              pair. An inline-size container so the hint can tell whether it
+              fits and the switches can size against it; flex-1 rather than
+              shrink-to-fit, since a container's own size can't come from
+              its contents. */}
           <div
             className="flex flex-col items-start gap-0.5 flex-1 min-w-0"
             style={{ containerType: 'inline-size', containerName: 'counter-switches' }}
           >
+            {/* The gaps are capped as well as the type. Fixed at 12px and
+                6px they were 24px of the ~130 this box gets at its
+                narrowest, and the pair overflowed on padding alone while
+                the labels themselves had room to spare. */}
+            <div className="flex items-center flex-nowrap" style={{ gap: boxCap('0.75rem', 3) }}>
             <button
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
               aria-pressed={alnumWordsOnly}
-              className="flex items-center gap-1.5 font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
-              style={{ color: capColor(rawWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              className="flex items-center font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
+              style={{ color: capColor(rawWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE, gap: boxCap('0.375rem', 1.2) }}
               title={wordsCapHidden
                 ? `Every token counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
                 : 'When on, a token needs at least one letter or digit to count as a word. Click to count every whitespace-separated token instead, punctuation-only ones included.'}
@@ -495,11 +517,11 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             <button
               onClick={() => setAlnumCharsOnly((prev) => !prev)}
               aria-pressed={alnumCharsOnly}
-              className="flex items-center gap-1.5 font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
+              className="flex items-center font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
               // Coloured like the switch beside it, and more sharply
               // needed: "$$$$$" counts as no characters, so C can read far
               // under a limit the text is already sitting on.
-              style={{ color: capColor(rawChars, alnumCharsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE }}
+              style={{ color: capColor(rawChars, alnumCharsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE, gap: boxCap('0.375rem', 1.2) }}
               title={charsCapHidden
                 ? `Every character counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
                 : 'When on, only letters and digits count toward C. Click to count every character in the line instead, including spaces.'}
@@ -508,6 +530,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               <DotCheckbox checked={alnumCharsOnly} fontSize="1em" />
               Alphanumeric chars only
             </button>
+            </div>
 
             {/* Under the two switches it talks about, rather than trailing
                 them on the same line where it read as a third control.

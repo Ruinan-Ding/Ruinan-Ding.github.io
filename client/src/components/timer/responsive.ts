@@ -26,6 +26,17 @@ export const shrinkClamp = (minRem: number, vw: number, vh: number, maxRem: numb
 export const fitClamp = (minRem: number, cqi: number, maxRem: number) =>
   `clamp(${minRem}rem, ${cqi}cqi, ${maxRem}rem)`;
 
+// A size that keeps whatever it already is until the container runs short,
+// then takes a fixed share of the room there actually is.
+//
+// This is what lets a row hold one line at every width. Every clamp in the
+// app bottoms out on a rem floor, so past that point the window keeps
+// narrowing while the contents don't, and a row that can't wrap runs off
+// the end. A cqi cap has no floor to reach: capped, each piece is a
+// constant fraction of the container, so a row that fits at one width fits
+// at all of them. Above the cap nothing changes at all.
+export const boxCap = (value: string, cqi: number) => `min(${value}, ${cqi}cqi)`;
+
 // fitClamp against both of the container's axes, for anything the digits'
 // height reserve has to predict. On cqi alone a wide but short window grew
 // these off the column's width while the reserve was estimating them off
