@@ -526,6 +526,21 @@
   }
 }
 
+/* The switches themselves go the same way one step further down, and only
+   their words do: the checkboxes stay, still clickable and still saying
+   which is which through their tooltips.
+   The pair measures ~305px at the floor size their type stops shrinking
+   at, so ~320px of box is where they stop fitting. Shrinking them to fit
+   instead is what this replaces — held to one line by a container cap they
+   reached 5px on a narrow window, which is a line you can see and can't
+   read. Two boxes and no words is the more honest version of not having
+   room for the words. */
+@container counter-switches (max-width: 320px) {
+  .switch-label {
+    display: none;
+  }
+}
+
 /* The word counter's fullscreen header row. One line at every width, so
    everything on it is capped to a share of the row rather than left on a
    rem floor the window can shrink past: see boxCap in responsive.ts, which

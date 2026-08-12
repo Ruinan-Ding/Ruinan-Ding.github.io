@@ -65,13 +65,13 @@ const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 // Mixed off --app-ink rather than a literal white, or the rules vanish
 // against the light theme's own near-white surface.
 const RULE_COLOR_IDLE = 'color-mix(in oklab, var(--app-ink) 35%, transparent)';
-// Side by side on one line, so capped against the box they share as well
-// as the viewport: the two labels together are ~31em of monospace, and at
-// a rem floor that stopped fitting long before the window stopped
-// narrowing. 3cqi of their container is what 31em of it comes to, so they
-// shrink to fit rather than clipping the second one. Above the cap — every
-// desktop width — this is the size it always was.
-const WORD_TOGGLE_FONT_SIZE = boxCap(shrinkClamp(0.6, 1.2, 1.35, 0.78), 3);
+// Side by side on one line. No container cap on this one: the two labels
+// together are ~31em of monospace, and capped to fit they went to 5px on a
+// narrow window — one line, and unreadable, which is not a trade worth
+// making for text. The floor holds instead, and the labels drop out
+// entirely once they stop fitting at it (see .switch-label in index.css).
+// The checkboxes stay, so the two settings are still there to click.
+const WORD_TOGGLE_FONT_SIZE = shrinkClamp(0.6, 1.2, 1.35, 0.78);
 // Copy, Clear and the full-screen icon. Smaller than the switches beside
 // them on purpose: this group never shrinks, so every pixel it takes is
 // one the switches can't have, and it's the reason they used to stack.
@@ -511,7 +511,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
             >
               <DotCheckbox checked={alnumWordsOnly} fontSize="1em" />
-              Alphanumeric words only
+              <span className="switch-label">Alphanumeric words only</span>
             </button>
 
             <button
@@ -528,7 +528,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
             >
               <DotCheckbox checked={alnumCharsOnly} fontSize="1em" />
-              Alphanumeric chars only
+              <span className="switch-label">Alphanumeric chars only</span>
             </button>
             </div>
 
