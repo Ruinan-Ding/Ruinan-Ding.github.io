@@ -460,6 +460,22 @@
   }
 }
 
+/* ENTER/R/S go next, one rung further down the same ladder: the tip at
+   36rem, these three lines at 28rem, and the word counter collapsing on
+   its own measurement below that — 350-370px, measured at four widths.
+   28rem clears the worst of those by 78px, so the instructions are gone
+   before the panel is, which is the order asked for.
+   What this does NOT do is delay that collapse. The timer row and the
+   word counter are flex-1 siblings splitting the column in half, so the
+   27px released here stays on this side; the counter measured identical
+   at every height with these hidden and shown. This is three lines of
+   clutter off a window too short to want them, and nothing more. */
+@media (max-height: 28rem) {
+  .timer-hints {
+    display: none;
+  }
+}
+
 @container timer-row (max-height: 17.5rem) {
   .time-fields-box {
     display: grid;

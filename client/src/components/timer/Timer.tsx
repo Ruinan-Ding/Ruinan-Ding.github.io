@@ -1660,9 +1660,12 @@ const handleHideWebsiteLinkClick = () => {
   const hintLines = hints.map(({ text, disabled }) =>
     isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
   );
+  // timer-hints is the hook for the short-window tuck in index.css: three
+  // lines of instructions are the first thing worth dropping once the
+  // window is too short to hold what it's instructing.
   const hintsDisplay = (
     <div
-      className={`opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
+      className={`timer-hints opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
       style={{
         // Smaller than it was, since it's three lines now rather than one
         // wrapping row, and all three of them come off the digits.
