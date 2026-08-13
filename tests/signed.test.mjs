@@ -66,6 +66,11 @@ const fields = async () => {
   return ev(`[...document.querySelectorAll('.time-fields-box input')].map(i=>i.value).join(':')`);
 };
 const status = () => ev(`[...document.querySelectorAll('div')].filter(e=>/^(READY|RUNNING|PAUSED|STOPPED|FINISHED)$/.test(e.textContent.trim())&&e.children.length===0).pop()?.textContent.trim()`);
+// The small configured-time label directly above the countdown. It reads
+// the same value the digits do, so it has to agree with them on the sign.
+const configuredLabel = () => ev(`document.querySelector('.opacity-60.text-center.leading-none')?.textContent.trim()`);
+// The digits' own sign, off the block the countdown is drawn in.
+const digitsText = () => ev(`(()=>{const d=[...document.querySelectorAll('div')].find(e=>/^-?\\d+:\\d\\d/.test(e.textContent.trim())&&e.className.includes('items-baseline'));return d?d.textContent.trim():null})()`);
 const IN = (i) => `document.querySelectorAll('.time-fields-box input')[${i}]`;
 const UP = (u) => `document.querySelector('.time-fields-box [aria-label="Increase ${u}"]')`;
 const DOWN = (u) => `document.querySelector('.time-fields-box [aria-label="Decrease ${u}"]')`;
@@ -137,6 +142,16 @@ await clickEl(UP('minutes'), 'minutes up');
 const after = await fields();
 check(`stepping up left overtime (${after})`, /-/.test(after), 'false');
 check('and it is counting down again', await status(), 'RUNNING');
+
+// 5b. The label above the digits reads the same value they do, so it wears
+// the same sign. Built off the three magnitudes alone it had none, and a
+// count-up showed 1:00 sitting directly on top of -1:00.
+await reload(0);
+await clickEl(DOWN('minutes'), 'minutes down');
+check('label signs a negative configured time', await configuredLabel(), '-1:00');
+check('and the digits agree with it', /^-/.test(await digitsText() ?? ''), 'true');
+await reload(65);
+check('a positive one is left unsigned', await configuredLabel(), '1:05');
 
 // 6. A run started on a negative time is written down as one. Without the
 // sign, history kept a count-up as the positive time of the same size and

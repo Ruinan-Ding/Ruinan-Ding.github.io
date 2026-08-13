@@ -1069,7 +1069,10 @@ export default function Timer() {
 
   const remaining = formatTime(seconds, milliseconds);
   // Same label style as the sidebar lists: "1:30", not "01:30:00".
-  const configuredLabel = formatEntryLabel(configured);
+  // Off the signed total, not the three magnitudes: `configured` carries no
+  // sign, so a count-up's label read 1:05 directly above digits reading
+  // -1:05.
+  const configuredLabel = formatSignedLabel(configuredTotalSeconds);
 
   // One-shot flash on a countdown segment, green for an increase and red
   // for a decrease. Tied to the tokens applyAdjustment bumps, so it fires
