@@ -29,8 +29,16 @@ pnpm install
 pnpm run dev
 pnpm run check   # tsc
 pnpm test        # counting and capping self-check
+pnpm run test:ui # the browser suites in tests/ — needs Chrome
 pnpm run build
 ```
+
+`pnpm run test:ui` drives a real headless Chrome through the DevTools
+protocol: keyboard shortcuts, confirmation dialogs, signed-time entry,
+preset and history rows, and a layout sweep over 22 viewports. It uses a
+dev server if one is already on port 5199 and otherwise builds and serves
+one itself. Pass suite names to run a few (`pnpm run test:ui keys signed`),
+and set `CHROME` if the browser isn't where `tests/chrome.mjs` looks.
 
 Built with React 19, TypeScript, Tailwind CSS 4, and the Web Audio API. Deploys to GitHub Pages via GitHub Actions on push to `main`.
 

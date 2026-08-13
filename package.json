@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "check": "tsc --noEmit",
-    "test": "node client/src/components/timer/wordCount.check.mjs"
+    "test": "node client/src/components/timer/wordCount.check.mjs",
+    "test:ui": "node tests/run.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
