@@ -3,10 +3,17 @@ import { useCallback, useRef } from 'react';
 // One shared context; browsers cap how many can exist.
 let audioContextInstance: AudioContext | null = null;
 
+// Safari shipped the constructor under a prefix for years and still
+// answers to it. Named rather than cast to any, so the fallback is a
+// documented shape instead of an unchecked hole.
+type LegacyAudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
+
 const getAudioContext = (): AudioContext => {
   if (!audioContextInstance) {
     try {
-      audioContextInstance = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const Ctor = window.AudioContext ?? (window as LegacyAudioWindow).webkitAudioContext;
+      if (!Ctor) throw new Error('Web Audio is unavailable');
+      audioContextInstance = new Ctor();
     } catch (e) {
       console.error('Failed to create AudioContext:', e);
       throw e;

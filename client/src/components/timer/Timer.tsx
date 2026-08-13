@@ -2,6 +2,7 @@ import { Bell, ChevronsLeft, ChevronsRight, ExternalLink, Moon, Repeat, Sun, Tra
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
+import { useLeaveGuard } from '@/hooks/useLeaveGuard';
 import { usePersisted } from '@/hooks/usePersisted';
 import { readBoolean, readJSON, wipeStorage, writeJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
@@ -11,14 +12,19 @@ import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
+import SpeakerIcon from './SpeakerIcon';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_TICK_MS, ALARM_TOTAL_BURSTS, CLOCK_FONT_SIZE, DEFAULT_PRESETS, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_HOURS, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
-import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, offsetLabel, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
+import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
+import { readSavedHistory, readSavedPresets } from './entries';
+import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
 import { boxCap, boxClamp, fitClamp, shrinkClamp } from './responsive';
 import { isAcknowledgement, isDialogSuppressed, suppressDialog } from './suppressions';
 import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
+import { useAlarm } from './useAlarm';
+import { useTimeFieldsTuck } from './useTimeFieldsTuck';
+import { useZoneOffsets } from './useZoneOffsets';
 
 // Bigger than a normal header icon, filling most of the button, since the
 // bell is that button's whole identity.
@@ -30,48 +36,6 @@ const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrin
 // margin, which wouldn't shrink with it and cost a third of the panel's
 // footprint on a short window.
 const TIME_FIELDS_TOP_MARGIN = { marginTop: `calc(${HEADER_BUTTON_SIZE.height} + 0.5rem)` };
-
-// Sound waves grow in as the volume rises. Two ways to be silent, and they
-// don't draw the same, because they aren't the same thing and the fix for
-// one isn't the fix for the other: muted is a switch, and clicking the
-// button undoes it; 0% is a level, and only the slider moves it. Muted
-// gets a red slash straight through the whole icon — a "no" sign, readable
-// at a glance and at the smallest size this shrinks to. A silent slider
-// keeps the small grey X beside the speaker: same speaker, no waves left.
-function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean; color: string }) {
-  const wave = (threshold: number) => Math.max(0, Math.min(1, (volume - threshold) / 0.25));
-  const silentSlider = !muted && volume === 0;
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ width: shrinkClamp(1.1, 3, 3, 2), height: shrinkClamp(1.1, 3, 3, 2) }}
-    >
-      <polygon points="9 5 4 9 1 9 1 15 4 15 9 19 9 5" fill={color} />
-      {!muted && (
-        <>
-          <path d="M12.5 9.5a3.5 3.5 0 0 1 0 5" opacity={wave(0)} />
-          <path d="M15 7a7 7 0 0 1 0 10" opacity={wave(0.33)} />
-          <path d="M17.5 4.5a10.5 10.5 0 0 1 0 15" opacity={wave(0.66)} />
-        </>
-      )}
-      {silentSlider && (
-        <>
-          <line x1="14" y1="9" x2="20" y2="15" />
-          <line x1="20" y1="9" x2="14" y2="15" />
-        </>
-      )}
-      {/* Drawn last and in its own red, so it reads over the speaker
-          rather than beside it, and stays the one red thing in the corner
-          whatever colour the button itself is wearing. */}
-      {muted && <line x1="3" y1="3" x2="21" y2="21" stroke="#ef4444" strokeWidth={2.5} />}
-    </svg>
-  );
-}
 
 const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: (prev?.token ?? 0) + 1 });
 
@@ -100,41 +64,10 @@ const liveSeconds = ({ seconds, milliseconds }: { seconds: number; milliseconds:
 // is what the three boxes show, and what a typed edit builds on.
 const liveShownSeconds = (time: { seconds: number; milliseconds: number }) => Math.trunc(liveSeconds(time));
 
-// Guards both saved lists against corrupt storage. Arithmetic on a bad
-// number never throws, so a non-numeric field would slip through as NaN:
-// presets fall back to DEFAULT_PRESETS, history drops the row. Without
-// this a bad entry renders as "abc:NaN" and, once clicked, sets the
-// countdown to NaN, which it never leaves since every comparison the tick
-// makes against NaN is false.
-// Repaired rather than rejected, because the time is the part worth
-// keeping and an older save can be missing the rest. A row with no id
-// keys the same as every other row without one, so React reuses the wrong
-// node for a flash and one delete takes all of them at once; a timestamp
-// that isn't a number throws inside Intl on its way to the screen.
-// 8.64e15 is the far end of what a Date can hold. Finite wasn't enough:
-// 1e16 is a finite number and still throws inside Intl, which is the
-// crash this line exists to stop.
-const MAX_TIMESTAMP = 8.64e15;
-const normalizeEntry = (p: TimerEntry): TimerEntry => ({
-  ...p,
-  id: typeof p.id === 'string' && p.id !== '' ? p.id : uniqueId(),
-  timestamp: typeof p.timestamp === 'number' && Math.abs(p.timestamp) <= MAX_TIMESTAMP ? p.timestamp : 0,
-});
-
 // Which controls own a keystroke, by kind of key. See the window listener.
 // TYPES_INTO lives in constants because the word counter needs the same
 // list; ENTER additionally belongs to anything it would press.
 const ENTER_ACTIVATES = `${TYPES_INTO}, button, a, [role="button"]`;
-
-const isValidEntry = (p: unknown): p is TimerEntry => {
-  if (typeof p !== 'object' || p === null) return false;
-  const entry = p as Partial<TimerEntry>;
-  return (
-    typeof entry.minutes === 'number' && Number.isFinite(entry.minutes) &&
-    typeof entry.seconds === 'number' && Number.isFinite(entry.seconds) &&
-    (entry.hours === undefined || (typeof entry.hours === 'number' && Number.isFinite(entry.hours)))
-  );
-};
 
 export default function Timer() {
   // Parsed once before first render, so the persist effect can't save
@@ -143,20 +76,14 @@ export default function Timer() {
   // unknown, and it shouldn't count.
   const initial = useMemo(() => {
     const savedState = readJSON<unknown>(STORAGE_KEYS.timerState, null);
-    const savedHistory = readJSON<unknown>(STORAGE_KEYS.history, null);
-    return {
-      saved: (savedState && typeof savedState === 'object' ? savedState : {}) as Record<string, unknown>,
-      // Filtered, not cast: one bad row at a time rather than
-      // all-or-nothing, since history has no defaults to fall back to.
-      history: Array.isArray(savedHistory) ? savedHistory.filter(isValidEntry).map(normalizeEntry) : [],
-    };
+    return (savedState && typeof savedState === 'object' ? savedState : {}) as Record<string, unknown>;
   }, []);
   // isFinite, not typeof: JSON.parse turns an overflowing literal into
   // Infinity, which is a number and which every guard downstream compares
   // false against, so the countdown would sit on it and never move.
   const savedNumber = (key: string, fallback: number) =>
-    Number.isFinite(initial.saved[key]) ? (initial.saved[key] as number) : fallback;
-  const wasActive = initial.saved.isRunning === true;
+    Number.isFinite(initial[key]) ? (initial[key] as number) : fallback;
+  const wasActive = initial.isRunning === true;
 
   // Remaining time: signed whole seconds plus milliseconds in [0, 1000)
   const [time, setTime] = useState(() => ({
@@ -207,20 +134,11 @@ export default function Timer() {
   const [minutesFlash, setMinutesFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [secondsFlash, setSecondsFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
 
-  const [history, setHistory] = useState<TimerEntry[]>(initial.history);
-  const [presets, setPresets] = useState<TimerEntry[]>(() => {
-    const parsed = readJSON<unknown>(STORAGE_KEYS.presets, null);
-    if (!Array.isArray(parsed) || !parsed.every(isValidEntry)) return DEFAULT_PRESETS;
-    // older saves packed hours into minutes. Capped on the way out, or a
-    // save holding 6000 minutes migrates to 100 hours — past the range
-    // every other path in the app holds itself to, and into a countdown
-    // the fields can't show.
-    return parsed.map((p) => ({
-      ...normalizeEntry(p),
-      hours: Math.min((p.hours ?? 0) + Math.floor(p.minutes / 60), MAX_HOURS),
-      minutes: p.minutes % 60,
-    }));
-  });
+  // Both read before first render, so the persist effects can't save an
+  // empty list over a real one. See entries.ts for what a corrupt store
+  // degrades to.
+  const [history, setHistory] = useState<TimerEntry[]>(readSavedHistory);
+  const [presets, setPresets] = useState<TimerEntry[]>(readSavedPresets);
 
   const [dialog, setDialog] = useState<DialogState>({ type: null });
   const [isWordCounterFocused, setIsWordCounterFocused] = useState(false);
@@ -228,11 +146,6 @@ export default function Timer() {
   // Manual hide toggles, all persisted, so a tucked-in panel stays tucked
   // in across a reload. Only the site RESET brings them back.
   const [isSidebarHidden, setIsSidebarHidden] = useState(() => readBoolean(STORAGE_KEYS.sidebarHidden, false));
-  const [isTimeFieldsHidden, setIsTimeFieldsHidden] = useState(() => readBoolean(STORAGE_KEYS.timeFieldsHidden, false));
-  // True only when the auto-tuck below forced it. Its "Show" arrow hides
-  // itself while this is set, since clicking would bounce straight back on
-  // the next check().
-  const [isTimeFieldsAutoTucked, setIsTimeFieldsAutoTucked] = useState(false);
   const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => readBoolean(STORAGE_KEYS.websiteLinkHidden, false));
   // The whole theme switch is one attribute on <html>: index.css swaps
   // --app-surface and --app-ink off it and every colour resolves through
@@ -272,35 +185,7 @@ export default function Timer() {
     window.clearTimeout(hourFormatFlashRef.current);
     hourFormatFlashRef.current = window.setTimeout(() => setIsHourFormatFlashing(false), FLASH_DURATION_MS);
   }, [setIs24Hour]);
-  // The offset for every zone, so the picker reads "New York (-4)" rather
-  // than leaving you to work out which of the twelve Americas is yours
-  // from a city name alone. Needs an Intl.DateTimeFormat per zone and 418
-  // of them measured 123ms, so it waits for an idle moment after first
-  // paint. Until then the list shows plain city names.
-  const [zoneOffsets, setZoneOffsets] = useState<Record<string, string>>({});
-  useEffect(() => {
-    const build = () => {
-      const at = Date.now();
-      const offsets: Record<string, string> = {};
-      for (const zone of TIME_ZONES) {
-        try {
-          const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(at);
-          const raw = parts.find((part) => part.type === 'timeZoneName')?.value;
-          if (raw) offsets[zone] = offsetLabel(raw);
-        } catch {
-          // a zone the engine lists but won't format: it just keeps its
-          // plain city name, same as before this ran
-        }
-      }
-      setZoneOffsets(offsets);
-    };
-    if (typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(build);
-      return () => window.cancelIdleCallback(id);
-    }
-    const id = window.setTimeout(build, 0);
-    return () => window.clearTimeout(id);
-  }, []);
+  const zoneOffsets = useZoneOffsets();
   // How much room the floating top-right corner takes, measured rather
   // than derived. The word counter's fullscreen row has to stop before it,
   // and HEADER_CORNER_RESERVE is only a formula; measuring can't be wrong.
@@ -335,164 +220,16 @@ export default function Timer() {
     };
   }, []);
 
-  // The row holding the website link, the digits and, at sm+, the
-  // HOURS/MINUTES/SECONDS panel. Measured directly so the auto-tuck below
-  // reacts to what actually doesn't fit rather than an assumed size.
-  const timerRowRef = useRef<HTMLDivElement | null>(null);
-  // The panel itself, so the height check can ask whether this is what
-  // overflows the row rather than reading the row's own scrollHeight.
-  const timeFieldsRef = useRef<HTMLDivElement | null>(null);
-
-  // What the row NEEDED to keep the panel, measured with the panel still
-  // in it, or null when it isn't auto-tucked. Once hidden the panel is out
-  // of the DOM and can't be re-measured, so this is the proxy for "there's
-  // room again".
-  //
-  // Deliberately not the row's size at that moment: hiding the panel
-  // doesn't change that size, so "grown back to what it was" is already
-  // true the instant it tucks, and the panel bounces in and out forever.
-  const tuckedNeedsRef = useRef<{ w: number; h: number } | null>(null);
-  // check() reads state through refs. Window resize, the ResizeObserver
-  // and the deferred fonts.ready callback can all fire the same closure
-  // from an effect run whose state has since gone stale: check() flips
-  // isTimeFieldsHidden, and fonts.ready, registered in that same call, can
-  // still fire against the pre-flip closure before React re-renders.
-  const isTimeFieldsHiddenRef = useRef(isTimeFieldsHidden);
-  isTimeFieldsHiddenRef.current = isTimeFieldsHidden;
-  const isTimeFieldsAutoTuckedRef = useRef(isTimeFieldsAutoTucked);
-  isTimeFieldsAutoTuckedRef.current = isTimeFieldsAutoTucked;
-  // Stacked is the narrow form but also the taller one, so a window that's
-  // both narrow and short can't have it. This overrides the breakpoint
-  // back to inline in that case rather than tucking the panel away. It
-  // holds the height the stacked form needed, for the same reason
-  // tuckedNeedsRef does: comparing against the row's size at that moment
-  // would flip back on the first pixel of growth and immediately flip out.
-  const [isTimeFieldsInlinedByHeight, setIsTimeFieldsInlinedByHeight] = useState(false);
-  const inlinedByHeightNeedsRef = useRef<number | null>(null);
-  const isTimeFieldsInlinedByHeightRef = useRef(isTimeFieldsInlinedByHeight);
-  isTimeFieldsInlinedByHeightRef.current = isTimeFieldsInlinedByHeight;
-  // Stacked: label above the digit box. Inline: label beside it.
-  const isTimeFieldsStacked = !isWideLayout && !isTimeFieldsInlinedByHeight;
-  const isTimeFieldsStackedRef = useRef(isTimeFieldsStacked);
-  isTimeFieldsStackedRef.current = isTimeFieldsStacked;
-  const isRowLayoutRef = useRef(isRowLayout);
-  isRowLayoutRef.current = isRowLayout;
-
-  // Tucks the panel away once the row is genuinely too cramped for it,
-  // and reverses once the row grows back past what the panel needed. That
-  // reversal only ever undoes its own hide: a manual hide leaves
-  // tuckedNeedsRef null and is never fought.
-  //
-  // Tucking is the last rung of a ladder, not the first response. In
-  // order: inline, stacked (a third of the width), 3-across if the row is
-  // too short for the stack (.time-fields-box in index.css), inline again,
-  // tucked. Narrower or shorter always beats disappearing.
-  //
-  // Below sm the panel isn't rendered at all: the row is a column there,
-  // and under the digits this reads as part of the countdown rather than a
-  // control for it. tuckedNeedsRef stays null, and the isRowLayout
-  // dependency re-fires when the breakpoint is crossed back so the panel
-  // gets one fresh look.
-  useEffect(() => {
-    const el = timerRowRef.current;
-    if (!el) return;
-    const check = () => {
-      if (!isRowLayoutRef.current) {
-        tuckedNeedsRef.current = null;
-        // A manual hide is left alone here. Only a hide that isn't an
-        // auto-tuck persists, so relabelling one as an auto-tuck let a
-        // single visit on a narrow window erase the preference.
-        if (isTimeFieldsHiddenRef.current && !isTimeFieldsAutoTuckedRef.current) return;
-        if (!isTimeFieldsHiddenRef.current || !isTimeFieldsAutoTuckedRef.current) {
-          setIsTimeFieldsHidden(true);
-          setIsTimeFieldsAutoTucked(true);
-        }
-        return;
-      }
-      if (isTimeFieldsHiddenRef.current && isTimeFieldsAutoTuckedRef.current && !tuckedNeedsRef.current) {
-        setIsTimeFieldsHidden(false);
-        setIsTimeFieldsAutoTucked(false);
-        return;
-      }
-      // A few px of tolerance throughout: sub-pixel rounding from
-      // fractional clamp() results and font metrics is enough to trip a
-      // bare `>` and tuck the panel over an overflow nobody can see.
-      const tooWide = el.scrollWidth > el.clientWidth + 4;
-      // The panel's own box against the row's, not the row's scrollHeight.
-      // The digits column is by far the tallest thing here, so on a short
-      // window it is what overflows, and tucking the panel for that frees
-      // no vertical space at all. getBoundingClientRect because the
-      // panel's offsetParent is the column wrapper, not the row.
-      const panel = timeFieldsRef.current;
-      let tooTall = false;
-      let neededHeight = 0;
-      if (panel) {
-        const rowRect = el.getBoundingClientRect();
-        const panelRect = panel.getBoundingClientRect();
-        neededHeight = panelRect.bottom - rowRect.top;
-        tooTall = neededHeight > el.clientHeight + 4;
-      }
-
-      // A row that's short rather than narrow is better served by going
-      // back to inline than by losing the panel. Only once inline also
-      // doesn't fit does this fall through to the tuck below.
-      if (!isTimeFieldsHiddenRef.current && tooTall && isTimeFieldsStackedRef.current) {
-        inlinedByHeightNeedsRef.current = neededHeight;
-        setIsTimeFieldsInlinedByHeight(true);
-        return;
-      }
-
-      // `panel &&`: only something rendered can be tucked. Once it is, the
-      // row's remaining overflow belongs to the digits column and must not
-      // re-record a need this can no longer measure, nor turn a manual
-      // hide into an auto-tuck that the branch above would then undo.
-      if (panel && (tooWide || tooTall)) {
-        // Recorded while the panel is still measurable, and as what it
-        // needed rather than what the row had.
-        tuckedNeedsRef.current = { w: el.scrollWidth, h: neededHeight };
-        setIsTimeFieldsHidden(true);
-        setIsTimeFieldsAutoTucked(true);
-        return;
-      }
-
-      // >= is honest here only because tuckedNeedsRef holds what the
-      // panel NEEDED rather than what the row had: the need is by
-      // construction more than the row could give, so this can't be true
-      // at the moment of tucking the way a recorded row size was.
-      if (
-        tuckedNeedsRef.current &&
-        el.clientWidth >= tuckedNeedsRef.current.w &&
-        el.clientHeight >= tuckedNeedsRef.current.h
-      ) {
-        tuckedNeedsRef.current = null;
-        setIsTimeFieldsHidden(false);
-        setIsTimeFieldsAutoTucked(false);
-        return;
-      }
-
-      // The row has the height the stacked form wanted, so hand the
-      // decision back to the breakpoint.
-      if (
-        isTimeFieldsInlinedByHeightRef.current &&
-        (!inlinedByHeightNeedsRef.current || el.clientHeight >= inlinedByHeightNeedsRef.current)
-      ) {
-        inlinedByHeightNeedsRef.current = null;
-        setIsTimeFieldsInlinedByHeight(false);
-      }
-    };
-    check();
-    window.addEventListener('resize', check);
-    const resizeObserver = new ResizeObserver(check);
-    resizeObserver.observe(el);
-    // The first check can land before the monospace font swaps in,
-    // measuring the narrower fallback and missing an overflow that only
-    // appears once the real font's wider digits load.
-    document.fonts?.ready.then(check);
-    return () => {
-      window.removeEventListener('resize', check);
-      resizeObserver.disconnect();
-    };
-  }, [isTimeFieldsHidden, isTimeFieldsAutoTucked, isTimeFieldsInlinedByHeight, isRowLayout, isWideLayout]);
+  // Hidden, stacked or auto-tucked: one decision, and the panel gets
+  // narrower before it gets hidden. See useTimeFieldsTuck.
+  const {
+    isHidden: isTimeFieldsHidden,
+    isAutoTucked: isTimeFieldsAutoTucked,
+    isStacked: isTimeFieldsStacked,
+    rowRef: timerRowRef,
+    panelRef: timeFieldsRef,
+    setHidden: setTimeFieldsHidden,
+  } = useTimeFieldsTuck(isRowLayout, isWideLayout);
 
   // Bumped when a fresh countdown starts, so the green fade replays even
   // if the window never left the running state.
@@ -502,8 +239,7 @@ export default function Timer() {
   // Drain bar hover preview: x within the track, and the time it maps to.
   const [barHover, setBarHover] = useState<{ x: number; seconds: number } | null>(null);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
   // States an adjustment has already been asked about, so the three fields
   // share one prompt per state. In memory on purpose: this means "you
@@ -606,11 +342,6 @@ export default function Timer() {
   usePersisted(STORAGE_KEYS.lightTheme, isLightTheme);
   usePersisted(STORAGE_KEYS.clockTimeZone, timeZone);
   usePersisted(STORAGE_KEYS.clock24Hour, is24Hour);
-  // Only a manual hide persists. An auto-tuck is a reaction to one window
-  // size, and the check that reverses it needs tuckedNeedsRef, which is in
-  // memory and gone on reload, so saving one would hide the panel for good
-  // at every later size.
-  usePersisted(STORAGE_KEYS.timeFieldsHidden, isTimeFieldsHidden && !isTimeFieldsAutoTucked);
 
   // timerState only writes on whole-second changes, so it can't capture
   // where inside the current second a reload lands. Flushed separately as
@@ -689,38 +420,14 @@ export default function Timer() {
   // timer didn't run out. The window flash and the red digits are the
   // whole of what a muted alarm has left to say, and without them a
   // finished timer looked identical to one still counting.
-  const isAlarmActive = isRunning && !isPaused && seconds < 0;
-  // Read through a ref inside the pattern below rather than as a
-  // dependency: toggling mute mid-ring should stop the sound where it is,
-  // not tear down and restart the flashing that goes with it.
-  const isSilentModeRef = useRef(isSilentMode);
-  isSilentModeRef.current = isSilentMode;
-  // With repeat off the alarm gets one finite ring per overtime period,
-  // and the allowance is spent the moment ringing starts. Pause/resume and
-  // mute can't squeeze out extra groups, turning repeat off mid-ring mutes
-  // at once, and it resets when the timer leaves negative time.
   const isOvertime = seconds < 0;
-  const alarmRungThisOvertimeRef = useRef(false);
-  // The pattern position lives in a ref too, so effect re-runs from repeat
-  // or pause toggles continue the ring instead of restarting it.
-  const alarmTickRef = useRef(0);
-  // With repeat off, a ring that finishes on its own leaves the digits
-  // faded red as a "you missed this" cue. Cleared by turning repeat back
-  // on or leaving overtime.
-  const [hasRungOut, setHasRungOut] = useState(false);
-  // Layout effect, not effect: this can fire in the same commit as seconds
-  // going non-negative, and running after paint gives a one-frame flash of
-  // solid red digits on an otherwise fresh countdown.
-  useLayoutEffect(() => {
-    if (!isOvertime) {
-      alarmRungThisOvertimeRef.current = false;
-      alarmTickRef.current = 0;
-      setHasRungOut(false);
-    }
-  }, [isOvertime]);
-  useEffect(() => {
-    if (isAlarmLooping) setHasRungOut(false);
-  }, [isAlarmLooping]);
+  const { isRinging: isAlarmRinging, isBeepFlash, hasRungOut, clearAlarm: clearAlarmInterval } = useAlarm({
+    isActive: isRunning && !isPaused && isOvertime,
+    isOvertime,
+    isLooping: isAlarmLooping,
+    isSilent: isSilentMode,
+    beep,
+  });
 
   // With repeat off and still above zero, pausing flashes the window
   // yellow three times rather than forever, and the digits wave yellow
@@ -740,91 +447,14 @@ export default function Timer() {
     return () => el.removeEventListener('animationend', onAnimationEnd);
   }, [isPaused, isAlarmLooping]);
 
-  // Window flash synced to the alarm: isAlarmRinging while the beep
-  // interval runs, isBeepFlash pulsing red on each individual beep.
-  const [isAlarmRinging, setIsAlarmRinging] = useState(false);
-  const [isBeepFlash, setIsBeepFlash] = useState(false);
-
-  useEffect(() => {
-    if (!isAlarmActive) return;
-    if (!isAlarmLooping && alarmRungThisOvertimeRef.current) {
-      // Repeat turned off mid-ring mutes immediately rather than finishing
-      // the pattern. Treated the same as the ring completing, so the
-      // digits still fade red.
-      setHasRungOut(true);
-      return;
-    }
-    // Spent by the overtime period, not by whether anyone heard it: a
-    // muted ring still counts as the one ring repeat-off allows, so
-    // unmuting part-way through doesn't start another. Unmuting mid-ring
-    // does pick up the beeps from the next tick, since playTick reads mute
-    // through a ref, but it won't replay what it already flashed.
-    alarmRungThisOvertimeRef.current = true;
-
-    const pattern: boolean[] = [];
-    for (let burst = 0; burst < ALARM_TOTAL_BURSTS; burst++) {
-      for (let i = 0; i < ALARM_BURST_COUNT; i++) pattern.push(true);
-      const gapTicks = burst === ALARM_TOTAL_BURSTS - 1 ? ALARM_GROUP_GAP_TICKS : ALARM_BURST_GAP_TICKS;
-      for (let i = 0; i < gapTicks; i++) pattern.push(false);
-    }
-
-    const playTick = () => {
-      // With repeat off the ring is one full pass through the pattern,
-      // every burst of it, not just the first.
-      if (!isAlarmLooping && alarmTickRef.current >= pattern.length) {
-        if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
-        beepIntervalRef.current = null;
-        setIsAlarmRinging(false);
-        setHasRungOut(true);
-        return;
-      }
-      if (pattern[alarmTickRef.current % pattern.length]) {
-        if (!isSilentModeRef.current) beep(...TONES.alarm);
-        // Red for exactly as long as the beep sounds — or would have.
-        setIsBeepFlash(true);
-        window.setTimeout(() => setIsBeepFlash(false), TONES.alarm[1]);
-      }
-      alarmTickRef.current++;
-    };
-    setIsAlarmRinging(true);
-    playTick();
-    beepIntervalRef.current = setInterval(playTick, ALARM_TICK_MS);
-
-    return () => {
-      if (beepIntervalRef.current) clearInterval(beepIntervalRef.current);
-      beepIntervalRef.current = null;
-      setIsAlarmRinging(false);
-      setIsBeepFlash(false);
-    };
-  }, [isAlarmActive, isAlarmLooping, beep]);
-
-  // Leaving mid-run throws the run away, so it asks first. The browser
-  // owns this one: its own wording, no styling, and it stays quiet until
-  // the page has been interacted with. Nothing this app can draw holds up
-  // an unload, so beforeunload is the whole of what's available.
-  //
-  // Registered only while there's a run to lose, which is what keeps the
-  // trade above intact — an idle page carries no beforeunload listener and
-  // keeps the bfcache eligibility a permanent one would cost it. Once
-  // overtime starts isRunning stays true, so a counting-up stopwatch and a
-  // finished-but-unacknowledged alarm both still ask.
+  // Armed only while there's a run to lose. Once overtime starts isRunning
+  // stays true, so a counting-up stopwatch and a finished-but-
+  // unacknowledged alarm both still ask.
   //
   // Deliberately not gated on skipConfirmations. That switch is for
   // actions this app takes on your behalf; closing the tab is one the
   // browser takes, and it's the one with nothing to undo it.
-  const isSelfReloadingRef = useRef(false);
-  useEffect(() => {
-    if (!isRunning && !isPaused && !isAlarmRinging) return;
-    const confirmLeave = (e: BeforeUnloadEvent) => {
-      // A reload the app asked for itself has already been confirmed once.
-      if (isSelfReloadingRef.current) return;
-      e.preventDefault();
-      // Chrome and Edge before 119 ignore preventDefault on its own.
-      e.returnValue = true;
-    };
-    window.addEventListener('beforeunload', confirmLeave);
-    return () => window.removeEventListener('beforeunload', confirmLeave);
-  }, [isRunning, isPaused, isAlarmRinging]);
+  const isSelfReloadingRef = useLeaveGuard(isRunning || isPaused || isAlarmRinging);
 
   // Enter/S/R mirror the on-screen controls. The ref lets the keydown
   // listener register once instead of rebinding every tick.
@@ -947,13 +577,6 @@ export default function Timer() {
       stops.forEach((stop) => stop());
       previewCleanupRef.current = null;
     };
-  };
-
-  const clearAlarmInterval = () => {
-    if (beepIntervalRef.current) {
-      clearInterval(beepIntervalRef.current);
-      beepIntervalRef.current = null;
-    }
   };
 
   const clearCountdownInterval = () => {
@@ -1382,7 +1005,7 @@ export default function Timer() {
     requestTotalChange(-total, signedParts(shownTotal()).signUnit ?? 'seconds');
   }, [exactTotal, shownTotal, requestTotalChange]);
 
-const handleHideWebsiteLinkClick = () => {
+  const handleHideWebsiteLinkClick = () => {
     askThenRun({ type: 'hideWebsiteLink' }, () => setIsWebsiteLinkHidden(true));
   };
 
@@ -2014,11 +1637,7 @@ const handleHideWebsiteLinkClick = () => {
     // It returns on its own when the panel does.
     !isTimeFieldsAutoTucked && (
       <HeaderToggleButton
-        onClick={() => {
-          tuckedNeedsRef.current = null;
-          setIsTimeFieldsAutoTucked(false);
-          setIsTimeFieldsHidden(false);
-        }}
+        onClick={() => setTimeFieldsHidden(false)}
         className="sm:self-start"
         style={isRowLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
         icon={<ChevronsLeft style={HEADER_ICON_SIZE} />}
@@ -2042,11 +1661,7 @@ const handleHideWebsiteLinkClick = () => {
       style={isRowLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
     >
       <HeaderToggleButton
-        onClick={() => {
-          tuckedNeedsRef.current = null;
-          setIsTimeFieldsAutoTucked(false);
-          setIsTimeFieldsHidden(true);
-        }}
+        onClick={() => setTimeFieldsHidden(true)}
         icon={<ChevronsRight style={HEADER_ICON_SIZE} />}
         label="Hide hours/minutes/seconds"
       />
