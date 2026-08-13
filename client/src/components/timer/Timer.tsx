@@ -26,61 +26,42 @@ import { useAlarm } from './useAlarm';
 import { useTimeFieldsTuck } from './useTimeFieldsTuck';
 import { useZoneOffsets } from './useZoneOffsets';
 
-// Bigger than a normal header icon, filling most of the button, since the
-// bell is that button's whole identity.
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
 
-// Drops the HOURS/MINUTES/SECONDS panel clear of the buttons in the same
-// corner. Both start at the content column's padding edge, so the gap is
-// one header button tall. Derived from that button rather than a fixed
-// margin, which wouldn't shrink with it and cost a third of the panel's
-// footprint on a short window.
+// Clears the header buttons in the same corner. Derived from the button so
+// it shrinks with them on a short window.
 const TIME_FIELDS_TOP_MARGIN = { marginTop: `calc(${HEADER_BUTTON_SIZE.height} + 0.5rem)` };
 
 const bumpFlash = (prev: FlashTarget, id: string): FlashTarget => ({ id, token: (prev?.token ?? 0) + 1 });
 
-// The widest time the three boxes can say, either side of zero. Stepping or
-// typing past it stops there rather than wrapping: 99:59:59 is the end of
-// the range, not a point on a circle.
-// Clamped, not rounded: a step off a running clock lands on a fraction of
-// a second and that fraction is the whole point. Rounding it away meant
-// every step gave back what the last one gained.
+// Stops at the end of the range rather than wrapping. Clamped, not
+// rounded: a step off a running clock lands mid-second, and rounding that
+// away gives back exactly what the step gained.
 const clampTotal = (total: number) => Math.max(MIN_TOTAL_SECONDS, Math.min(MAX_TOTAL_SECONDS, total));
 
-// The running time as the digits above read it: the two halves combined
-// and the magnitude truncated toward zero.
-//
-// Not the raw `seconds` field, which floors — past zero that is a
-// different number. At a true -2.38s it holds -3, so stepping the boxes up
-// by one landed on -2, which floors back to -3, and the boxes sat still
-// however many times you pressed. Truncating agrees with formatTime, so
-// the boxes and the countdown say the same thing and a step of one second
-// moves one second.
-// The exact running time in seconds, fraction and all.
 const liveSeconds = ({ seconds, milliseconds }: { seconds: number; milliseconds: number }) =>
   seconds + milliseconds / 1000;
 
-// The same value as the digits above read it: truncated toward zero. This
-// is what the three boxes show, and what a typed edit builds on.
+// What the boxes show: truncated toward zero rather than floored, so it
+// agrees with formatTime past zero. Floored, -2.38s reads as -3 and a step
+// up to -2 floors straight back, leaving the boxes still.
 const liveShownSeconds = (time: { seconds: number; milliseconds: number }) => Math.trunc(liveSeconds(time));
 
-// Which controls own a keystroke, by kind of key. See the window listener.
-// TYPES_INTO lives in constants because the word counter needs the same
-// list; ENTER additionally belongs to anything it would press.
+// ENTER presses whatever is focused, so every activatable control claims
+// it; a letter only ever gets typed. See the window listener.
 const ENTER_ACTIVATES = `${TYPES_INTO}, button, a, [role="button"]`;
 
 export default function Timer() {
-  // Parsed once before first render, so the persist effect can't save
-  // defaults over it. A timer that was running comes back paused rather
-  // than resuming blind: the wall-clock time while the page was gone is
-  // unknown, and it shouldn't count.
+  // Read before first render, so the persist effects can't save defaults
+  // over it. A running timer comes back paused: the time the page spent
+  // away is unknown and shouldn't count.
   const initial = useMemo(() => {
     const savedState = readJSON<unknown>(STORAGE_KEYS.timerState, null);
     return (savedState && typeof savedState === 'object' ? savedState : {}) as Record<string, unknown>;
   }, []);
   // isFinite, not typeof: JSON.parse turns an overflowing literal into
-  // Infinity, which is a number and which every guard downstream compares
-  // false against, so the countdown would sit on it and never move.
+  // Infinity, which is a number, and every guard downstream compares false
+  // against it, so the countdown would sit there and never move.
   const savedNumber = (key: string, fallback: number) =>
     Number.isFinite(initial[key]) ? (initial[key] as number) : fallback;
   const wasActive = initial.isRunning === true;
@@ -91,8 +72,7 @@ export default function Timer() {
     milliseconds: savedNumber('milliseconds', 0),
   }));
   const { seconds, milliseconds } = time;
-  // mirror for callbacks that need the current time without re-memoizing
-  // on every countdown tick
+  // For callbacks that need the current time without re-memoizing every tick.
   const timeRef = useRef(time);
   timeRef.current = time;
 
@@ -102,9 +82,8 @@ export default function Timer() {
 
   const [isRunning, setIsRunning] = useState(wasActive);
   const [isPaused, setIsPaused] = useState(wasActive);
-  // The configured time's sign. Kept beside the three magnitudes rather
-  // than folded into them, so every existing save still reads back and a
-  // negative setup is one extra boolean rather than a new number format.
+  // Beside the three magnitudes rather than folded into them, so older
+  // saves still read back.
   const [isConfiguredNegative, setIsConfiguredNegative] = useState(() => readBoolean(STORAGE_KEYS.configuredNegative, false));
   const [isSilentMode, setIsSilentMode] = useState(() => readBoolean(STORAGE_KEYS.silentMode, false));
   const [volume, setVolume] = useState(() => {
@@ -120,16 +99,15 @@ export default function Timer() {
   // Skips every confirmation except the site RESET, which always asks.
   const [skipConfirmations, setSkipConfirmations] = useState(() => readBoolean(STORAGE_KEYS.skipConfirmations, false));
 
-  // Targets for the list rows' one-shot flashes: yellow for a fresh
-  // insert, green for a load, red for a refused duplicate. Never restored
-  // from storage, so a reload doesn't replay them.
+  // One-shot flashes on the list rows: yellow for a fresh insert, green
+  // for a load, red for a refused duplicate. Never persisted, so a reload
+  // doesn't replay them.
   const [insertedPreset, setInsertedPreset] = useState<FlashTarget>(null);
   const [duplicatePreset, setDuplicatePreset] = useState<FlashTarget>(null);
   const [insertedHistory, setInsertedHistory] = useState<FlashTarget>(null);
   const [loadedEntry, setLoadedEntry] = useState<FlashTarget>(null);
-  // Bumped with the direction of the change when a field's adjustment
-  // applies, so each digit on the countdown flashes green or red on its
-  // own.
+  // Bumped with a direction when a field's adjustment applies, so each
+  // countdown digit flashes green or red on its own.
   const [hoursFlash, setHoursFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [minutesFlash, setMinutesFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [secondsFlash, setSecondsFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
@@ -147,38 +125,33 @@ export default function Timer() {
   // in across a reload. Only the site RESET brings them back.
   const [isSidebarHidden, setIsSidebarHidden] = useState(() => readBoolean(STORAGE_KEYS.sidebarHidden, false));
   const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => readBoolean(STORAGE_KEYS.websiteLinkHidden, false));
-  // The whole theme switch is one attribute on <html>: index.css swaps
+  // The whole theme is one attribute on <html>: index.css swaps
   // --app-surface and --app-ink off it and every colour resolves through
-  // that pair. In a layout effect so the attribute and the paint it
-  // causes land together.
+  // that pair. Layout effect so the attribute and its paint land together.
   const [isLightTheme, setIsLightTheme] = useState(() => readBoolean(STORAGE_KEYS.lightTheme, false));
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = isLightTheme ? 'light' : 'dark';
   }, [isLightTheme]);
-  // A saved zone is checked against the list the browser knows before it's
-  // trusted. Intl throws on an unknown zone, and it throws on every format
-  // call, so a hand-edited value would take the page down rather than just
-  // show the wrong time.
+  // Checked against the list the browser knows before it's trusted: Intl
+  // throws on an unknown zone, and on every format call, so a hand-edited
+  // value takes the page down rather than showing the wrong time.
   const [timeZone, setTimeZone] = useState(() => {
     const saved = readJSON<unknown>(STORAGE_KEYS.clockTimeZone, null);
     return typeof saved === 'string' && TIME_ZONES.includes(saved) ? saved : DEFAULT_TIME_ZONE;
   });
   const [is24Hour, setIs24Hour] = useState(() => readBoolean(STORAGE_KEYS.clock24Hour, false));
-  // Held here rather than in ClockCluster because both copies of the clock
-  // have to agree, and it persists. The tick itself lives down there.
+  // Clicking the time switches 12/24, and "24H" or "12H" fades off it to
+  // say so (hourFormatFizz in index.css). Set straight from the click
+  // rather than through useFlashOnToken, which turns on a tick later and
+  // would show a frame of the new time before the label announcing it.
   //
-  // Clicking the time is the 12/24 switch. What makes that discoverable
-  // rather than a hidden gesture is that the click answers: "24H" or "12H"
-  // sits over the time and fades off it (hourFormatFizz in index.css).
-  // Held for the animation's own 1.2s, and set straight from the click
-  // rather than via useFlashOnToken, which turns on a tick later and would
-  // show a frame of the new time before the label announcing it.
+  // Here rather than in ClockCluster: both copies of the clock have to
+  // agree, and it persists. The tick itself lives down there.
   const [isHourFormatFlashing, setIsHourFormatFlashing] = useState(false);
   const hourFormatFlashRef = useRef(0);
   useEffect(() => () => window.clearTimeout(hourFormatFlashRef.current), []);
-  // useCallback because this is what the clock hangs its memo on. As a
-  // plain arrow it was a new function every tick, which meant a new prop,
-  // which meant memo() could never bail out.
+  // useCallback: this is what the clock hangs its memo on, and a new
+  // function every tick means memo() can never bail out.
   const handleHourFormatClick = useCallback(() => {
     setIs24Hour((prev) => !prev);
     setIsHourFormatFlashing(true);
@@ -186,9 +159,9 @@ export default function Timer() {
     hourFormatFlashRef.current = window.setTimeout(() => setIsHourFormatFlashing(false), FLASH_DURATION_MS);
   }, [setIs24Hour]);
   const zoneOffsets = useZoneOffsets();
-  // How much room the floating top-right corner takes, measured rather
-  // than derived. The word counter's fullscreen row has to stop before it,
-  // and HEADER_CORNER_RESERVE is only a formula; measuring can't be wrong.
+  // How much room the floating top-right corner takes. The word counter's
+  // fullscreen row has to stop before it, and HEADER_CORNER_RESERVE is
+  // only an estimate of the same thing.
   const headerCornerRef = useRef<HTMLDivElement>(null);
   const [headerCornerWidth, setHeaderCornerWidth] = useState(0);
   useEffect(() => {
@@ -198,12 +171,11 @@ export default function Timer() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  // Tailwind's sm. At and above it the timer row is horizontal, the panel
-  // sits beside the digits, and the digits column gets sm:self-stretch,
-  // which is what gives their cqh sizing a height to query.
+  // Tailwind's sm. At and above it the timer row is horizontal and the
+  // digits column gets sm:self-stretch, which is what gives their cqh
+  // sizing a height to query.
   const [isRowLayout, setIsRowLayout] = useState(() => window.matchMedia('(min-width: 640px)').matches);
-  // Tailwind's lg. Not whether the panel shows, but which form it takes:
-  // inline above, stacked below.
+  // Tailwind's lg. Not whether the panel shows, but which form it takes.
   const [isWideLayout, setIsWideLayout] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   useEffect(() => {
     const rowQuery = window.matchMedia('(min-width: 640px)');
@@ -220,8 +192,6 @@ export default function Timer() {
     };
   }, []);
 
-  // Hidden, stacked or auto-tucked: one decision, and the panel gets
-  // narrower before it gets hidden. See useTimeFieldsTuck.
   const {
     isHidden: isTimeFieldsHidden,
     isAutoTucked: isTimeFieldsAutoTucked,
@@ -242,8 +212,8 @@ export default function Timer() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
   // States an adjustment has already been asked about, so the three fields
-  // share one prompt per state. In memory on purpose: this means "you
-  // answered that a moment ago", which shouldn't outlive the session. The
+  // share one prompt per state. In memory on purpose: it means "you
+  // answered a moment ago", which shouldn't outlive the session. The
   // dialog's "don't ask again" is what makes an answer permanent.
   const askedAdjustInStatesRef = useRef(new Set<TimerStateKind>());
   // Radix fires onClick and onOpenChange for the same click, so the
@@ -262,20 +232,17 @@ export default function Timer() {
   // Read by the field callbacks, which must not re-memoise on every tick.
   const configuredTotalRef = useRef(configuredTotalSeconds);
   configuredTotalRef.current = configuredTotalSeconds;
-  // A timer sitting idle at its configured time has nothing for STOP or
-  // RESET to act on — whichever side of zero that time was set on. The
-  // zero guard this used to carry predates a configured time that can be
-  // negative, and left both buttons live on one.
+  // Idle at its configured time, whichever side of zero: nothing for STOP
+  // or RESET to act on.
   const isIdleAtConfigured = !isRunning && seconds === configuredTotalSeconds;
 
   const closeDialog = () => setDialog({ type: null });
 
-  // Every "are you sure?" goes through here, so the two ways a question
-  // can already be answered are checked in one place rather than a dozen
-  // call sites: confirmations turned off globally, or this question
-  // silenced by its own "don't ask again". Either way the action runs.
+  // Every "are you sure?" goes through here, so both ways a question can
+  // already be answered are checked in one place: confirmations off
+  // globally, or this one silenced by its own "don't ask again".
   //
-  // The site RESET is the one dialog that calls setDialog directly, since
+  // The site RESET is the only dialog that calls setDialog directly, since
   // letting anything skip it would be self-defeating.
   const askThenRun = useCallback((next: DialogState, run: () => void) => {
     if (skipConfirmations || isDialogSuppressed(next)) {
@@ -294,38 +261,37 @@ export default function Timer() {
     return 'unstarted';
   }, [isRunning, isPaused]);
 
-  // Two different questions, and folding them together was a bug.
+  // Two different questions, and they must not be folded together.
   //
   // hasRunToLose is about confirmations: which states are worth a dialog
   // between you and what you just clicked. A ringing timer is one you're
   // trying to deal with and an unstarted one has nothing at stake, so
   // neither asks.
   //
-  // isLiveRun is about what the time fields MEAN: any started timer,
-  // whichever side of zero it's on. Reading the confirmation question here
-  // instead made the fields snap from 00:00:00 back to the configured
-  // total the instant the countdown crossed zero, because a ringing timer
-  // has no run to lose but very much has a run.
+  // isLiveRun is about what the time fields mean: any started timer,
+  // whichever side of zero. A ringing timer has no run to lose but very
+  // much has a run, and reading the wrong one here snaps the fields back
+  // to the configured total the moment the countdown crosses zero.
   const hasRunToLose = useCallback(() => {
     const state = timerStateKind();
     return state === 'running' || state === 'paused';
   }, [timerStateKind]);
   const isLiveRun = isRunning || isPaused;
-  // Mirrored, because applyAdjustment is reached from a dialog confirm as
-  // well as directly, and between opening that dialog and answering it the
-  // countdown can cross zero. Read off state, the branch taken at confirm
-  // could be the opposite of the one the dialog described.
+  // Mirrored: applyAdjustment is reached from a dialog confirm as well as
+  // directly, and the countdown can cross zero while the dialog is open.
+  // Read off state, the branch taken at confirm could be the opposite of
+  // the one the dialog described.
   const isLiveRunRef = useRef(isLiveRun);
   isLiveRunRef.current = isLiveRun;
 
-  // One key per hook, so each writes only when its own value changes. A
-  // single effect for all fourteen means a single dependency list, and
-  // `seconds` is in it: a running timer re-serialised the presets, the
-  // history and every setting once a second.
+  // One key per hook, so each writes only when its own value changes. One
+  // effect for all fourteen would share a dependency list with `seconds`,
+  // re-serialising the presets, the history and every setting once a
+  // second while a timer runs.
   //
-  // timerState keeps an effect of its own because it bundles six values
-  // into an object literal, which is a new identity every render and would
-  // write on every 10ms tick through usePersisted.
+  // timerState keeps its own effect: it bundles six values into an object
+  // literal, a new identity every render, which through usePersisted would
+  // write on every 10ms tick.
   useEffect(() => {
     writeJSON(STORAGE_KEYS.timerState, { seconds, isPaused, isRunning, hours, minutes, timerSeconds });
   }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds]);
@@ -344,9 +310,9 @@ export default function Timer() {
   usePersisted(STORAGE_KEYS.clock24Hour, is24Hour);
 
   // timerState only writes on whole-second changes, so it can't capture
-  // where inside the current second a reload lands. Flushed separately as
-  // the page goes away, through a ref so the listener registers once
-  // rather than rebinding every tick.
+  // where inside a second a reload lands. Flushed separately as the page
+  // goes away, through a ref so the listener registers once instead of
+  // rebinding every tick.
   const persistedTimeRef = useRef(time);
   persistedTimeRef.current = time;
   useEffect(() => {
@@ -354,15 +320,14 @@ export default function Timer() {
       const saved = readJSON<Record<string, unknown>>(STORAGE_KEYS.timerState, {});
       writeJSON(STORAGE_KEYS.timerState, { ...saved, milliseconds: persistedTimeRef.current.milliseconds });
     };
-    // pagehide rather than beforeunload: it fires on every navigation away,
-    // bfcache included, where beforeunload saved nothing and cost the page
-    // its bfcache eligibility in Safari — going back reloaded the app cold.
-    // The leave-confirmation further down does use beforeunload, because
-    // nothing else can stop an unload, but only while a timer is live.
+    // pagehide rather than beforeunload: it fires on every navigation
+    // away, bfcache included, and costs no bfcache eligibility. The leave
+    // guard does use beforeunload, since nothing else can stop an unload,
+    // but only while a timer is live.
     //
-    // visibilitychange beside it because pagehide never fires for a tab the
-    // phone discards while it sits in the background, which is how a mobile
-    // session usually ends. Hiding is the last moment there is.
+    // visibilitychange beside it: pagehide never fires for a tab the phone
+    // discards in the background, which is how a mobile session usually
+    // ends. Hiding is the last moment there is.
     const flushOnHide = () => { if (document.visibilityState === 'hidden') flushMilliseconds(); };
     window.addEventListener('pagehide', flushMilliseconds);
     document.addEventListener('visibilitychange', flushOnHide);
@@ -397,8 +362,7 @@ export default function Timer() {
     let lastTime = Date.now();
     intervalRef.current = setInterval(() => {
       const now = Date.now();
-      // A backwards clock step from NTP or a manual change must not add
-      // time back.
+      // A backwards clock step, from NTP or by hand, must not add time back.
       const elapsed = Math.max(0, now - lastTime);
       lastTime = now;
 
@@ -416,10 +380,9 @@ export default function Timer() {
     };
   }, [isRunning, isPaused]);
 
-  // Not gated on mute. Muting silences the alarm; it doesn't mean the
-  // timer didn't run out. The window flash and the red digits are the
-  // whole of what a muted alarm has left to say, and without them a
-  // finished timer looked identical to one still counting.
+  // Not gated on mute: muting silences the alarm, it doesn't mean the
+  // timer didn't run out. The window flash and the red digits are all a
+  // muted alarm has left to say with.
   const isOvertime = seconds < 0;
   const { isRinging: isAlarmRinging, isBeepFlash, hasRungOut, clearAlarm: clearAlarmInterval } = useAlarm({
     isActive: isRunning && !isPaused && isOvertime,
@@ -447,13 +410,13 @@ export default function Timer() {
     return () => el.removeEventListener('animationend', onAnimationEnd);
   }, [isPaused, isAlarmLooping]);
 
-  // Armed only while there's a run to lose. Once overtime starts isRunning
-  // stays true, so a counting-up stopwatch and a finished-but-
-  // unacknowledged alarm both still ask.
+  // Armed only while there's a run to lose. isRunning stays true through
+  // overtime, so a counting-up stopwatch and an unacknowledged alarm both
+  // still ask.
   //
-  // Deliberately not gated on skipConfirmations. That switch is for
-  // actions this app takes on your behalf; closing the tab is one the
-  // browser takes, and it's the one with nothing to undo it.
+  // Deliberately not gated on skipConfirmations: that switch is for
+  // actions this app takes on your behalf, and closing the tab is one the
+  // browser takes, with nothing to undo it.
   const isSelfReloadingRef = useLeaveGuard(isRunning || isPaused || isAlarmRinging);
 
   // Enter/S/R mirror the on-screen controls. The ref lets the keydown
@@ -489,19 +452,14 @@ export default function Timer() {
       // NumpadEnter and is the same key to anyone pressing it.
       const action = e.key === 'Enter' ? 'Enter' : e.code === 'KeyS' || e.code === 'KeyR' ? e.code : null;
       if (!action) return;
-      // Autorepeat is not three hundred presses. Held down, Enter fired
-      // ~30 pause/resume toggles a second — each with its own oscillator —
-      // and left the timer running or paused on the parity of how long the
-      // key was down.
+      // Autorepeat is not three hundred presses: held down, Enter fires
+      // ~30 pause/resume toggles a second, each with its own oscillator.
       if (e.repeat) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // Anything focused that wants the key itself keeps it, and which
-      // controls those are depends on the key. ENTER presses whatever is
-      // focused, so every activatable control claims it. A letter only
-      // gets typed — into a field, or into a <select>'s type-ahead — and
-      // buttons do nothing with one, so blocking S and R on buttons too
-      // killed both shortcuts for anyone who had just clicked something,
-      // which is everyone: click START and R stopped resetting.
+      // Whatever is focused keeps a key it wants itself, and which
+      // controls those are depends on the key. Blocking S and R on buttons
+      // as well as fields would kill both shortcuts for anyone who had
+      // just clicked something: click START, and R stops resetting.
       if ((e.target as HTMLElement | null)?.closest?.(action === 'Enter' ? ENTER_ACTIVATES : TYPES_INTO)) return;
       if (keyActionRef.current(action)) {
         e.preventDefault();
@@ -524,10 +482,8 @@ export default function Timer() {
   // ever mutes, which asks first.
   const handleMuteToggle = () => {
     if (isSilentMode) {
-      // The slider keeps whatever level it was left at, 0 included.
-      // Unmuting used to jump it to the default from there, which threw
-      // away a setting that had been made deliberately — and the toggle
-      // tone plays at the real level, so at 0 there's nothing to hear,
+      // The slider keeps whatever level it was left at, 0 included, and
+      // the toggle tone plays at that level: at 0 there's nothing to hear,
       // which is what 0 means.
       beep(...TONES.silentToggle);
       setIsSilentMode(false);
@@ -551,8 +507,8 @@ export default function Timer() {
     setVolume(value);
     if (value === 0) {
       setIsSilentMode(true);
-      // Sliding to 0 is already an explicit mute, so the button's one-time
-      // "are you sure?" would be redundant after it.
+      // Sliding to 0 is already a deliberate mute, so the button's
+      // one-time "are you sure?" has been answered.
       setHasMutedBefore(true);
     } else if (isSilentMode) {
       setIsSilentMode(false);
@@ -594,9 +550,8 @@ export default function Timer() {
     restartRunFade();
   };
 
-  // The sign travels with the parts. Left off, a count-up run was written
-  // down as the positive time of the same magnitude, and clicking that row
-  // loaded a countdown instead of the run it recorded.
+  // The sign travels with the parts, or a count-up is written down as the
+  // positive time of the same size and its row loads a countdown.
   const recordHistory = (parts: TimeParts, negative = false) => {
     const entry: TimerEntry = { id: uniqueId(), ...parts, negative, timestamp: Date.now() };
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
@@ -636,11 +591,10 @@ export default function Timer() {
 
   // An alarm actually going off goes straight through: it's something
   // you're trying to make stop, and a dialog between the button and the
-  // silence is the wrong thing to meet there. Paused mid-overtime is not
-  // that — it's silent, there's nothing to escape, and the count-up
-  // reading on screen is real elapsed time that one stray click would
-  // take. A reloaded run comes back paused, so that's the state a
-  // finished stopwatch is usually sitting in.
+  // silence is the wrong thing to meet. Paused mid-overtime is not that.
+  // It's silent, there's nothing to escape, and the count-up on screen is
+  // real elapsed time one stray click would take. A reloaded run comes
+  // back paused, which is where a finished stopwatch usually sits.
   const isRingingNow = isOvertime && !isPaused;
   const handleStopClick = () => {
     if (isRingingNow) {
@@ -681,13 +635,8 @@ export default function Timer() {
     setTime({ seconds: toSignedTotal(parts, negative), milliseconds: 0 });
   }, []);
 
-  // The one switch sequence. start=false loads the preset without running
-  // it.
-  //
-  // Memoized so handleSelectEntry can just depend on it. As a plain
-  // function left out of that dependency list it was correct only because
-  // the list happened to name its transitive deps, and anything added here
-  // that read fresh state would have gone stale silently.
+  // The one switch sequence; start=false loads without running. Memoized
+  // so handleSelectEntry can depend on it rather than on its internals.
   const applySwitch = useCallback((parts: TimeParts, start: boolean, negative = false) => {
     clearAlarmInterval();
     loadEntry(parts, negative);
@@ -701,15 +650,12 @@ export default function Timer() {
   }, [loadEntry, isSilentMode, beep]);
 
   // Running a picked time, from the list or from the add box. Both entry
-  // points promise the same words and the same "don't ask again" scope, so
-  // they share the one gate rather than each carrying a copy of it —
-  // duplicated, the next change to it lands in one place and the two
-  // silently diverge.
+  // points share this gate rather than each carrying a copy, so the two
+  // can't drift apart on the next change to the wording or the scope.
   //
   // It asks only where there's a run on the clock to lose: counting down,
-  // or paused mid-count. A ringing timer and an unstarted one go straight
-  // through. Paused keeps its own wording, since what it discards is the
-  // remaining time rather than progress in flight.
+  // or paused mid-count. Paused gets its own wording, since what it
+  // discards is remaining time rather than progress in flight.
   const switchToEntry = useCallback((parts: TimeParts, negative = false) => {
     const signed = { ...parts, negative };
     if (!hasRunToLose()) {
@@ -722,10 +668,10 @@ export default function Timer() {
 
   const handleSelectEntry = useCallback((entry: TimerEntry) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
-    // Flashed on the click rather than when the switch applies: simpler
-    // than threading the id through the dialog, and a cancelled switch
-    // leaves a harmless flash. The panels check loaded before inserted, so
-    // loading a just-created entry goes green rather than staying yellow.
+    // On the click rather than when the switch applies: a cancelled switch
+    // leaves a harmless flash, and this saves threading the id through the
+    // dialog. The panels check loaded before inserted, so loading a
+    // just-created entry goes green rather than staying yellow.
     setLoadedEntry((prev) => bumpFlash(prev, entry.id));
     switchToEntry(parts, entry.negative === true);
   }, [switchToEntry]);
@@ -735,26 +681,23 @@ export default function Timer() {
     closeDialog();
   };
 
-  // A preset list is a set of times, so adding one it already holds adds
-  // nothing and says so instead, then flashes the existing row red to point
-  // at it. Returns whether anything went in, so the panel knows whether to
-  // clear its input.
+  // The list is a set of times, so adding one it already holds adds
+  // nothing and points at the row instead. Returns whether anything went
+  // in, so the panel knows whether to clear its input.
   //
-  // Matched on the time, not the label: formatEntryLabel drops leading
-  // zeroes, so 1:05 and 0:01:05 print the same and are the same preset.
+  // Matched on the time rather than the label, since formatEntryLabel
+  // drops leading zeroes and 1:05 and 0:01:05 print the same. The sign
+  // counts: -1:05 and 1:05 are different presets.
   const handleAddPreset = useCallback((parts: TimeParts & { negative?: boolean }): boolean => {
     const negative = parts.negative === true;
-    // The sign is part of the time: -1:05 and 1:05 are different presets,
-    // and matching without it would refuse the second as a duplicate of
-    // the first.
     const existing = presets.find(
       (p) => (p.hours ?? 0) === parts.hours && p.minutes === parts.minutes && p.seconds === parts.seconds
         && (p.negative === true) === negative
     );
     if (existing) {
-      // The flash comes after the notice rather than under it, where the
-      // dialog would cover the row it's meant to be pointing at. Silence the
-      // notice and the flash alone is left to say it.
+      // The flash comes after the notice, not under it, where the dialog
+      // would cover the row it points at. Silence the notice and the flash
+      // is left to say it alone.
       askThenRun(
         { type: 'duplicatePreset', data: { id: existing.id, label: formatEntryLabel(existing) } },
         () => setDuplicatePreset((prev) => bumpFlash(prev, existing.id))
@@ -766,18 +709,16 @@ export default function Timer() {
     setPresets((prev) => [...prev, { id, ...parts, negative, timestamp: 0 }]);
     setInsertedPreset((prev) => bumpFlash(prev, id));
     // Adding a time is a request to use it, so it runs, through the same
-    // gate as clicking the row afterwards.
-    // An out-of-range entry never reaches here: the panel sends it to the
-    // correction dialog first, and only a corrected time is added.
+    // gate as clicking the row would. An out-of-range entry never gets
+    // here: the panel sends it to the correction dialog first.
     switchToEntry(parts, negative);
     return true;
   }, [presets, switchToEntry]);
 
   // Two steps, so the delete animation plays after the question is
-  // answered rather than before. Only a confirmed removal sets this, which
-  // is what tells the row to fizz out; dropping it from the array happens
-  // last, when the row calls back. Cancelling leaves a row that never
-  // animated at all rather than one that has to be put back.
+  // answered. Setting this fizzes the row out; dropping it from the array
+  // happens last, when the row calls back. Cancelling leaves a row that
+  // never animated rather than one that has to be put back.
   const [removingPresetId, setRemovingPresetId] = useState<string | null>(null);
 
   const handleRequestRemovePreset = useCallback((id: string) => {
@@ -816,9 +757,8 @@ export default function Timer() {
     setInsertedHistory(null);
   }, []);
 
-  // Empties the list outright rather than fizzing each row out the way a
-  // single − does. A hundred rows animating at once is a mess, and the
-  // dialog has already made the point.
+  // Empties the list outright rather than fizzing each row the way a
+  // single − does: a hundred rows animating at once is a mess.
   const handleClearPresets = useCallback(() => {
     setPresets([]);
     setInsertedPreset(null);
@@ -828,14 +768,13 @@ export default function Timer() {
     setHistory((prev) => prev.filter((entry) => entry.id !== id));
   }, []);
 
-  // When each history entry was recorded, read in the clock's own zone and
-  // 12/24 setting so the list re-reads whenever either changes. Memoized
-  // on exactly those two, which keeps the identity stable for the panel's
-  // memo() and rebuilds the formatters only when they actually move.
+  // Stamps read in the clock's own zone and 12/24 setting, so the list
+  // re-reads when either changes. Memoized on exactly those two: stable
+  // identity for the panel's memo(), formatters rebuilt only on a real
+  // change.
   //
-  // recordHistory always stamps Date.now(), so a real run can't produce 0.
-  // The guard is for storage that's been corrupted or hand-edited, which
-  // would otherwise render as 01/01/1970.
+  // The zero guard is for a corrupt or hand-edited store; recordHistory
+  // always stamps Date.now(), so a real run can't produce one.
   const formatHistoryStamp = useMemo(() => {
     const time = new Intl.DateTimeFormat('en-US', {
       timeZone,
@@ -845,18 +784,17 @@ export default function Timer() {
       second: '2-digit',
     });
     const date = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
-    // Returned in two pieces rather than one string: the panel puts them
-    // on their own lines, and the line it breaks at should be chosen here
-    // rather than left to wherever the text happens to wrap.
+    // Two pieces rather than one string: the panel puts them on their own
+    // lines, and where that break falls is a decision, not wherever the
+    // text happens to wrap.
     return (timestamp: number) =>
       timestamp > 0 ? { time: time.format(timestamp), date: formatDateParts(date, timestamp) } : null;
   }, [timeZone, is24Hour]);
 
-  // Memoized rather than written inline at the panels below. An inline
-  // arrow is a new identity every render, and these were the last unstable
-  // props either panel took: one is enough to stop memo() ever bailing
-  // out, which had every countdown tick reconciling every row in both
-  // lists. Survivable at twenty rows, not at a thousand.
+  // Memoized rather than inline at the panels below: an inline arrow is a
+  // new identity every render, and one unstable prop is enough to stop
+  // memo() bailing out, which has every tick reconciling every row in both
+  // lists.
   const handleRequestClearPresets = useCallback(
     () => askThenRun({ type: 'clearPresets' }, handleClearPresets),
     [askThenRun, handleClearPresets]
@@ -871,20 +809,17 @@ export default function Timer() {
     []
   );
 
-  // The whole time the three boxes are showing, as one signed number, and
-  // the one place it is written back. Everything the boxes can do — typing
-  // 61 into seconds, stepping 59 up, stepping 00:00:00 down, pressing "-" —
-  // is a new value for this, and the carries and borrows come out of the
-  // arithmetic rather than out of rules per unit.
+  // The three boxes as one signed number. Everything they can do (61 into
+  // seconds, stepping 59 up, stepping 00:00:00 down, pressing "-") is a
+  // new value for this, so the carries and borrows fall out of the
+  // arithmetic instead of needing a rule per unit.
   //
-  // Which number it is depends on the same isLiveRun split as before:
-  // idle these boxes are the timer's setup, running or paused they are the
-  // time left and the configured total is untouched.
-  // Two readings of the same thing, and stepping needs the exact one.
-  // Truncating first threw away the part-second the last step had just
-  // added, so on a running clock every press gave back exactly what it
-  // gained and the boxes sat still — worst at the zero crossing, which is
-  // the one place stepping has a job to do.
+  // Idle it's the timer's setup; running or paused it's the time left and
+  // the configured total stays put.
+  //
+  // Two readings, and stepping needs the exact one: truncate first and a
+  // step on a running clock gives back the part-second the last one added,
+  // leaving the boxes still at the zero crossing.
   const exactTotal = useCallback(
     () => (isLiveRunRef.current ? liveSeconds(timeRef.current) : configuredTotalRef.current),
     []
@@ -898,9 +833,8 @@ export default function Timer() {
     const next = clampTotal(total);
     if (isLiveRunRef.current) {
       clearAlarmInterval();
-      // Stored the way the tick stores it — floored seconds plus a
-      // positive remainder — so the countdown carries on from exactly
-      // here instead of from a rounded copy of it.
+      // Stored the way the tick stores it, floored seconds plus a positive
+      // remainder, so the countdown carries on from exactly here.
       const totalMs = Math.round(next * 1000);
       const whole = Math.floor(totalMs / 1000);
       setTime({ seconds: whole, milliseconds: totalMs - whole * 1000 });
@@ -913,58 +847,54 @@ export default function Timer() {
       restartCountdown(Math.trunc(next));
     }
     // The unit the click was on, flashed in the direction the whole time
-    // moved. A carry changes two boxes and the one you touched is the one
-    // worth pointing at; the hour digit drops out of the display at 0, so
-    // there is nothing there to draw attention to.
+    // moved: a carry changes two boxes and the one you touched is the one
+    // worth pointing at. Below an hour the hours digit isn't on screen to
+    // flash.
     if (unit !== 'hours' || Math.abs(next) >= 3600) {
       flashSetterFor(unit)((prev) => ({ token: prev.token + 1, direction: next >= previousTotal ? 'inc' : 'dec' }));
     }
   }, [flashSetterFor]);
 
-  // Asks first, once per timer state, for all three boxes together — but
-  // only while there's a run to restart. Setting a timer up is what these
-  // boxes are for, and a ringing one has nothing left to lose, so neither
-  // of those meets a dialog.
+  // Asks once per timer state, for all three boxes together, and only
+  // while there's a run to restart. Setting a timer up is what these boxes
+  // are for, and a ringing one has nothing left to lose.
   //
-  // Tracked by state kind rather than by transition, because setting a
-  // timer up means touching two or three boxes in a row, which is one
-  // intent; and pausing to nudge a minute, resuming, then pausing to nudge
-  // again is still the same question about the same paused timer.
+  // By state kind rather than by transition: setting a timer up means
+  // touching two or three boxes in a row, which is one intent, and pausing
+  // to nudge a minute, resuming, then pausing again is still the same
+  // question about the same paused timer.
   const requestTotalChange = useCallback((total: number, unit: TimeUnit) => {
     const previousTotal = shownTotal();
     const next = clampTotal(total);
-    // Past the end of the range, the boxes say so rather than silently
-    // landing somewhere else — the same report a typed preset gets, for
-    // the same reason: the time you end up with isn't the one you asked
-    // for, and finding that out later is worse than being told.
+    // Past the end of the range the boxes say so rather than quietly
+    // landing somewhere else, the same report a typed preset gets: the
+    // time you end up with isn't the one you asked for.
     const corrected = Math.abs(total) > MAX_TOTAL_SECONDS
       ? { typed: formatSignedLabel(Math.trunc(total)), corrected: formatSignedLabel(Math.trunc(next)) }
       : null;
-    // Reported after the correction lands, since it says what has already
-    // happened — and through askThenRun, so its own "don't ask again"
-    // silences it. Opened straight it wrote that preference down and then
-    // never read it, and the box came back every time.
+    // After the correction lands, since it reports what already happened,
+    // and through askThenRun so its own "don't ask again" is read as well
+    // as written.
     const applyAndReport = () => {
       applyAdjustment(next, unit, previousTotal);
       if (corrected) askThenRun({ type: 'correctTime', data: corrected }, () => {});
     };
     if (next === previousTotal) {
-      // Nothing moves, but an overshoot that was refused is still worth
-      // saying — the step you pressed didn't do what it looks like it did.
+      // Nothing moves, but a refused overshoot is still worth saying: the
+      // step you pressed didn't do what it looks like it did.
       if (corrected) askThenRun({ type: 'correctTime', data: corrected }, () => {});
       return;
     }
 
     const state = timerStateKind();
     if (hasRunToLose() && !askedAdjustInStatesRef.current.has(state)) {
-      // An out-of-range edit comes through here too. Applying it up front
-      // and asking afterwards discarded a running timer with no question
-      // at all, on the one path where the answer matters most.
+      // An out-of-range edit comes through here too, so a running timer
+      // gets the same question before it's discarded.
       //
-      // The correction rides in this dialog's own copy rather than
-      // following it as a second one: the click that confirms is also the
-      // click that closes, so a dialog opened from the confirm handler is
-      // shut by the same event that opened it.
+      // The correction rides in this dialog's copy rather than following
+      // it as a second dialog: the click that confirms is also the click
+      // that closes, so one opened from the confirm handler is shut by the
+      // event that opened it.
       const dialog: DialogState = { type: 'adjust', data: { totalSeconds: Math.trunc(next), previousTotal, unit, state, corrected } };
       // Marked before asking, not after confirming: a cancelled question
       // was still asked. The dismiss handler clears it again so cancelling
@@ -1009,10 +939,9 @@ export default function Timer() {
     askThenRun({ type: 'hideWebsiteLink' }, () => setIsWebsiteLinkHidden(true));
   };
 
-  // While the timer is running or paused, seeking moves only the remaining
-  // time and leaves the configured time alone. An idle timer has nothing
-  // to resume into, so seeking sets a new configured time at that point
-  // instead, exactly as typing it into the fields would.
+  // Running or paused, a seek moves the remaining time and leaves the
+  // configured total alone. An idle timer has nothing to resume into, so
+  // it sets a new configured time instead, as typing one would.
   const applySeek = (targetSeconds: number) => {
     if (!isRunning) {
       const parts = fromTotalSeconds(targetSeconds);
@@ -1027,10 +956,9 @@ export default function Timer() {
     restartRunFade();
   };
 
-  // Always asks. The track is 8px tall and sits right under the digits,
-  // and on an idle timer a seek rewrites the configured time outright, so
-  // a stray click is expensive in every state — including the two that
-  // skip the question elsewhere.
+  // Always asks, including in the two states that skip the question
+  // elsewhere: the track is 8px tall and sits right under the digits, and
+  // on an idle timer a seek rewrites the configured time outright.
   const requestSeek = (targetSeconds: number) => {
     const mode = !isRunning ? 'idle' : isPaused ? 'paused' : 'running';
     askThenRun({ type: 'seek', data: { targetSeconds, mode } }, () => applySeek(targetSeconds));
@@ -1058,9 +986,9 @@ export default function Timer() {
         break;
       case 'clearCache':
         // Wipe and reload, so every piece of state re-initialises. The
-        // leave guard stands down first: this reload is the thing that was
-        // just confirmed, and challenging it would leave the storage
-        // emptied behind a page that never went anywhere.
+        // leave guard stands down first: this reload is what was just
+        // confirmed, and challenging it would empty the storage behind a
+        // page that never went anywhere.
         isSelfReloadingRef.current = true;
         wipeStorage(Object.values(STORAGE_KEYS));
         window.location.reload();
@@ -1069,9 +997,9 @@ export default function Timer() {
         handleConfirmReset();
         break;
       case 'switch':
-        // Every mode starts the new time; they differ only in what they
-        // warned about first. The skipped-dialog path runs the same
-        // applySwitch through askThenRun, and the two have to agree.
+        // Every mode starts the new time and differs only in what it
+        // warned about. The skipped-dialog path runs the same applySwitch
+        // through askThenRun, and the two have to agree.
         handleConfirmSwitch(dialog.data, true, dialog.data.negative === true);
         break;
       case 'seek':
@@ -1104,10 +1032,9 @@ export default function Timer() {
         setPresetCorrection({ digits: dialog.data.digits, add: dialog.data.add });
         closeDialog();
         break;
-      // Nothing to carry out — the correction landed before this said so —
-      // but it still has to close. Without a case of its own the switch
-      // fell through and returned, and ESC, which routes an
-      // acknowledgement through here, left the dialog standing.
+      // Nothing to carry out, since the correction landed before this said
+      // so, but it still has to close: ESC routes acknowledgements through
+      // here, and a case that falls through leaves the dialog standing.
       case 'correctTime':
         closeDialog();
         break;
@@ -1129,10 +1056,9 @@ export default function Timer() {
     if (!justConfirmedRef.current && dialog.type === 'adjust') {
       askedAdjustInStatesRef.current.delete(dialog.data.state);
     }
-    // An acknowledgement states what happened, so ESC has to leave the same
-    // result behind as OK — the ticked box included. Anything else and the
-    // text would be a lie for whoever dismissed it that way, and the
-    // preference they just set would go with it.
+    // An acknowledgement reports what happened, so ESC has to leave the
+    // same result as OK, ticked box included. Anything else and the text
+    // is a lie for whoever dismissed it that way.
     if (!justConfirmedRef.current && isAcknowledgement(dialog)) {
       handleDialogConfirm(dontAskAgain);
       return;
@@ -1164,60 +1090,44 @@ export default function Timer() {
   const configuredMs = configuredTotalSeconds * 1000;
   const remainingMs = Math.max(0, seconds * 1000 + milliseconds);
   const timeFraction = configuredMs > 0 ? Math.min(1, remainingMs / configuredMs) : 0;
-  // What the HOURS/MINUTES/SECONDS fields show: the time left while a run
-  // is on the clock, the configured time otherwise. Clamped at zero rather
-  // than following the count-up, since these three boxes are unsigned and
-  // the digits above already carry the overtime.
+  // What the three fields show: the time left while a run is on the clock,
+  // the configured time otherwise.
   const fieldParts = signedParts(isLiveRun ? liveShownSeconds(time) : configuredTotalSeconds);
-  // Remaining past the end of the bar, which an edit to those fields can
-  // do now that they move the run without moving its total. There's no
-  // honest fill for "more than full", so the track waves green until the
-  // countdown comes back into range and the drain picks up from there.
+  // More time left than the bar was drawn for, which an edit to those
+  // fields can do since they move the run without moving its total.
+  // There's no honest fill for "more than full", so the track waves green
+  // until the countdown comes back into range.
   const isOverBar = configuredMs > 0 && remainingMs > configuredMs;
   // Pausing mid-overtime would otherwise leave the bar at 0% and
   // invisible, so it stays full and red instead.
   const isPausedOvertime = isPaused && seconds < 0;
-  // Full red whenever the digits are in a red state: ringing, paused
-  // mid-overtime, or a finished finite ring while still running. That last
-  // one has no timeFraction left to show and would sit at 0% while the
-  // digits beside it were solid red.
+  // Full red whenever the digits are: ringing, paused mid-overtime, or a
+  // finished finite ring still running. That last one has no timeFraction
+  // left and would sit at 0% beside solid red digits.
   const isBarRedState = isAlarmRinging || hasRungOut || isPausedOvertime;
   // Red wins over the hue; animate-alarmFlashBar then alternates it with
   // black. Grey while never started.
   const barFillColor = isBarRedState ? '#ef4444' : isRunning ? `hsl(${120 * timeFraction}, 75%, 50%)` : '#6b7280';
 
-  // Shared by the main column's bar and the compact copy in the word
-  // counter's fullscreen row. Same hover and seek behaviour; the copy sits
-  // near the top of the screen, so its tooltip goes below the track.
-  // The digits are held back by width, not height — they run out of column
-  // long before they run out of room above and below, so what the column
-  // is worth is the whole question.
+  // The digits are held back by width, not height: they run out of column
+  // long before they run out of room above and below. The column grows
+  // into whatever the sidebar and the panel leave, so the cap below is
+  // only there to stop an ultrawide turning the readout into a billboard.
   //
-  // It used to be guessed at from the viewport, one vw clamp for a window
-  // with the sidebar and the panel showing and a wider one for a window
-  // with neither. Both were guesses about room the row already knew, and
-  // both were low: the column grows into the row's leftover now, so the
-  // sidebar and the panel take their share first and the digits get every
-  // pixel neither one is using, at any width and in any tuck state. This
-  // is the only cap left, and it's here so an ultrawide gets a readout
-  // rather than a billboard.
-  //
-  // The digits' width limit is that column rather than a slice of the
-  // window: the widest readout, "-99:59:58·00", measures 5.5x its own
-  // font-size, and the block's padding takes another 16px at the narrow
-  // end, so what fits is (100cqi - 16px) / 5.5. That comes to 17.2cqi on
-  // the narrowest window and 17.9 on the widest, since the 16px is a
-  // fixed cost against a growing column; 17 is the flat figure that holds
-  // at both ends. The vw guesses it replaces were set to the narrowest
-  // window's ratio and so never bound anywhere else, which left the height
-  // term free to size digits wider than the column they sit in.
+  // The width limit is a share of that column rather than of the window.
+  // The widest readout, "-99:59:58·00", measures 5.5x its own font-size,
+  // and the block's padding takes another 16px, so what fits is
+  // (100cqi - 16px) / 5.5: 17.2cqi on the narrowest window, 17.9 on the
+  // widest, since the 16px is fixed against a growing column. 17 holds at
+  // both ends.
   const timerColumnMaxWidth = '80rem';
   const digitWidthLimit = '17cqi';
   const digitCeiling = '20rem';
 
-  // Height is a slice of the digit size, so the bar tracks the digits
-  // rather than the window. Letting it absorb the column's leftover height
-  // instead just traded a gap for an empty panel.
+  // Shared by the main column's bar and the compact copy in the word
+  // counter's fullscreen row, which sits near the top of the screen and so
+  // puts its tooltip below the track. Height is a slice of the digit size,
+  // so the bar tracks the digits rather than the window.
   const renderDrainBar = (width: string, tooltipBelow: boolean = false) => (
     <div
       className={`relative flex justify-end border-2 flex-shrink-0 ${tooltipBelow ? '' : 'mx-auto'} ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
@@ -1257,7 +1167,7 @@ export default function Timer() {
           bar stays visible against it: paused alternates yellow at a
           quarter of the window's rate, a red bar only flashes while
           actually ringing or paused mid-overtime with repeat on, and the
-          over-range wave is a green sweep along a full track — a fill that
+          over-range wave is a green sweep along a full track, a fill that
           can't say how full it is, saying that instead. */}
       <div
         className={
@@ -1377,19 +1287,15 @@ export default function Timer() {
       : (seconds === configuredTotalSeconds ? 'READY' : 'STOPPED');
 
   // Sized against the digits column they sit in (fitClamp, so cqi) rather
-  // than the viewport. On min(vw, vh) the vh term binds on any landscape
-  // window, so narrowing it left these three at a fixed size until the
-  // window was narrower than it was tall, and then dropped them straight
-  // onto their floor. Against the column they give way steadily as it
-  // does.
+  // than the viewport, so they give way steadily as it does. On min(vw,
+  // vh) the vh term binds on any landscape window, which held these three
+  // at a fixed size until the window was narrower than it was tall and
+  // then dropped them straight onto their floor.
   //
-  // The coefficients give way faster than the digits do, so these read as
-  // controls beside the readout rather than competing with it: a fifth of
-  // the digit size on a roomy window where they were closer to a quarter.
-  // Three of them plus two gaps have to fit 100cqi, which 13 x 3 leaves
-  // room to spare on, and the floors are what stop the shrinking — at the
-  // narrow end the widest label, RESUME, still sits in a box ~38px tall,
-  // which is a thumb's worth.
+  // They give way faster than the digits, so they read as controls beside
+  // the readout rather than competing with it. Three of them plus two gaps
+  // have to fit 100cqi, which 13x3 clears; the floors stop the shrinking
+  // with RESUME, the widest label, still in a box about 38px tall.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
     padding: `${boxClamp(0.3, 1.5, 3.7, 0.85)} ${fitClamp(0.45, 2.8, 1.7)}`,
@@ -1399,8 +1305,8 @@ export default function Timer() {
     // A surface-coloured chip keeps the borders readable on the coloured
     // window behind them.
     backgroundColor: 'var(--app-surface)',
-    // width, not minWidth: with a minimum, RESUME — the one six-letter
-    // label — outgrew it and came out wider than the four beside it, and
+    // width, not minWidth: with a minimum, RESUME, the one six-letter
+    // label, outgrew it and came out wider than the four beside it, and
     // the row shifted as START became it. A fixed width makes every button
     // the same box whatever it says. Solved against the widest label
     // rather than picked: RESUME is 3.6em of this monospace, and the box
@@ -1410,7 +1316,7 @@ export default function Timer() {
   });
   // The same buttons scaled to a single header row, for the word counter's
   // fullscreen view, which covers the real ones. Every size is capped
-  // against that row — it holds one line at any width, so what doesn't fit
+  // against that row, it holds one line at any width, so what doesn't fit
   // has to come off the size rather than off the line.
   const compactControlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
@@ -1748,22 +1654,18 @@ export default function Timer() {
       }`}
     >
       {/* sm+ only, with no mobile drawer, so it never pops up over the
-          timer on a narrow window. The word counter's fullscreen view
-          (z-[60], nothing here) covers it deliberately. */}
+          timer on a narrow window. */}
       {!isSidebarHidden && (
-        // A computed width rather than w-fit: the content changes
-        // constantly, since every started timer appends a history row, and
-        // one long entry among the short ones resized this column and
-        // shifted the timer beside it mid-use. SIDEBAR_WIDTH fits the
-        // longest row that can ever appear, so the labels still set the
-        // size, once, instead of on every list change.
+        // A computed width rather than w-fit: every started timer appends
+        // a history row, and one long entry among short ones would resize
+        // this column and shift the timer beside it mid-use.
+        // SIDEBAR_WIDTH fits the longest row that can ever appear, so the
+        // labels set the size once instead of on every list change.
         //
-        // One scroll region for both panels, not one each. Scrolling
-        // separately meant sizing separately: history took the leftover
-        // height and presets got what was left, which put a handful of
-        // presets in a two-row box with its own bar. Out here each list is
-        // simply as tall as it is, and the gutter SIDEBAR_WIDTH budgets
-        // for is held open once.
+        // One scroll region for both panels. Scrolling separately meant
+        // sizing separately, which put a handful of presets in a two-row
+        // box with its own bar under a history list that had taken the
+        // leftover height.
         <div
           className="hidden sm:flex bg-black border-r-4 border-white flex-col overflow-y-auto overflow-x-hidden flex-shrink-0"
           style={{ width: SIDEBAR_WIDTH, padding: SIDEBAR_PADDING, gap: SIDEBAR_PADDING, scrollbarGutter: 'stable' }}
@@ -1890,7 +1792,7 @@ export default function Timer() {
             Ungated, because that reason holds at every width, and below sm
             this is the nearest size container the digits have: their own
             box isn't one there, and what they were sizing against instead
-            was a guess at half the viewport — less than half the truth
+            was a guess at half the viewport, less than half the truth
             once the word counter tucks away. */}
         <div
           ref={timerRowRef}
@@ -1901,9 +1803,9 @@ export default function Timer() {
               hold two empty flex-1 divs to centre this, which at 1920 put
               180px into each while the digits were capped at a width that
               couldn't reach it. Growing into the leftover instead lands the
-              column in exactly the same place — with equal spacers its
+              column in exactly the same place, with equal spacers its
               centre is (row - panel) / 2, and taking the whole leftover
-              puts it there too — while giving the digits every pixel the
+              puts it there too, while giving the digits every pixel the
               panel isn't using.
               sm-scoped because flex-1 below sm would grow this down the
               cross axis of a column row and fight max-sm:my-auto for the
@@ -1945,42 +1847,31 @@ export default function Timer() {
             >
             <div
               className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-              // Solved from measured layout rather than picked. Two pieces
+              // Solved from the layout rather than picked. Two things
               // scale with this: the digit line, whose box is exactly 1x
-              // its font-size under leading-none, and the drain bar below,
-              // which takes its height and its margin from the digit size
-              // and measures another 0.24x. So the content is the reserve
-              // below plus 1.24x font-size, and 1.29 is the margin on that.
-              // Every 0.01 of margin here is ~5px of dead space above the
-              // clock and below the hints on a 1080-tall window, which is
-              // what it buys back.
-              // Reserving 1x flat was what let the digits overflow the row
-              // on a window with the sidebar and the panel both tucked,
-              // where nothing else was capping them.
+              // its font-size under leading-none, and the drain bar, which
+              // takes height and margin from the digit size and measures
+              // another 0.24x. So the content is the reserve below plus
+              // 1.24x, and 1.29 is the margin on that. Every 0.01 of it is
+              // ~5px of dead space on a 1080-tall window.
               //
-              // The reserve isn't a constant: the siblings are themselves
-              // min(vw, vh) clamps, measuring ~12.5rem on a tall window and
-              // bottoming out near 8.6rem on a short one. A flat figure was
-              // wrong in both directions, and since every reserved pixel
-              // costs its own height in font-size, over-reserving pinned
-              // the digits at their floor on windows with room to spare.
-              // max(floor, vh-scaled) tracks the siblings while they scale
-              // and takes over once they stop.
+              // The reserve can't be a constant: the siblings are
+              // themselves min(vw, vh) clamps, ~12.5rem on a tall window
+              // and near 8.6rem on a short one. Every reserved pixel costs
+              // its own height in font-size, so over-reserving pins the
+              // digits at their floor with room to spare.
+              // max(floor, vh-scaled) tracks them while they scale and
+              // takes over once they stop; the second max() is the clock's
+              // own reserve, shaped like CLOCK_FONT_SIZE for the same reason.
               //
-              // The second max() is the clock's own reserve, shaped like
-              // CLOCK_FONT_SIZE so it tracks the same way.
-              //
-              // One formula, two containers. At sm+ the nearest one is the
-              // box above, which has already given the website link its
-              // share; below sm that box isn't a container and the row is,
-              // which comes to the same measurement, since the link is
-              // hidden below md and the column holds nothing else. Same
-              // siblings either way, so the same reserve covers both.
+              // One formula, two containers: at sm+ the nearest is the box
+              // above, below sm it's the row. Same siblings either way,
+              // since the website link is hidden below md.
               style={{
                 fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(9rem, 1.5rem + 15.9dvh) - max(2.6rem, min(4.5vw, 4.9dvh))) / 1.29)), ${digitCeiling})`,
                 fontFamily: "'IBM Plex Mono', monospace",
                 // Vertical and horizontal on separate clamps. They were one
-                // figure, and the horizontal one is the useful one — it
+                // figure, and the horizontal one is the useful one, it
                 // keeps the widest readout off the column's edges, and the
                 // digit width limit is set against it. Vertically the same
                 // figure was 14px of nothing above the clock, on top of the
@@ -1995,7 +1886,7 @@ export default function Timer() {
                   gap between the configured time and the running one was
                   half-leading on two line boxes, ~0.5em of each font, and
                   at the digit size that reads as a hole rather than a
-                  space. Neither line has a descender to lose — the labels
+                  space. Neither line has a descender to lose, the labels
                   are digits, colons and h/m/s. */}
               <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(0.95, 2.8, 3, 2.5), letterSpacing: '0.05em' }}>
                 {configuredLabel}

@@ -34,7 +34,7 @@ export const fromTotalSeconds = (total: number): TimeParts => ({
 // A signed time as the three boxes show it: the magnitude split across
 // them, plus which one wears the minus sign.
 //
-// One unit carries it, not all three and not a box of its own — "-01:30"
+// One unit carries it, not all three and not a box of its own, "-01:30"
 // reading down the column is one time, where "-01:-30" is nonsense and a
 // separate sign box is a fourth control for a thing that is part of the
 // number. It goes on the largest unit that has something in it, because
@@ -101,7 +101,7 @@ export const formatSignedLabel = (total: number) =>
 //
 // Carried rather than clamped per unit: "161" is 1m 61s, which is 2m 01s,
 // the same arithmetic the three boxes do. Clamping each unit to its own
-// max turned that into 1m 59s — a different time from the one typed, and
+// max turned that into 1m 59s, a different time from the one typed, and
 // silently. Only a total past the end of the range is refused, and it's
 // refused rather than corrected down a unit at a time.
 export const presetTotalFromDigits = (digits: string) => toTotalSeconds(rawPresetDigits(digits));

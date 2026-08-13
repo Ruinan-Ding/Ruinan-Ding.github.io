@@ -3,16 +3,15 @@ import { readBoolean } from '@/lib/storage';
 import { useEffect, useRef, useState } from 'react';
 import { STORAGE_KEYS } from './constants';
 
-// Whether the HOURS/MINUTES/SECONDS panel is showing, and which shape it
-// takes when it is. Three answers come out of here — hidden, stacked, and
-// auto-tucked — because they are one decision: the panel gets narrower
-// before it gets hidden, and the thing that hides it is the thing that has
-// to bring it back.
+// Whether the HOURS/MINUTES/SECONDS panel is showing and what shape it
+// takes. Hidden, stacked and auto-tucked come out of here together
+// because they're one decision: the panel gets narrower before it gets
+// hidden, and whatever hides it has to be what brings it back.
 //
-// Tucking is the last rung of a ladder, not the first response. In order:
-// inline, stacked (a third of the width), 3-across if the row is too short
-// for the stack (.time-fields-box in index.css), inline again, tucked.
-// Narrower or shorter always beats disappearing.
+// Tucking is the last rung of the ladder, not the first response. In
+// order: inline, stacked (a third of the width), 3-across if the row is
+// too short for the stack (.time-fields-box in index.css), inline again,
+// tucked. Narrower or shorter always beats disappearing.
 export function useTimeFieldsTuck(isRowLayout: boolean, isWideLayout: boolean) {
   // Manual hide, persisted, so a tucked-in panel stays tucked in across a
   // reload. Only the site RESET brings it back.
@@ -46,19 +45,17 @@ export function useTimeFieldsTuck(isRowLayout: boolean, isWideLayout: boolean) {
   const tuckedNeedsRef = useRef<{ w: number; h: number } | null>(null);
   // check() reads state through refs. Window resize, the ResizeObserver
   // and the deferred fonts.ready callback can all fire the same closure
-  // from an effect run whose state has since gone stale: check() flips
-  // isHidden, and fonts.ready, registered in that same call, can still
-  // fire against the pre-flip closure before React re-renders.
+  // from an effect run whose state has gone stale: check() flips isHidden,
+  // and fonts.ready, registered in that same call, still fires against the
+  // pre-flip closure.
   const isHiddenRef = useRef(isHidden);
   isHiddenRef.current = isHidden;
   const isAutoTuckedRef = useRef(isAutoTucked);
   isAutoTuckedRef.current = isAutoTucked;
   // Stacked is the narrow form but also the taller one, so a window that's
-  // both narrow and short can't have it. This overrides the breakpoint
-  // back to inline in that case rather than tucking the panel away. It
-  // holds the height the stacked form needed, for the same reason
-  // tuckedNeedsRef does: comparing against the row's size at that moment
-  // would flip back on the first pixel of growth and immediately flip out.
+  // both narrow and short can't have it, and this overrides the breakpoint
+  // back to inline rather than tucking the panel away. It records a need
+  // for the same reason tuckedNeedsRef does.
   const [isInlinedByHeight, setIsInlinedByHeight] = useState(false);
   const inlinedByHeightNeedsRef = useRef<number | null>(null);
   const isInlinedByHeightRef = useRef(isInlinedByHeight);
@@ -75,11 +72,9 @@ export function useTimeFieldsTuck(isRowLayout: boolean, isWideLayout: boolean) {
   // reversal only ever undoes its own hide: a manual hide leaves
   // tuckedNeedsRef null and is never fought.
   //
-  // Below sm the panel isn't rendered at all: the row is a column there,
+  // Below sm the panel isn't rendered at all. The row is a column there,
   // and under the digits this reads as part of the countdown rather than a
-  // control for it. tuckedNeedsRef stays null, and the isRowLayout
-  // dependency re-fires when the breakpoint is crossed back so the panel
-  // gets one fresh look.
+  // control for it.
   useEffect(() => {
     const el = rowRef.current;
     if (!el) return;
@@ -101,15 +96,15 @@ export function useTimeFieldsTuck(isRowLayout: boolean, isWideLayout: boolean) {
         setIsAutoTucked(false);
         return;
       }
-      // A few px of tolerance throughout: sub-pixel rounding from
+      // A few px of tolerance throughout: sub-pixel rounding off
       // fractional clamp() results and font metrics is enough to trip a
       // bare `>` and tuck the panel over an overflow nobody can see.
       const tooWide = el.scrollWidth > el.clientWidth + 4;
       // The panel's own box against the row's, not the row's scrollHeight.
-      // The digits column is by far the tallest thing here, so on a short
-      // window it is what overflows, and tucking the panel for that frees
-      // no vertical space at all. getBoundingClientRect because the
-      // panel's offsetParent is the column wrapper, not the row.
+      // The digits column is the tallest thing here, so on a short window
+      // it's what overflows, and tucking the panel for that frees no
+      // vertical space at all. getBoundingClientRect because the panel's
+      // offsetParent is the column wrapper rather than the row.
       const panel = panelRef.current;
       let tooTall = false;
       let neededHeight = 0;
@@ -130,9 +125,9 @@ export function useTimeFieldsTuck(isRowLayout: boolean, isWideLayout: boolean) {
       }
 
       // `panel &&`: only something rendered can be tucked. Once it is, the
-      // row's remaining overflow belongs to the digits column and must not
-      // re-record a need this can no longer measure, nor turn a manual
-      // hide into an auto-tuck that the branch above would then undo.
+      // row's remaining overflow belongs to the digits column, and must
+      // not re-record a need this can no longer measure or turn a manual
+      // hide into an auto-tuck the branch above would undo.
       if (panel && (tooWide || tooTall)) {
         // Recorded while the panel is still measurable, and as what it
         // needed rather than what the row had.

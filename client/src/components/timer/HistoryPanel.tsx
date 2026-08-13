@@ -113,7 +113,7 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
       <div
         // One line, always: the heading and its count stay level with
         // Clear at every width. A gap so they can't touch, and the count
-        // is what gives when they can't all fit — it's an annotation, and
+        // is what gives when they can't all fit, it's an annotation, and
         // the sidebar is too narrow for "HISTORY 1000/1000 Clear" below
         // about 900px however small the type gets. See sidebar-count.
         className="flex justify-between items-center gap-x-2 border-b-2 border-white flex-shrink-0"

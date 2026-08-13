@@ -7,7 +7,7 @@ import { formatDateParts, offsetLabel } from './format';
 const OPTION_STYLE = { color: 'var(--app-ink)', backgroundColor: 'var(--app-surface)' };
 
 // shortOffset is the newest thing in this file, and an engine that doesn't
-// know the value throws rather than ignoring it — inside a formatter built
+// know the value throws rather than ignoring it, inside a formatter built
 // during render, which takes the whole app down on load rather than the
 // clock. Older engines fall back to the short name, which offsetLabel
 // turns into the same number for most zones and an abbreviation for the
@@ -49,7 +49,7 @@ interface ClockClusterProps {
 // memo() at the bottom guards the other direction, which splitting the
 // file alone did nothing about: Timer re-renders every TICK_MS while a
 // timer runs, and each one reconciled the picker's ~400 <option>s. Every
-// prop has to stay stable for that to hold — see handleHourFormatClick.
+// prop has to stay stable for that to hold, see handleHourFormatClick.
 function ClockCluster({
   fontSize,
   timeZone,
@@ -118,7 +118,7 @@ function ClockCluster({
           onChange={(e) => { if (TIME_ZONES.includes(e.target.value)) onTimeZoneChange(e.target.value); }}
           // zoom-safe-text belongs on the control, not the box around it.
           // This one is a transparent overlay stretched to its parent, so
-          // 16px changes nothing you can see — the offset beside it is a
+          // 16px changes nothing you can see, the offset beside it is a
           // sibling span, and the box is sized by the parent. On the
           // wrapper it forced the visible offset to 16px too, against a
           // clock time that floors at 9.6px on a phone: two boxes meant to

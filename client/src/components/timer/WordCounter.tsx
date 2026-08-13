@@ -55,8 +55,8 @@ const COUNTER_FONT_SIZE = shrinkClamp(0.7, 1.6, 1.75, 0.95);
 const COUNTER_PADDING = shrinkClamp(0.5, 1, 1.1, 0.75);
 // The same padding vertically was 12px of nothing between the L/W/C boxes
 // and the first line, and another 12 between the last line and TOTAL. Only
-// the horizontal one is doing work — it holds the text off the thick
-// divider — so the vertical one shrinks and the typing area takes the 16px
+// the horizontal one is doing work, it holds the text off the thick
+// divider, so the vertical one shrinks and the typing area takes the 16px
 // back. The rules overlay and the textarea have to carry the identical
 // figure or every line box drifts from the rule under it.
 const COUNTER_PADDING_Y = shrinkClamp(0.15, 0.3, 0.35, 0.25);
@@ -68,7 +68,7 @@ const RULE_COLOR_FOCUSED = 'rgba(34, 197, 94, 0.4)';
 const RULE_COLOR_IDLE = 'color-mix(in oklab, var(--app-ink) 35%, transparent)';
 // Side by side on one line. No container cap on this one: the two labels
 // together are ~31em of monospace, and capped to fit they went to 5px on a
-// narrow window — one line, and unreadable, which is not a trade worth
+// narrow window, one line, and unreadable, which is not a trade worth
 // making for text. The floor holds instead, and the labels drop out
 // entirely once they stop fitting at it (see .switch-label in index.css).
 // The checkboxes stay, so the two settings are still there to click.
@@ -140,13 +140,13 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
       // isn't.
       if (document.querySelector('[role="alertdialog"][data-state="open"]')) return;
       // Already somewhere that takes typing, including this row's own
-      // clock picker — a <select> answers a letter by jumping to the city
+      // clock picker, a <select> answers a letter by jumping to the city
       // that starts with it, and yanking focus away ate that.
       if ((e.target as HTMLElement | null)?.closest?.(TYPES_INTO)) return;
       // This keystroke is typing, so it stops here. Left to carry on, the
       // window's timer shortcuts read the same S or R off whichever button
-      // was last clicked in this row — buttons aren't typed into, so
-      // nothing there turns them away — and stopped or restarted the run
+      // was last clicked in this row, buttons aren't typed into, so
+      // nothing there turns them away, and stopped or restarted the run
       // instead of putting a letter on the page.
       e.stopPropagation();
       textareaRef.current?.focus();
@@ -269,22 +269,20 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
       {/* Fullscreen drops the WORD COUNTER label, the website link and the
           repeat tip, leaving the row to the controls that matter while
           typing. Timer stops rendering its own mute/repeat buttons at the
-          same time, so those relocate here rather than being duplicated.
-          The corner is reserved as padding rather than a spacer element,
-          because padding shrinks the line box itself while a spacer stops
-          protecting anything the moment the row overflows, which is exactly
-          when the corner lands on something. Running out of width shrinks
-          the clock; see its box below.
-          One line at every width, never wrapped. It used to wrap below sm
-          and drop the countdown and the buttons onto a second row, which is
-          the one thing this view can't do: it exists to keep them in reach
-          while you type. What made nowrap possible is the container below —
-          everything on the row is capped to a share of it (boxCap), so the
-          contents are a constant fraction of the room rather than a set of
-          rem floors the window can shrink past.
-          The container is the row's content box, i.e. the corner's
-          reservation is already subtracted, so the cqi caps measure the
-          space the row can actually use. */}
+          same time, so those move here rather than being duplicated.
+
+          The corner is reserved as padding rather than a spacer element:
+          padding shrinks the line box itself, where a spacer stops
+          protecting anything the moment the row overflows, which is
+          exactly when the corner lands on something.
+
+          One line at every width, never wrapped, since dropping the
+          countdown and the buttons onto a second row is the one thing this
+          view can't do. That works because of the container: everything on
+          the row is capped to a share of it (boxCap), so the contents are
+          a constant fraction of the room rather than a set of rem floors
+          the window can shrink past. The container is the row's content
+          box, so the corner's reservation is already subtracted. */}
       <div
         className={`flex items-center w-full ${isFullscreen ? 'fs-header-row' : 'gap-3 flex-wrap sm:flex-nowrap'}`}
         style={isFullscreen ? {
@@ -478,7 +476,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         <div className="flex items-center px-3">
           {/* The same box as the TOTAL row at the foot of this column: same
               width, same font, and a 1px border rather than 2. The heavier
-              border was the whole of the difference between them — it read
+              border was the whole of the difference between them, it read
               as a bolder box and stood 2px taller on an identical grid. */}
           <div className="text-white font-bold grid grid-cols-3 text-center flex-shrink-0" style={{ fontSize: COUNTER_FONT_SIZE, width: COUNTER_COLUMN_WIDTH }}>
             <div className="border border-white px-1 leading-tight">L</div>
@@ -531,7 +529,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               // ESC hands the keyboard back to the timer. Its shortcuts sit
               // on the window and skip anything being typed into, so
               // dropping focus is the whole of what "back to the timer"
-              // means — and it's the same key that leaves every other
+              // means, and it's the same key that leaves every other
               // typing box in the app.
               onKeyDown={(e) => {
                 if (e.key !== 'Escape') return;
@@ -560,7 +558,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
         <div className="flex justify-between items-start px-3 pb-1 gap-4" style={{ fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}>
           {/* flex-shrink-0: the boxes below are a fixed COUNTER_COLUMN_WIDTH,
               but index.css's blanket `.flex { min-width: 0 }` lets this
-              column shrink under them, and on a narrow window it did — down
+              column shrink under them, and on a narrow window it did, down
               to 40px against a 96px grid, which then overflowed into the
               legend beside it. */}
           <div className="text-white font-bold flex flex-col gap-0 flex-shrink-0">

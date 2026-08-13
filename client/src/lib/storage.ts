@@ -43,7 +43,7 @@ export function readRaw(key: string, fallback: string): string {
 // Both halves matter, and the second one is the whole point: the reload
 // that follows doesn't stop React, and the countdown ticks every 10ms, so
 // between the wipe and the unload the persistence effects put the state
-// straight back — a site RESET mid-run came back to the very run it was
+// straight back, a site RESET mid-run came back to the very run it was
 // meant to erase. Every write in the app goes through this module, so one
 // flag here closes all of them at once.
 export function wipeStorage(keys: readonly string[]) {

@@ -47,7 +47,7 @@ export const readSavedHistory = (): TimerEntry[] => {
 // All-or-nothing here, since there is a sensible default to fall back to.
 //
 // Older saves packed hours into minutes. Capped on the way out, or a save
-// holding 6000 minutes migrates to 100 hours — past the range every other
+// holding 6000 minutes migrates to 100 hours, past the range every other
 // path in the app holds itself to, and into a countdown the fields can't
 // show.
 export const readSavedPresets = (): TimerEntry[] => {

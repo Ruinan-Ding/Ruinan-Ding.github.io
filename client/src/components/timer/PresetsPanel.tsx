@@ -124,8 +124,8 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   // invisible, so the caret lands after the hint's last "S".
   const inputValue = digits === '' ? 'HH:MM:SS' : displayValue;
   // What the entry is worth as one signed number, for the arrow keys to
-  // step. Written every render so anything else that edits the box —
-  // typing, a correction, an add that empties it — is what the next step
+  // step. Written every render, so whatever else edited the box last
+  // (typing, a correction, an add that emptied it) is where the next step
   // starts from. An empty box is a zero to step off.
   const entryTotalRef = useRef(0);
   entryTotalRef.current = (negative ? -1 : 1) * presetTotalFromDigits(digits);
@@ -162,14 +162,14 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
     // The same step the time boxes take from the same keys: one second on
     // the whole signed value, so the carries and the crossing at zero come
     // out of the arithmetic rather than out of this box. An empty box is a
-    // zero to step off — down from it is -0:01, the same place the
+    // zero to step off, down from it is -0:01, the same place the
     // chevrons reach.
     //
     // It edits the entry rather than committing one: nothing here is
     // applied until Enter, the + or leaving the field, which is what makes
     // an out-of-range entry a question rather than a silent correction.
     // The ends are the exception, since a step past them has nothing left
-    // to say — six digits cannot hold 100 hours.
+    // to say, six digits cannot hold 100 hours.
     onStep: (direction) => {
       // Off the ref rather than the two states it mirrors, so a held key
       // moves a second per press: autorepeat outruns the renders that

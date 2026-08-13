@@ -53,26 +53,24 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
   const inputRef = useRef<HTMLInputElement>(null);
   const isEditing = digits !== null;
 
-  // While editing and empty the value matches the placeholder's character
-  // count, drawn invisible, so the caret lands after it rather than in the
-  // middle of an empty box.
-  // Padded either way, so a half-typed entry reads as the number it is:
-  // one digit in a two-digit box is "07", and the leading zero is padding
-  // that the next keystroke replaces rather than a digit in its own right.
-  // Same as the preset box, which pads to its own six.
+  // Editing and empty, the value matches the placeholder's character count
+  // and is drawn invisible, so the caret lands after it rather than in the
+  // middle of an empty box. Padded either way, so a half-typed entry reads
+  // as the number it is: one digit in a two-digit box is "07", where the
+  // leading zero is padding the next keystroke replaces.
   //
-  // The sign rides in front of whatever is showing, typed or not: it
-  // belongs to the time rather than to the digits, so backspacing through
-  // the number never has to delete it and typing never has to preserve it.
+  // The sign rides in front of whatever is showing, typed or not. It
+  // belongs to the time rather than the digits, so backspacing never has
+  // to delete it and typing never has to preserve it.
   const shown = isEditing ? (digits === '' ? placeholder : pad(digits)) : pad(value);
   const inputValue = negative ? `-${shown}` : shown;
 
   const { handleChange, handleKeyDown } = useDigitEntry(inputRef, 2, inputValue, {
     setValue: setDigits,
-    // The sign is a change to the whole time and applies at once, so the
+    // The sign is a change to the whole time and applies at once, so a
     // half-typed magnitude behind it is dropped rather than left to commit
-    // later: a confirmation dialog takes the focus as it opens, and that
-    // blur was applying the digits behind the question still asking about
+    // later: the confirmation dialog takes focus as it opens, and that
+    // blur would apply the digits behind the question still asking about
     // the change. Back to untouched, showing "-SS" for what it now is.
     onToggleSign: () => {
       setDigits('');
@@ -84,21 +82,18 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
       cancelledRef.current = true;
       inputRef.current?.blur();
     },
-    // The keyboard half of the chevrons beside the box: the same target,
-    // the whole signed time, and the same moment — on the press, not at
-    // the commit a typed entry waits for. Stepping this box's own
-    // magnitude instead put the two controls at odds everywhere the time
-    // was negative: at -01:30 the arrow reached -01:31 while the chevron
-    // an inch away reached -01:29, and at 00:00:00 the arrow had nowhere
-    // to go while the chevron stepped down into -00:00:01, which is the
-    // crossing the whole signed rework is for.
+    // The keyboard half of the chevrons beside the box: same target, the
+    // whole signed time, and same moment, on the press rather than at the
+    // commit a typed entry waits for. Stepping this box's own magnitude
+    // instead puts the two at odds wherever the time is negative, with the
+    // arrow reaching -01:31 from -01:30 while the chevron an inch away
+    // reaches -01:29.
     //
-    // Anything half-typed underneath is dropped rather than left to apply
-    // on the way out, and the box goes back to showing the live value so
-    // the number can be watched moving. `fresh` is what keeps typing
-    // working after that: with a committed value on screen the next digit
-    // starts a new entry over it rather than being refused by a box that
-    // is already two digits full.
+    // Anything half-typed underneath is dropped, and the box goes back to
+    // showing the live value so the number can be watched moving. `fresh`
+    // keeps typing working after that: with a committed value on screen
+    // the next digit starts a new entry over it rather than being refused
+    // by a box that already holds two.
     onStep: (direction) => {
       setDigits(null);
       onStepTotal(direction * unitSeconds);

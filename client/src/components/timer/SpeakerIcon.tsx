@@ -4,7 +4,7 @@ import { shrinkClamp } from './responsive';
 // don't draw the same, because they aren't the same thing and the fix for
 // one isn't the fix for the other: muted is a switch, and clicking the
 // button undoes it; 0% is a level, and only the slider moves it. Muted
-// gets a red slash straight through the whole icon — a "no" sign, readable
+// gets a red slash straight through the whole icon, a "no" sign, readable
 // at a glance and at the smallest size this shrinks to. A silent slider
 // keeps the small grey X beside the speaker: same speaker, no waves left.
 export default function SpeakerIcon({ volume, muted, color }: { volume: number; muted: boolean; color: string }) {

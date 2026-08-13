@@ -1,28 +1,19 @@
-// The clamp() used by every control that should shrink before the digits
-// do. min(vw, vh) means a short but wide window shrinks these on the vh
-// term rather than holding steady on vw; the digits are sized on vw alone
-// and never use this, which is what gives them priority.
+// For every control that should shrink before the digits do. min(vw, vh)
+// so a short but wide window shrinks these on the vh term; the digits are
+// sized on vw alone and never use this, which is what gives them priority.
 //
-// Emits dvh, not vh: bare vh is pinned to the browser's large/static
-// viewport and ignores a mobile address bar, so on a phone with it showing
-// every control here would hold the size it'd have with more room than it
-// actually has. dvh tracks the real, current viewport, same as the app's
-// root h-dvh container, so this shrinks in step with it instead of only
-// the container doing so.
+// dvh rather than vh: bare vh is pinned to the browser's large viewport
+// and ignores a mobile address bar, so with one showing these would hold
+// the size they'd have with more room than there is. dvh tracks the
+// current viewport, the same one the app's root h-dvh container does.
 export const shrinkClamp = (minRem: number, vw: number, vh: number, maxRem: number) =>
   `clamp(${minRem}rem, min(${vw}vw, ${vh}dvh), ${maxRem}rem)`;
 
 // The same idea against the container a control sits in rather than the
-// viewport. min(vw, vh) can't do this job for something inside a column:
-// on any landscape window the vh term is the smaller one and binds, so
-// squeezing the width moves nothing until the window is narrower than it
-// is tall. cqi is a percentage of the container's own inline size, so it
-// responds to exactly the space the control has.
-//
-// Falls back to the viewport where there's no container ancestor. That used
-// to be the sub-sm layout; the timer row is a size container at every width
-// now, so these resolve against it there instead — a hair under 1vw, since
-// the content column keeps 8px either side.
+// viewport. min(vw, vh) can't do this job inside a column: on any
+// landscape window the vh term binds, so squeezing the width moves nothing
+// until the window is narrower than it is tall. cqi is a percentage of the
+// container's own inline size, so it answers to the space the control has.
 export const fitClamp = (minRem: number, cqi: number, maxRem: number) =>
   `clamp(${minRem}rem, ${cqi}cqi, ${maxRem}rem)`;
 
@@ -37,11 +28,10 @@ export const fitClamp = (minRem: number, cqi: number, maxRem: number) =>
 // at all of them. Above the cap nothing changes at all.
 export const boxCap = (value: string, cqi: number) => `min(${value}, ${cqi}cqi)`;
 
-// fitClamp against both of the container's axes, for anything the digits'
-// height reserve has to predict. On cqi alone a wide but short window grew
-// these off the column's width while the reserve was estimating them off
-// the viewport's height, and the two disagreed by enough to push the
-// column past the row. cqh is the same height the reserve is spending, so
-// they can't drift apart.
+// Both of the container's axes, for anything the digits' height reserve
+// has to predict. On cqi alone a wide but short window grows these off the
+// column's width while the reserve estimates them off the viewport's
+// height, and the two disagree by enough to push the column past the row.
+// cqh is the same height the reserve is spending.
 export const boxClamp = (minRem: number, cqi: number, cqh: number, maxRem: number) =>
   `clamp(${minRem}rem, min(${cqi}cqi, ${cqh}cqh), ${maxRem}rem)`;

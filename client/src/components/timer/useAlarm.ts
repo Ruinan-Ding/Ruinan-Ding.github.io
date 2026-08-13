@@ -4,7 +4,7 @@ import { ALARM_BURST_COUNT, ALARM_BURST_GAP_TICKS, ALARM_GROUP_GAP_TICKS, ALARM_
 interface AlarmOptions {
   /** running, unpaused and past zero: the alarm's whole reason to sound */
   isActive: boolean;
-  /** past zero at all, paused included — what one ring's allowance is spent on */
+  /** past zero at all, paused included, what one ring's allowance is spent on */
   isOvertime: boolean;
   /** repeat: on, the alarm rings until stopped; off, one finite ring */
   isLooping: boolean;
@@ -16,7 +16,7 @@ interface AlarmOptions {
 //
 // isRinging is true while the beep interval runs, isBeepFlash pulses red on
 // each individual beep, and hasRungOut marks a finite ring that finished on
-// its own — the "you missed this" cue the digits keep wearing afterwards.
+// its own, the "you missed this" cue the digits keep wearing afterwards.
 //
 // clearAlarm is the door out for everything that restarts the countdown
 // from a fresh total: the sound has to stop where it is, before the state
@@ -92,7 +92,7 @@ export function useAlarm({ isActive, isOvertime, isLooping, isSilent, beep }: Al
       }
       if (pattern[tickRef.current % pattern.length]) {
         if (!isSilentRef.current) beep(...TONES.alarm);
-        // Red for exactly as long as the beep sounds — or would have.
+        // Red for exactly as long as the beep sounds, or would have.
         setIsBeepFlash(true);
         window.setTimeout(() => setIsBeepFlash(false), TONES.alarm[1]);
       }

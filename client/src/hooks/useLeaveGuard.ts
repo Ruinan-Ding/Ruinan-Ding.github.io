@@ -1,13 +1,12 @@
 import { useEffect, useRef } from 'react';
 
 // Leaving mid-run throws the run away, so it asks first. The browser owns
-// this one: its own wording, no styling, and it stays quiet until the page
-// has been interacted with. Nothing this app can draw holds up an unload,
-// so beforeunload is the whole of what's available.
+// this one: its own wording, no styling, and quiet until the page has been
+// interacted with. Nothing this app can draw holds up an unload, so
+// beforeunload is all there is.
 //
-// Registered only while `armed`, which is what keeps the trade above
-// intact — an idle page carries no beforeunload listener and keeps the
-// bfcache eligibility a permanent one would cost it.
+// Registered only while `armed`. An idle page carries no beforeunload
+// listener and keeps the bfcache eligibility a permanent one would cost.
 //
 // Returns the escape hatch: set it before a reload the app asks for
 // itself, which has already been confirmed once.

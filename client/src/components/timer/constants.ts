@@ -7,21 +7,20 @@ export const HEADER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3.5), height: sh
 export const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkClamp(1.1, 3, 3, 1.375) };
 
 // One size for every DotCheckbox, set on the checkbox rather than in em
-// off whatever label it sits beside. Sized in em, the confirmations box
-// came out 6% smaller than the word counter's, and 6% of 11px is the
-// whole gap between the dot and its border.
+// off whatever label it sits beside: in em the confirmations box comes out
+// 6% smaller than the word counter's, and 6% of 11px is the whole gap
+// between the dot and its border.
 export const TOGGLE_FONT_SIZE = shrinkClamp(0.65, 1.35, 1.5, 0.85);
 
 // One size for the whole wall clock. Its widest line has to fit the
 // digits column (40vw); the floor stops just above where a 0.9em checkbox
 // has no room inside its own border for a dot.
 export const CLOCK_FONT_SIZE = shrinkClamp(0.55, 1.5, 1.6, 1.35);
-// The same clock for the word counter's fullscreen header, where it gets
-// whatever the countdown, bar and buttons leave. Then capped again by
-// that leftover: the date is 17 monospace characters at 0.6em, so it
-// needs ~10.2x its font size, and 9cqi of the box keeps it inside with a
-// little spare. cqi is the point, being a percentage of the leftover
-// rather than a vw clamp with a rem floor to bottom out on.
+// The same clock in the word counter's fullscreen header, where it gets
+// whatever the countdown, bar and buttons leave, and is capped again by
+// that leftover: the date is 17 monospace characters at 0.6em, needing
+// ~10.2x its font size, and 9cqi keeps it inside with a little spare. cqi
+// rather than a vw clamp, which would bottom out on its rem floor.
 const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.5, 0.85, 0.95, 0.72);
 export const FULLSCREEN_CLOCK_FONT_SIZE = `max(0.5rem, min(${COMPACT_CLOCK_FONT_SIZE}, 9cqi))`;
 
@@ -33,24 +32,22 @@ export const FULLSCREEN_CLOCK_FONT_SIZE = `max(0.5rem, min(${COMPACT_CLOCK_FONT_
 export const HEADER_CORNER_RESERVE = `calc(3 * ${HEADER_BUTTON_SIZE.width} + 48px)`;
 
 // One width for every box in the sidebar: each preset, each history entry,
-// and the HH:MM:SS input. Boxes that differ by a character or two read as
+// and the HH:MM:SS input. Boxes differing by a character or two read as
 // ragged, and the widest is a fixed 8 characters that can't shrink anyway.
-// Padding is em-based so it keeps pace as the label shrinks.
+//
 // Written out rather than through shrinkClamp because the floor is a CSS
 // variable: touch devices lift it to 16px, where iOS stops zooming in on a
 // focused field. See --list-row-floor in index.css.
 export const LIST_ROW_FONT_SIZE = 'clamp(var(--list-row-floor), min(2.2vw, 2.8dvh), 1.75rem)';
 
 // "-99:59:59" is 9 glyphs at this font's 0.6em advance plus 0.3em of side
-// padding either side. Nine, not eight, and for every row rather than only
-// the ones that need it: a time can carry a minus now, and sizing to the
-// content would make one row wider than the column of boxes beside it.
-// The +10px is border-4 (8px) plus 2px of slack, since em widths land on
-// fractions and an exact fit is no fit at all.
+// padding either side. Nine rather than eight, and on every row rather
+// than the ones that need it, since a time can carry a minus and sizing to
+// content would leave one row wider than the column beside it. The +10px
+// is border-4 (8px) plus 2px of slack, em widths landing on fractions.
+//
 // Off LIST_ROW_FONT_SIZE rather than the element's own em, which is the
-// same number until something overrides one box's font-size and that box
-// silently becomes a different width from the rest of the column. The
-// sidebar reserves this width once, from this same expression.
+// same number right up until something overrides one box's font-size.
 const LIST_ROW_LABEL_EM = 6;
 export const LIST_ROW_BOX_WIDTH = `calc(${LIST_ROW_LABEL_EM} * ${LIST_ROW_FONT_SIZE} + 10px)`;
 export const LIST_ROW_BUTTON_STYLE = {
@@ -62,15 +59,15 @@ export const LIST_ROW_BUTTON_STYLE = {
   flexShrink: 0,
 };
 
-// Sidebar width, computed rather than fit to content: w-fit resized the
-// column every time a history row was appended, shoving the timer beside
-// it. This reserves what a row always is, once: [− button] gap [box].
+// Computed rather than fit to content: w-fit resizes the column every time
+// a history row is appended, shoving the timer beside it. This reserves
+// what a row always is, once: [− button] gap [box].
 //
 // The − button is one glyph plus 0.35em of side padding, so 1.3em of its
 // own smaller font. The 34px is every pixel an em width can't carry:
 // LIST_ROW_BOX_WIDTH's 10px, the − button's border-2 (4px), the sidebar's
-// border-r-4 (4px), and 16px of scrollbar gutter. The gutter is reserved
-// once because presets and history share the sidebar's one scrollbar.
+// border-r-4 (4px), and 16px of scrollbar gutter, reserved once because
+// presets and history share the one scrollbar.
 export const SIDEBAR_PADDING = shrinkClamp(0.5, 1, 1.1, 1);
 const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
 export const LIST_ROW_REMOVE_FONT_SIZE = shrinkClamp(0.7, 1.4, 1.6, 1.1);
@@ -90,9 +87,9 @@ export const LIST_ROW_REMOVE_BUTTON_STYLE = {
 };
 
 // Controls that own a keystroke because they're being typed into. Shared,
-// because both keyboard owners in the app have to agree on the same list:
-// the window's timer shortcuts skip these, and the word counter's
-// fullscreen refocus has to leave the same ones alone.
+// since both keyboard owners have to agree on the same list: the window's
+// timer shortcuts skip these, and the word counter's fullscreen refocus
+// leaves the same ones alone.
 export const TYPES_INTO = 'input, textarea, select, [contenteditable]';
 
 // localStorage keys. Don't rename, older saves use them. lightTheme is
@@ -136,11 +133,11 @@ export const TIME_ZONES: readonly string[] =
 // The same list grouped for the picker: "America/New_York" under
 // "America", labelled "New York". Built once at module load.
 //
-// No abbreviations in here on purpose. Resolving them takes an
-// Intl.DateTimeFormat per zone, and 418 of those measured 123ms at
-// startup for a list most sessions never open. The picker fills them in
-// later (see Timer), and the closed box gets its one abbreviation free
-// off the clock's own formatter.
+// No abbreviations in here on purpose: resolving them takes an
+// Intl.DateTimeFormat per zone, and 418 of those measure 123ms at startup
+// for a list most sessions never open. useZoneOffsets fills them in on an
+// idle callback, and the closed box gets its one abbreviation free off the
+// clock's own formatter.
 export const ZONES_BY_REGION: [string, { zone: string; label: string }[]][] = (() => {
   const groups = new Map<string, { zone: string; label: string }[]>();
   for (const zone of TIME_ZONES) {

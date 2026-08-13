@@ -8,13 +8,11 @@ import type { DialogState } from './types';
 interface ConfirmDialogProps {
   dialog: DialogState;
   // Carries the checkbox too. Cancelling answers nothing so it arrives
-  // false there, but an acknowledgement's ESC is the same act as its OK —
-  // the button says so — and it has to remember the same tick.
+  // false there, but an acknowledgement's ESC is the same act as its OK,
+  // as the button says, so it has to remember the same tick.
   onDismiss: (dontAskAgain: boolean) => void;
-  // dontAskAgain is the checkbox below: true means don't ask THIS
-  // question again (see dialogKey for what counts as the same question).
-  // Only ever arrives via confirm: cancelling answers nothing, so there's
-  // nothing to remember.
+  // True means don't ask THIS question again; see dialogKey for what
+  // counts as the same question.
   onConfirm: (dontAskAgain: boolean) => void;
 }
 
@@ -104,7 +102,7 @@ const getCopy = (dialog: DialogState) => {
         // Two different acts under one title. Idle, these fields are the
         // timer's setup and this sets what it starts from. Running or
         // paused they're the time left, and this moves that without
-        // touching the total — which is what STOP and RESET go back to,
+        // touching the total, which is what STOP and RESET go back to,
         // and what the bar is drawn against.
         description: (state === 'unstarted'
           ? `Change the time to ${label}? That's what the timer will start from.`
@@ -209,20 +207,18 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
     <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss(dontAskAgain)}>
       <AlertDialogContent
         className="bg-black border-4 border-white p-4 gap-3"
-        // Focus the answer, don't intercept the key. Radix opens with
-        // CANCEL focused, so ENTER — which this app advertises as yes —
-        // landed on no, and the fix for that was a handler that confirmed
-        // whatever held focus. Which meant tabbing onto CANCEL and pressing
-        // the key printed on it confirmed as well: the one way a keyboard
-        // user says no, deleting their presets. Guarding that on "has focus
-        // moved" only pushed the hole around — a keydown listener for Tab
-        // can't see focus moved by mouse, by arrow key, or by anything
-        // else.
+        // Focus the answer rather than intercept the key. Radix opens with
+        // CANCEL focused, so ENTER, which this app advertises as yes,
+        // lands on no. Answering that with a handler that confirms
+        // whatever holds focus turns tabbing onto CANCEL and pressing the
+        // key printed on it into a confirm, which is the one way a
+        // keyboard user says no. Guarding on "has focus moved" only moves
+        // the hole: a keydown listener for Tab can't see focus moved by
+        // mouse or by arrow key.
         //
-        // Putting focus where the default action already is needs no
-        // interception at all: ENTER presses what it is pointed at, so it
-        // confirms untouched, and CANCEL cancels once you move to it. The
-        // buttons keep their own contract and the special case is gone.
+        // Focus where the default action already is needs no interception:
+        // ENTER presses what it points at, and CANCEL cancels once you
+        // move to it.
         onOpenAutoFocus={(e) => {
           // Only take the focus over if there's something to take it to.
           // preventDefault with nothing focused afterwards leaves it on the
@@ -234,12 +230,11 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
         }}
         onKeyDown={(e) => {
           // Space answers nothing. Left to the browser it presses whatever
-          // holds focus, so a spacebar reflex answered a question it
-          // doesn't advertise an answer to. ENTER confirms and ESC cancels,
-          // and both say so on the buttons.
-          //
-          // Except on the "don't ask again" checkbox, which Space ticks —
-          // that's the one control here Space belongs to.
+          // holds focus, so a spacebar reflex answers a question that
+          // doesn't advertise Space as an answer. ENTER confirms and ESC
+          // cancels, and both say so on the buttons. The exception is the
+          // "don't ask again" checkbox, the one control here Space belongs
+          // to.
           if (e.key !== ' ') return;
           if ((e.target as HTMLElement).closest('[data-dont-ask]')) return;
           e.preventDefault();
@@ -272,7 +267,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           {acknowledgeRef.current ? (
             // One button, and it's the Cancel element rather than the
             // Action on purpose: Radix wants a Cancel in an AlertDialog,
-            // and an acknowledgement has nothing to decline — ENTER, ESC
+            // and an acknowledgement has nothing to decline, ENTER, ESC
             // and the click all land on the same result, which is what the
             // label says. It carries actionRef like the Action does in the
             // two-button case, so ENTER opens pointed at it either way.

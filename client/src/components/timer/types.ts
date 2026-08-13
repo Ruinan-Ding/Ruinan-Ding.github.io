@@ -36,13 +36,13 @@ export type DialogState =
   // Both modes run the picked time and differ only in what's given up to
   // do it. Also the "don't ask again" scope, so silencing one doesn't
   // silence the other. Only reachable where there's a run on the clock to
-  // lose — see hasRunToLose — which is why there's no idle mode.
+  // lose, see hasRunToLose, which is why there's no idle mode.
   | { type: 'switch'; data: TimeParts & { negative?: boolean }; mode: 'switchRunning' | 'loadOnly' }
   | { type: 'seek'; data: { targetSeconds: number; mode: 'idle' | 'paused' | 'running' } }
   // The whole resulting time, not one unit's value: a step can carry
   // across units, so "seconds to 60" is not a thing that can be said.
   // `unit` is only which box was touched, for the flash. `state` is which
-  // timer state it was asked in — it picks the wording and doubles as the
+  // timer state it was asked in, it picks the wording and doubles as the
   // "don't ask again" scope; see dialogKey.
   // `corrected` is set when the edit overshot the end of the range and was
   // clamped to get here, so this dialog can say so itself rather than hand

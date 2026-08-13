@@ -8,25 +8,22 @@ import { STORAGE_KEYS } from './constants';
 // state rather than three: collapsing has to leave fullscreen, un-hiding
 // has to put it back, and only a collapse this made can be reversed by it.
 //
-// Takes the textarea because that is half of what gets measured — the
-// chrome overflows, the typing area shrinks silently, and either one makes
-// the box unusable.
+// Takes the textarea because it's half of what gets measured: the chrome
+// overflows, the typing area shrinks silently, and either one leaves the
+// box unusable.
 export function useWordCounterCollapse(textareaRef: React.RefObject<HTMLTextAreaElement | null>) {
   // Both persisted, so a reload comes back to the view you left. The site
   // RESET clears them with every other key.
   const [isFullscreen, setIsFullscreen] = useState(() => readBoolean(STORAGE_KEYS.wordCounterFullscreen, false));
   const [isCollapsed, setIsCollapsed] = useState(() => readBoolean(STORAGE_KEYS.wordCounterCollapsed, false));
   // The window this box needed when auto-collapse last fired, null
-  // otherwise. Reaching it is this app's proxy for "there's room again":
+  // otherwise. Reaching it is the proxy for "there's room again", since
   // the expanded content isn't in the DOM to re-measure once collapsed.
-  // A need rather than the size at the time — see where it's recorded.
   //
-  // Saved, so a reload doesn't replay the collapse in front of you: with
-  // the size in memory only, an auto-collapse couldn't be persisted
-  // without reading back as a manual one, so every refresh came back
-  // expanded, overflowed its share of the column, and snapped shut again.
-  // Restored it comes back already collapsed, and still reopens itself
-  // once the window grows past the size below.
+  // Saved, so a reload doesn't replay the collapse in front of you. In
+  // memory only, an auto-collapse can't be persisted without reading back
+  // as a manual one, so every refresh comes back expanded, overflows its
+  // share of the column and snaps shut again.
   const [savedCollapsedAt] = useState(() => readJSON<{ w: number; h: number } | null>(STORAGE_KEYS.wordCounterCollapsedAt, null));
   // True only when the auto-collapse below forced it, never for a manual
   // toggle. The collapse arrow hides itself while this is set, since
@@ -46,11 +43,10 @@ export function useWordCounterCollapse(textareaRef: React.RefObject<HTMLTextArea
   usePersisted(STORAGE_KEYS.wordCounterCollapsedAt, isAutoCollapsed ? collapsedAtSizeRef.current : null);
   usePersisted(STORAGE_KEYS.wordCounterFullscreen, isFullscreen);
 
-  // Collapsing has to leave fullscreen too, since there's no such thing as
-  // a hidden-but-fullscreen view. Remembered here so un-hiding restores
-  // whichever view was showing. Both the manual toggle and the
-  // auto-collapse go through this one function, so the ref can't go stale
-  // relative to whichever path triggered the collapse.
+  // Collapsing leaves fullscreen too, there being no such thing as a
+  // hidden-but-fullscreen view, and this remembers which view to restore.
+  // Both the manual toggle and the auto-collapse go through the one
+  // function, so the ref can't go stale against the path that fired.
   const wasFullscreenBeforeCollapseRef = useRef(false);
   const collapse = () => {
     wasFullscreenBeforeCollapseRef.current = isFullscreen;
@@ -97,20 +93,18 @@ export function useWordCounterCollapse(textareaRef: React.RefObject<HTMLTextArea
         }
         return;
       }
-      // Two ways this stops being usable, and only one of them overflows.
-      // The chrome is fixed height and spills once the column can't hold
-      // it; the textarea is flex-1 min-h-0 and shrinks silently to a few
-      // pixels instead. A box you can't fit one line into is as unusable
-      // as a clipped one, so the typing area is measured against a single
-      // line box read off the element, which tracks the current viewport.
+      // Two ways this stops being usable, and only one of them overflows:
+      // the chrome is fixed height and spills once the column can't hold
+      // it, while the textarea is flex-1 min-h-0 and shrinks silently to a
+      // few pixels. A box that can't fit one line is as unusable as a
+      // clipped one, so the typing area is measured against a single line
+      // box read off the element at its current size.
       const textarea = textareaRef.current;
       const style = textarea && getComputedStyle(textarea);
       const oneLine = style
         ? parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
         : 0;
-      // How far short this box is, by whichever of the two measures is
-      // worse. Positive on exactly the cases the two conditions used to be
-      // an OR of.
+      // How far short the box is, by whichever measure is worse.
       const shortBy = Math.max(
         el.scrollHeight - el.clientHeight,
         textarea ? oneLine - textarea.clientHeight : 0,
@@ -118,14 +112,13 @@ export function useWordCounterCollapse(textareaRef: React.RefObject<HTMLTextArea
       if (shortBy > 0) {
         // The window this box NEEDED, not the one it happens to be in.
         // Collapsing doesn't resize the window, so "grown back to what it
-        // was" is already true the moment this commits: it reopened into
-        // the same shortage, collapsed again, and ping-ponged for as long
-        // as the window sat at that size. Same trap the timer's own
-        // auto-tuck documents and avoids by recording a need.
+        // was" would already be true the moment this commits, and the box
+        // would reopen into the same shortage and ping-pong there. Same
+        // trap the timer's auto-tuck avoids the same way.
         //
-        // Doubled because this panel and the timer row are both flex-1
-        // off the same free space, so each pixel the window gains is split
-        // between them and only half of it lands here.
+        // Doubled because this panel and the timer row are both flex-1 off
+        // the same free space, so each pixel the window gains is split
+        // between them and only half lands here.
         collapsedAtSizeRef.current = { w: window.innerWidth, h: window.innerHeight + 2 * shortBy };
         setIsAutoCollapsed(true);
         collapse();
