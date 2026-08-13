@@ -11,6 +11,12 @@ interface DigitEntryHandlers {
   onStep?: (direction: 1 | -1) => void;
   /** "-" typed: flip the sign of the value being entered */
   onToggleSign?: () => void;
+  /**
+   * The box is showing a committed value rather than an entry in progress,
+   * so the next digit starts a new one over the top of it instead of
+   * inserting into it — the same thing focusing an untouched box does.
+   */
+  fresh?: boolean;
 }
 
 // How many digits sit before an index in the displayed string. The box
@@ -167,10 +173,14 @@ export function useDigitEntry(
     const start = el.selectionStart ?? shown.length;
     const end = el.selectionEnd ?? start;
     // Off the displayed string, so the padding counts: it is what the new
-    // digit is going to take the room from.
-    const digits = shown.replace(/\D/g, '');
-    const from = digitsBefore(shown, start);
-    const to = digitsBefore(shown, end);
+    // digit is going to take the room from. Unless what's displayed is a
+    // committed value the box was handed — a time the arrows just stepped,
+    // say — in which case there is no entry to insert into and this digit
+    // is the start of one.
+    const fresh = handlersRef.current.fresh === true;
+    const digits = fresh ? '' : shown.replace(/\D/g, '');
+    const from = fresh ? 0 : digitsBefore(shown, start);
+    const to = fresh ? 0 : digitsBefore(shown, end);
     // Room is made before the digit goes in rather than after. Shedding
     // afterwards could only reach a zero that had stayed leading, so a
     // digit typed at the very left of "07" made "507" and was refused

@@ -11,10 +11,11 @@ interface TimeFieldProps {
   // whole time, and `negative` says whether this box is the one showing it.
   value: number;
   negative: boolean;
-  // Seconds this unit is worth, so a chevron can move the whole time by one
-  // of them rather than this box by one of itself. That difference is the
-  // point past zero: at -01:30, stepping the seconds box up has to reach
-  // -01:29, and adding 1 to the magnitude would reach -01:31.
+  // Seconds this unit is worth, so a chevron or an arrow key can move the
+  // whole time by one of them rather than this box by one of itself. That
+  // difference is the point past zero: at -01:30, stepping the seconds box
+  // up has to reach -01:29, and adding 1 to the magnitude would reach
+  // -01:31.
   unitSeconds: number;
   // Label above the digit box rather than beside it: a third of the width
   // at roughly 1.4x the height. Driven from Timer so all three switch
@@ -23,7 +24,8 @@ interface TimeFieldProps {
   // A typed commit: this unit's new magnitude, unclamped. 61 arrives as 61
   // and the owner carries it.
   onRequestChange: (value: number) => void;
-  // A chevron: move the whole time by this many seconds, sign and all.
+  // A chevron or an arrow key: move the whole time by this many seconds,
+  // sign and all.
   onStepTotal: (deltaSeconds: number) => void;
   // "-" pressed: flip the sign of the whole time.
   onToggleSign: () => void;
@@ -45,11 +47,6 @@ const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.7, 1.2, 1.35, 1.25), height: sh
 // The caret is useDigitEntry's job: the box reformats as it's typed into,
 // so the browser would otherwise park it at the end after every keystroke.
 function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, onRequestChange, onStepTotal, onToggleSign }: TimeFieldProps) {
-  // Only the pending digit entry is clamped, and only to what two digits
-  // can say. A committed value is left exactly as typed so the owner can
-  // carry it: clamping 61 to 59 here would silently eat the minute.
-  const clampTyped = (next: number) => Math.max(0, Math.min(99, next));
-
   // null = not editing; '' = editing but untouched (placeholder shown)
   const [digits, setDigits] = useState<string | null>(null);
   const cancelledRef = useRef(false);
@@ -87,14 +84,26 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
       cancelledRef.current = true;
       inputRef.current?.blur();
     },
-    // Arrows step the pending entry, or the committed value if nothing has
-    // been typed yet. Either way it commits on blur/Enter like typing.
+    // The keyboard half of the chevrons beside the box: the same target,
+    // the whole signed time, and the same moment — on the press, not at
+    // the commit a typed entry waits for. Stepping this box's own
+    // magnitude instead put the two controls at odds everywhere the time
+    // was negative: at -01:30 the arrow reached -01:31 while the chevron
+    // an inch away reached -01:29, and at 00:00:00 the arrow had nowhere
+    // to go while the chevron stepped down into -00:00:01, which is the
+    // crossing the whole signed rework is for.
+    //
+    // Anything half-typed underneath is dropped rather than left to apply
+    // on the way out, and the box goes back to showing the live value so
+    // the number can be watched moving. `fresh` is what keeps typing
+    // working after that: with a committed value on screen the next digit
+    // starts a new entry over it rather than being refused by a box that
+    // is already two digits full.
     onStep: (direction) => {
-      setDigits((prev) => {
-        const base = prev === null || prev === '' ? value : clampTyped(parseInt(prev, 10));
-        return pad(clampTyped(base + direction));
-      });
+      setDigits(null);
+      onStepTotal(direction * unitSeconds);
     },
+    fresh: !isEditing,
   });
 
   const handleBlur = () => {
