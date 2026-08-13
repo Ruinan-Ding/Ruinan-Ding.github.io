@@ -104,8 +104,10 @@ function ClockCluster({
           with their offsets in the list. The value is the zone id
           throughout. */}
       <span
-        className="relative inline-flex items-center gap-1 border-2 font-bold flex-shrink-0 self-center focus-within:ring-1"
-        style={{ borderColor: 'currentColor', backgroundColor: 'var(--app-surface)', fontFamily: "'IBM Plex Mono', monospace", padding: '0 0.25em' }}
+        className="relative inline-flex items-center border-2 font-bold flex-shrink-0 self-center focus-within:ring-1"
+        // Gap in em rather than gap-1's fixed 4px, which is a quarter of
+        // this box on a phone and a fifteenth of it on a desktop.
+        style={{ borderColor: 'currentColor', backgroundColor: 'var(--app-surface)', fontFamily: "'IBM Plex Mono', monospace", padding: '0 0.25em', gap: '0.15em' }}
       >
         <span className="whitespace-nowrap">{zoneOffset}</span>
         <span aria-hidden style={{ lineHeight: 1 }}>▾</span>
@@ -147,8 +149,15 @@ function ClockCluster({
 
   // minWidth on the time so switching between "3:56:55 PM" and "15:56:55"
   // doesn't drag the zone box back and forth.
+  //
+  // letter-spacing is set here rather than left to inherit. The countdown
+  // above wears tracking-wider, which resolves 0.05em against its own
+  // font-size and hands the result down as a length: 7.5px, which is
+  // 0.05em to a 150px readout and more than half an em to a 13px label.
+  // The time and the date each set their own; this covers the cluster, so
+  // the zone box gets a tracking of its own size rather than the digits'.
   return (
-    <div className="flex flex-col items-center gap-0.5 flex-shrink-0" style={{ fontSize }}>
+    <div className="flex flex-col items-center gap-0.5 flex-shrink-0" style={{ fontSize, letterSpacing: '0.05em' }}>
       <span className="flex items-center gap-1 leading-tight">
         {/* Boxed like the zone beside it, so the two read as a pair of
             controls rather than a label that happens to be clickable. */}
