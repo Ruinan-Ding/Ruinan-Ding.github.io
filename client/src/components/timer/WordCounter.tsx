@@ -628,7 +628,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               the typing area. */}
           <div
             className={`counter-legend flex items-baseline justify-end text-right whitespace-nowrap overflow-hidden ${isActive ? 'text-green-500' : 'text-gray-400'}`}
-            style={{ fontSize: shrinkClamp(0.45, 0.8, 0.9, 0.6), gap: '0.9em' }}
+            // Bigger than it was, and still shrinking. Three stacked lines
+            // had to be small to cost the typing area little; one line
+            // spends a third of that height, so it can afford to be read.
+            // The floor is what it falls back to before the row gives up
+            // on it entirely.
+            style={{ fontSize: shrinkClamp(0.5, 1.3, 1.5, 0.95), gap: '0.9em' }}
           >
             <span><strong>L:</strong> Line number</span>
             <span><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</span>
