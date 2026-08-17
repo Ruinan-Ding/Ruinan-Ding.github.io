@@ -37,6 +37,16 @@ interface ClockClusterProps {
   isHourFormatFlashing: boolean;
   onHourFormatClick: () => void;
   onTimeZoneChange: (zone: string) => void;
+  // The fullscreen row runs this clock up against the floating corner, so
+  // the owner measures the two collisions and hands the answers back. The
+  // date is nearest the corner and goes first; the time and its zone box
+  // go together once the zone reaches it too. Handed refs rather than
+  // measured here, since what they collide with lives in Timer.
+  rootRef?: React.RefObject<HTMLDivElement | null>;
+  dateRef?: React.RefObject<HTMLSpanElement | null>;
+  zoneRef?: React.RefObject<HTMLSpanElement | null>;
+  hideDate?: boolean;
+  hideTime?: boolean;
 }
 
 // Time and zone on one line, date under them. Clicking the time is the
@@ -58,6 +68,11 @@ function ClockCluster({
   isHourFormatFlashing,
   onHourFormatClick,
   onTimeZoneChange,
+  rootRef,
+  dateRef,
+  zoneRef,
+  hideDate = false,
+  hideTime = false,
 }: ClockClusterProps) {
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
@@ -95,7 +110,7 @@ function ClockCluster({
   const zoneBox = (
     // No font-size of its own: it used to run at 0.7 of the clock's, which
     // left two boxes meant to read as a pair at visibly different heights.
-    <span className="inline-flex items-center flex-shrink-0">
+    <span ref={zoneRef} className="inline-flex items-center flex-shrink-0">
       {/* A native select gets 400-odd options and type-to-find for free,
           but draws the selected option's own text, so the closed box and
           the open list would have to read the same. Drawing the select's
@@ -157,7 +172,8 @@ function ClockCluster({
   // The time and the date each set their own; this covers the cluster, so
   // the zone box gets a tracking of its own size rather than the digits'.
   return (
-    <div className="flex items-center justify-center gap-1.5 flex-shrink-0" style={{ fontSize, letterSpacing: '0.05em' }}>
+    <div ref={rootRef} className="flex items-center justify-center gap-1.5 flex-shrink-0" style={{ fontSize, letterSpacing: '0.05em' }}>
+      {!hideTime && (
       <span className="flex items-center gap-1 leading-tight">
         {/* Boxed like the zone beside it, so the two read as a pair of
             controls rather than a label that happens to be clickable. */}
@@ -186,9 +202,12 @@ function ClockCluster({
         </button>
         {zoneBox}
       </span>
-      <span className="opacity-80 whitespace-nowrap leading-tight" style={{ letterSpacing: '0.05em' }}>
+      )}
+      {!hideDate && (
+      <span ref={dateRef} className="opacity-80 whitespace-nowrap leading-tight" style={{ letterSpacing: '0.05em' }}>
         {formatDateParts(clock.date, nowMs)}
       </span>
+      )}
     </div>
   );
 }

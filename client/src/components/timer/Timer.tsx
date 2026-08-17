@@ -24,7 +24,7 @@ import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, T
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 import { useAlarm } from './useAlarm';
 import { useTimeFieldsTuck } from './useTimeFieldsTuck';
-import { gapBetween, gapFromLeftEdge, useTightFit } from './useTightFit';
+import { gapBetween, gapFromLeftEdge, roomInParent, useTightFit } from './useTightFit';
 import { useZoneOffsets } from './useZoneOffsets';
 
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
@@ -168,6 +168,7 @@ export default function Timer() {
   const headerLeftRef = useRef<HTMLDivElement>(null);
   const linkBandRef = useRef<HTMLDivElement>(null);
   const hintsRef = useRef<HTMLDivElement>(null);
+  const clockRootRef = useRef<HTMLDivElement>(null);
   const headerCornerRef = useRef<HTMLDivElement>(null);
   const [headerCornerWidth, setHeaderCornerWidth] = useState(0);
   useEffect(() => {
@@ -223,6 +224,22 @@ export default function Timer() {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
+  // The fullscreen row's clock, which runs out of room rather than
+  // touching anything: the row reserves the corner's width as padding, so
+  // the clock's box stops before it and the collision shows up as the
+  // cluster overflowing that box.
+  //
+  // Two rungs. The date is the rightmost piece and goes first; the time
+  // and its zone box follow only once the date has gone and the cluster
+  // still doesn't fit, which is what the null below says.
+  const clockRoom = roomInParent(clockRootRef);
+  const isClockDateCrowded = useTightFit(clockRoom, windowRef, 8, isWordCounterFullscreen);
+  const isClockTimeCrowded = useTightFit(
+    () => (isClockDateCrowded ? clockRoom() : null),
+    windowRef,
+    8,
+    isWordCounterFullscreen
+  );
   // States an adjustment has already been asked about, so the three fields
   // share one prompt per state. In memory on purpose: it means "you
   // answered a moment ago", which shouldn't outlive the session. The
@@ -1484,7 +1501,9 @@ export default function Timer() {
   // The wall clock, in two sizes: full above the digits, compact in the
   // word counter's fullscreen row. Everything inside it is em-based, so
   // the font size is the only thing that differs. See ClockCluster.tsx.
-  const renderClockCluster = (fontSize: string) => (
+  // measured=true for the fullscreen copy, which is the one that shares a
+  // row with the floating corner and so has something to run into.
+  const renderClockCluster = (fontSize: string, measured = false) => (
     <ClockCluster
       fontSize={fontSize}
       timeZone={timeZone}
@@ -1493,6 +1512,9 @@ export default function Timer() {
       isHourFormatFlashing={isHourFormatFlashing}
       onHourFormatClick={handleHourFormatClick}
       onTimeZoneChange={setTimeZone}
+      rootRef={measured ? clockRootRef : undefined}
+      hideDate={measured && isClockDateCrowded}
+      hideTime={measured && isClockTimeCrowded}
     />
   );
   const websiteLinkButton = (
@@ -1748,7 +1770,15 @@ export default function Timer() {
         )}
 
         {/* Measured rather than estimated; see headerCornerRef. */}
-        <div ref={headerCornerRef} className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2">
+        <div
+          ref={headerCornerRef}
+          // fs-corner-icons in fullscreen, so these three give way at the
+          // same rate as the arrow, ringer and speaker on the left, which
+          // the row caps against its own width. Out here there is no
+          // container to measure, so the caps are in vw; fullscreen is
+          // inset-0, which makes that the same measurement.
+          className={`absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2 ${isWordCounterFullscreen ? 'fs-corner-icons' : ''}`}
+        >
 
           {/* Sun while dark, showing what clicking gets you. */}
           <HeaderToggleButton
@@ -2001,7 +2031,7 @@ export default function Timer() {
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={isWordCounterFullscreen ? speakerButton : null}
           ringerButton={isWordCounterFullscreen ? ringerButton : null}
-          clockCluster={isWordCounterFullscreen && isRowLayout ? renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE) : null}
+          clockCluster={isWordCounterFullscreen && isRowLayout ? renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE, true) : null}
           headerCornerWidth={headerCornerWidth}
           timerDigits={isWordCounterFullscreen ? wordCounterTimerDigits : null}
           timerBar={isWordCounterFullscreen && isRowLayout ? renderDrainBar(boxCap('clamp(3rem, 8vw, 8rem)', 9), true) : null}
