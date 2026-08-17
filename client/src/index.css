@@ -534,6 +534,11 @@
    anyway. The input then clears 16px on its own and needs no override. */
 :root {
   --list-row-floor: 0.9rem;
+  /* The sidebar's one row size, here rather than only in constants.ts so
+     the stamp below can be a fraction of it and still be overridden by a
+     container query. Inline styles beat stylesheets, so a size set from
+     JS could never grow back when the date goes. */
+  --list-row-font: clamp(var(--list-row-floor), min(2.2vw, 2.8dvh), 1.75rem);
 }
 @media (hover: none) and (pointer: coarse) {
   :root {
@@ -660,9 +665,18 @@
    a run you can place by its time beats one you can place by neither. The
    time alone is ~10 characters where both are ~26, so this is where the
    pair stops fitting the box they're indented to. */
+.history-stamp {
+  font-size: calc(var(--list-row-font) * 0.45);
+}
+
 @container history-row (max-width: 165px) {
   .stamp-date {
     display: none;
+  }
+  /* The time has the row to itself now, so it takes some of what the date
+     was using rather than staying at a size chosen to fit both. */
+  .history-stamp {
+    font-size: calc(var(--list-row-font) * 0.62);
   }
 }
 

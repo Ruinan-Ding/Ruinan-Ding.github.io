@@ -21,8 +21,23 @@ export const CLOCK_FONT_SIZE = shrinkClamp(0.55, 1.5, 1.6, 1.35);
 // that leftover: the date is 17 monospace characters at 0.6em, needing
 // ~10.2x its font size, and 9cqi keeps it inside with a little spare. cqi
 // rather than a vw clamp, which would bottom out on its rem floor.
-const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.5, 0.85, 0.95, 0.72);
-export const FULLSCREEN_CLOCK_FONT_SIZE = `max(0.5rem, min(${COMPACT_CLOCK_FONT_SIZE}, 9cqi))`;
+// Bigger than it was. At a 0.72rem ceiling this clock ran at ~8.5px in a
+// 500px box, which is unreadable and was never the cqi cap's doing: the
+// ceiling bound, not the room.
+const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.85, 1.35, 1.5, 1.15);
+// Two sizes, because the cluster is two lengths. With the date it is ~27
+// characters and needs ~10.2x its font size, so 9cqi is what keeps it
+// inside the room it gets; without the date it is ~15, and the same room
+// carries a much larger size.
+//
+// The floor is a legibility floor and is what makes the date droppable at
+// all: capped only in cqi the cluster shrank to fit whatever it was given,
+// so it never overflowed and the date never had a reason to go. Stopping
+// at 0.72rem means it overflows instead, which is the signal Timer
+// measures. So it gets bigger, tucks the date sooner, gets bigger again on
+// the room that frees, and starts shrinking from there.
+export const FULLSCREEN_CLOCK_FONT_SIZE = `max(0.85rem, min(${COMPACT_CLOCK_FONT_SIZE}, 5.2cqi))`;
+export const FULLSCREEN_CLOCK_FONT_SIZE_SOLO = `max(0.85rem, min(${COMPACT_CLOCK_FONT_SIZE}, 9cqi))`;
 
 // Room the floating top-right corner takes: three square buttons, their
 // gaps, and the offset it sits at. Built from the button's own clamp
@@ -38,7 +53,7 @@ export const HEADER_CORNER_RESERVE = `calc(3 * ${HEADER_BUTTON_SIZE.width} + 48p
 // Written out rather than through shrinkClamp because the floor is a CSS
 // variable: touch devices lift it to 16px, where iOS stops zooming in on a
 // focused field. See --list-row-floor in index.css.
-export const LIST_ROW_FONT_SIZE = 'clamp(var(--list-row-floor), min(2.2vw, 2.8dvh), 1.75rem)';
+export const LIST_ROW_FONT_SIZE = 'var(--list-row-font)';
 
 // "-99:59:59" is 9 glyphs at this font's 0.6em advance plus 0.3em of side
 // padding either side. Nine rather than eight, and on every row rather
@@ -195,6 +210,9 @@ export const SIDEBAR_HEADING_FONT_SIZE = shrinkClamp(0.875, 2, 2.2, 1.25);
 // what runs the heading row out of width first, and an annotation is the
 // right thing to give way.
 export const SIDEBAR_COUNT_FONT_SIZE = shrinkClamp(0.5, 0.95, 1.05, 0.65);
+// Once the denominator has gone, "3" has the room "3/100" wanted, so it
+// takes some of it back rather than sitting tiny beside the heading.
+export const SIDEBAR_COUNT_FONT_SIZE_SOLO = shrinkClamp(0.62, 1.15, 1.25, 0.8);
 
 // [frequency Hz, duration ms]
 export const TONES = {

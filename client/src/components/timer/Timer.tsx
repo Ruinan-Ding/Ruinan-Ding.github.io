@@ -15,7 +15,7 @@ import PresetsPanel from './PresetsPanel';
 import SpeakerIcon from './SpeakerIcon';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
+import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, FULLSCREEN_CLOCK_FONT_SIZE_SOLO, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
 import { readSavedHistory, readSavedPresets } from './entries';
 import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
 import { boxCap, boxClamp, fitClamp, shrinkClamp } from './responsive';
@@ -2053,7 +2053,9 @@ export default function Timer() {
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={isWordCounterFullscreen ? speakerButton : null}
           ringerButton={isWordCounterFullscreen ? ringerButton : null}
-          clockCluster={isWordCounterFullscreen && isRowLayout ? renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE, true) : null}
+          clockCluster={isWordCounterFullscreen && isRowLayout
+            ? renderClockCluster(isClockDateCrowded ? FULLSCREEN_CLOCK_FONT_SIZE_SOLO : FULLSCREEN_CLOCK_FONT_SIZE, true)
+            : null}
           headerCornerWidth={headerCornerWidth}
           timerDigits={isWordCounterFullscreen ? wordCounterTimerDigits : null}
           timerBar={isWordCounterFullscreen && isRowLayout ? renderDrainBar(boxCap('clamp(3rem, 8vw, 8rem)', 9), true) : null}

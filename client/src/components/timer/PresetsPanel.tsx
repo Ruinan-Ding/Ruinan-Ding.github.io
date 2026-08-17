@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { countColor, LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, PRESETS_WARN, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_HEADING_FONT_SIZE } from './constants';
+import { countColor, LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, PRESETS_WARN, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE_SOLO, SIDEBAR_HEADING_FONT_SIZE } from './constants';
 import { formatEntryLabel, fromTotalSeconds, isPresetOutOfRange, pad, parsePresetDigits, presetDigitsFromParts, presetTotalFromDigits, rawPresetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
@@ -248,7 +248,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
             ref={countRef}
             className="sidebar-count text-white font-bold whitespace-nowrap"
             style={{
-              fontSize: SIDEBAR_COUNT_FONT_SIZE,
+              fontSize: isCountTight ? SIDEBAR_COUNT_FONT_SIZE_SOLO : SIDEBAR_COUNT_FONT_SIZE,
               color: warnColor,
               opacity: warnColor ? 1 : 0.6,
             }}

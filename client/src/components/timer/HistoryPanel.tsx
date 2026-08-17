@@ -1,5 +1,5 @@
 import { memo, useCallback, useRef } from 'react';
-import { countColor, HISTORY_WARN, MAX_HISTORY, LIST_ROW_BUTTON_STYLE, LIST_ROW_FONT_SIZE, LIST_ROW_REMOVE_BUTTON_STYLE, LIST_ROW_REMOVE_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_HEADING_FONT_SIZE } from './constants';
+import { countColor, HISTORY_WARN, MAX_HISTORY, LIST_ROW_BUTTON_STYLE, LIST_ROW_FONT_SIZE, LIST_ROW_REMOVE_BUTTON_STYLE, LIST_ROW_REMOVE_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE_SOLO, SIDEBAR_HEADING_FONT_SIZE } from './constants';
 import { formatEntryLabel } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimerEntry } from './types';
@@ -13,11 +13,10 @@ const ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
 // SIDEBAR_WIDTH uses to reserve the row, so this tracks it at every size.
 const STAMP_INDENT = `calc(1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + 4px + ${ROW_GAP})`;
 
-// Sized off the row it labels rather than the viewport, so it can't
-// outgrow the box it sits over. The box holds 8 characters at
-// LIST_ROW_FONT_SIZE and the longest line here is 15 ("Tue, 04/08/2026"),
-// so this leaves room to spare.
-const STAMP_FONT_SIZE = `calc(${LIST_ROW_FONT_SIZE} * 0.45)`;
+// The stamp's own size lives in index.css as .history-stamp, since it has
+// two of them: one that fits the time and the date, and a larger one for
+// once the date has gone. A size set from here would be an inline style
+// and would beat the container query that grows it back.
 
 // A stamp sitting flush on its own row made the − button look like it
 // reached up into the timestamp. Small enough that the two still read as
@@ -70,8 +69,8 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp }
           by its time is more use than one you can place by neither. */}
       {stamp && (
         <div
-          className="text-white opacity-70 font-bold leading-tight whitespace-nowrap overflow-hidden"
-          style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: STAMP_FONT_SIZE, paddingLeft: STAMP_INDENT }}
+          className="history-stamp text-white opacity-70 font-bold leading-tight whitespace-nowrap overflow-hidden"
+          style={{ fontFamily: "'IBM Plex Mono', monospace", paddingLeft: STAMP_INDENT }}
         >
           {stamp.time}
           <span className="stamp-date">{' '}{stamp.date}</span>
@@ -138,7 +137,7 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
             ref={countRef}
             className="sidebar-count text-white font-bold whitespace-nowrap"
             style={{
-              fontSize: SIDEBAR_COUNT_FONT_SIZE,
+              fontSize: isCountTight ? SIDEBAR_COUNT_FONT_SIZE_SOLO : SIDEBAR_COUNT_FONT_SIZE,
               color: warnColor,
               opacity: warnColor ? 1 : 0.6,
             }}
