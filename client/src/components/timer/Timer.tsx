@@ -1586,7 +1586,7 @@ export default function Timer() {
           the row is too short for a vertical stack. */}
       <div
         className="border-4 border-white bg-black flex flex-col w-fit time-fields-box"
-        style={{ padding: shrinkClamp(0.25, 0.7, 0.8, 0.75), gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
+        style={{ padding: shrinkClamp(0.15, 0.7, 0.8, 0.75), gap: shrinkClamp(0.15, 0.5, 0.55, 0.5) }}
       >
         <TimeField label="HOURS" placeholder="HH" value={fieldParts.hours} negative={fieldParts.signUnit === 'hours'} unitSeconds={3600} stacked={isTimeFieldsStacked} onRequestChange={handleHoursChange} onStepTotal={handleStepTotal} onToggleSign={handleToggleSign} />
         <TimeField label="MINUTES" placeholder="MM" value={fieldParts.minutes} negative={fieldParts.signUnit === 'minutes'} unitSeconds={60} stacked={isTimeFieldsStacked} onRequestChange={handleMinutesChange} onStepTotal={handleStepTotal} onToggleSign={handleToggleSign} />

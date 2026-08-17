@@ -414,7 +414,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 Once neither is on it stops asking for anything and says
                 what you have. */}
             <span
-              className="counter-hint opacity-60 font-bold whitespace-nowrap overflow-hidden"
+              className="counter-hint opacity-60 font-bold whitespace-nowrap overflow-hidden text-ellipsis min-w-0"
               style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 0.9, 1, 0.65) }}
             >
               {alnumWordsOnly && alnumCharsOnly

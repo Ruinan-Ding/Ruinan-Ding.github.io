@@ -481,6 +481,12 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(min-content, 1fr));
     align-items: start;
+    /* Side by side the three need more room between them than the stacked
+       form's row gap gives: at 4-8px the SECONDS label ran straight into
+       the MINUTES chevrons and the three read as one wide control. Its own
+       clamp so it gives way with everything else rather than holding a
+       fixed 12px on the narrow window that produced this form. */
+    column-gap: clamp(0.5rem, min(1.6vw, 1.7dvh), 1.25rem);
   }
 }
 
@@ -526,13 +532,17 @@
   }
 }
 
-/* The hint now sits beside the switches rather than under them, so what it
-   needs is the whole row's width rather than its own. The pair measures
-   ~305px at its floor and the longest wording ~374px, plus the gap between
-   them, so under ~700px of row one of the two has to go and it is this one:
-   it names the switch that's left, which is worth less than the switch.
-   Measured rather than derived — see the figure in the sweep. */
-@container counter-switches (max-width: 1000px) {
+/* Beside the switches now rather than under them, and it never actually
+   collides with Copy: it's a flex sibling in a min-w-0 column, so it gives
+   up width and truncates rather than pushing anything. Measured, the gap
+   between its right edge and Copy's left bottoms out at 12px and never
+   closes.
+   So this is not "hide when it would overlap" but "hide when there is no
+   longer room to say anything": the switches take 206-381px of the column
+   depending on size, and under ~430px of column what's left of a 78
+   character sentence is too little to read. Above that it stays and
+   ellipsizes, which is what a hint that still half-fits should do. */
+@container counter-switches (max-width: 430px) {
   .counter-hint {
     display: none;
   }

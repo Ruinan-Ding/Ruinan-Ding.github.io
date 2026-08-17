@@ -36,9 +36,14 @@ const chevronButtonClass =
 // Lower floors than the app's other controls: the stacked form is the
 // taller one, and this panel competes with the word counter for the same
 // leftover height, so it needs room to shrink before it gets tucked away.
-const chevronButtonStyle = { padding: shrinkClamp(0.15, 0.4, 0.45, 0.375) };
-const FIELD_FONT_SIZE = shrinkClamp(0.75, 1.5, 1.7, 1.5);
-const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.7, 1.2, 1.35, 1.25), height: shrinkClamp(0.7, 1.2, 1.35, 1.25) };
+const chevronButtonStyle = { padding: shrinkClamp(0.1, 0.4, 0.45, 0.375) };
+// Lower floors than this panel used to carry, so it compresses further
+// before the auto-tuck gives up and hides it, the way the sidebar's rows
+// keep shrinking rather than disappearing. Every floor here is what stops
+// the box getting smaller, and each one it hits early is height the panel
+// can't give back to the row it shares.
+const FIELD_FONT_SIZE = shrinkClamp(0.6, 1.5, 1.7, 1.5);
+const CHEVRON_ICON_SIZE = { width: shrinkClamp(0.55, 1.2, 1.35, 1.25), height: shrinkClamp(0.55, 1.2, 1.35, 1.25) };
 
 // Two-digit time input. A typed digit lands where the caret is and takes
 // its room off the padding, and nothing is clamped or applied until the
@@ -125,18 +130,18 @@ function TimeField({ label, placeholder, value, negative, unitSeconds, stacked, 
     // otherwise crush a field past min-content instead of wrapping it.
     <div
       className={`flex min-w-min ${stacked ? 'flex-col items-start' : 'flex-wrap items-center'}`}
-      style={{ gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}
+      style={{ gap: shrinkClamp(0.15, 0.5, 0.55, 0.5) }}
     >
       <label
         className="text-white font-bold whitespace-nowrap flex-shrink-0"
-        style={{ fontSize: shrinkClamp(0.6, 1.3, 1.5, 1.1), fontFamily: "'IBM Plex Mono', monospace", width: stacked ? undefined : '9ch' }}
+        style={{ fontSize: shrinkClamp(0.5, 1.3, 1.5, 1.1), fontFamily: "'IBM Plex Mono', monospace", width: stacked ? undefined : '9ch' }}
       >
         {label}:
       </label>
       <div className="flex items-center flex-shrink-0" style={{ gap: shrinkClamp(0.25, 0.5, 0.55, 0.5) }}>
         {/* Three glyphs, not two: any of these boxes can be the one wearing
             the minus, and a box that only fits its own digits clips it. */}
-        <div className="relative flex-shrink-0" style={{ width: 'clamp(3.1rem, 7.4vw, 5rem)' }}>
+        <div className="relative flex-shrink-0" style={{ width: 'clamp(2.4rem, min(7.4vw, 8.2dvh), 5rem)' }}>
           {digits === '' && (
             <div
               className="absolute inset-0 flex items-center justify-center font-bold pointer-events-none zoom-safe-text"
