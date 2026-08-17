@@ -169,6 +169,8 @@ export default function Timer() {
   const linkBandRef = useRef<HTMLDivElement>(null);
   const hintsRef = useRef<HTMLDivElement>(null);
   const clockRootRef = useRef<HTMLDivElement>(null);
+  const mainClockRef = useRef<HTMLDivElement>(null);
+  const tipRef = useRef<HTMLParagraphElement>(null);
   const headerCornerRef = useRef<HTMLDivElement>(null);
   const [headerCornerWidth, setHeaderCornerWidth] = useState(0);
   useEffect(() => {
@@ -213,6 +215,10 @@ export default function Timer() {
   // window's edge when it's tucked. Either way, that's what the "P" of
   // "Press ENTER" runs into.
   const areHintsCrowded = useTightFit(gapFromLeftEdge(hintsRef, timerRowRef), timerRowRef, 8);
+  // The alarm tip against the clock. It sits under the top-left buttons
+  // while the clock is centred above the digits, so the two close on each
+  // other as the window narrows.
+  const isTipCrowded = useTightFit(gapBetween(tipRef, mainClockRef), timerRowRef, 8);
 
   // Bumped when a fresh countdown starts, so the green fade replays even
   // if the window never left the running state.
@@ -1114,8 +1120,16 @@ export default function Timer() {
   const isHoursFlashing = useFlashOnToken(hoursFlash.token);
   const isMinutesFlashing = useFlashOnToken(minutesFlash.token);
   const isSecondsFlashing = useFlashOnToken(secondsFlash.token);
-  const flashTextClass = (isFlashing: boolean, direction: 'inc' | 'dec') =>
-    isFlashing ? (direction === 'inc' ? 'animate-increaseFlashText' : 'animate-decreaseFlashText') : '';
+  // The token's parity picks between two names for the same animation, so
+  // a second click while the first flash is still running changes the
+  // class rather than removing and re-adding it. Same class either side of
+  // a frame is no change at all to the browser, and the flash didn't
+  // replay; see the pair in index.css.
+  const flashTextClass = (isFlashing: boolean, direction: 'inc' | 'dec', token: number) => {
+    if (!isFlashing) return '';
+    const base = direction === 'inc' ? 'animate-increaseFlashText' : 'animate-decreaseFlashText';
+    return token % 2 === 0 ? base : `${base}-alt`;
+  };
 
   // Pausing mid-overtime stays plain black whatever repeat says, since the
   // digits take that cue over immediately with redWave. Above zero it's
@@ -1490,12 +1504,20 @@ export default function Timer() {
           above without contributing to how the fit-content parent measures
           itself; a plain width: 100% would size that parent to this
           paragraph instead. */}
+      {/* And out entirely once it reaches the clock. Its box is as wide as
+          the buttons above it, but the text inside can run past that, and
+          on a narrow window it ran under the time box. A tip is the most
+          expendable thing on this screen, so it goes rather than being
+          read through the clock sitting on top of it. */}
+      {!isTipCrowded && (
       <p
+        ref={tipRef}
         className="alarm-tip hidden sm:block opacity-75 font-bold text-white text-left"
         style={{ fontSize: shrinkClamp(0.4, 0.8, 0.85, 0.5), width: 0, minWidth: '100%', lineHeight: 1.25 }}
       >
         Tip: mute the volume or turn off repeat to silence the alarm — OFF + start at 00:00:00 = count-up stopwatch
       </p>
+      )}
     </div>
   );
   // The wall clock, in two sizes: full above the digits, compact in the
@@ -1503,7 +1525,7 @@ export default function Timer() {
   // the font size is the only thing that differs. See ClockCluster.tsx.
   // measured=true for the fullscreen copy, which is the one that shares a
   // row with the floating corner and so has something to run into.
-  const renderClockCluster = (fontSize: string, measured = false) => (
+  const renderClockCluster = (fontSize: string, measured = false, rootRef?: React.RefObject<HTMLDivElement | null>) => (
     <ClockCluster
       fontSize={fontSize}
       timeZone={timeZone}
@@ -1512,7 +1534,7 @@ export default function Timer() {
       isHourFormatFlashing={isHourFormatFlashing}
       onHourFormatClick={handleHourFormatClick}
       onTimeZoneChange={setTimeZone}
-      rootRef={measured ? clockRootRef : undefined}
+      rootRef={rootRef ?? (measured ? clockRootRef : undefined)}
       hideDate={measured && isClockDateCrowded}
       hideTime={measured && isClockTimeCrowded}
     />
@@ -1946,7 +1968,7 @@ export default function Timer() {
             >
               {/* Every child sets its own font-size, since this block's own
                   is the digit size. */}
-              <div className="flex justify-center">{renderClockCluster(CLOCK_FONT_SIZE)}</div>
+              <div className="flex justify-center">{renderClockCluster(CLOCK_FONT_SIZE, false, mainClockRef)}</div>
               {/* leading-none on both, here and on the digits below: the
                   gap between the configured time and the running one was
                   half-leading on two line boxes, ~0.5em of each font, and
@@ -1964,7 +1986,7 @@ export default function Timer() {
                   // An em margin rather than the outer gap-1, which is a
                   // flat 0.25rem however large the digits get and reads as
                   // no gap at all at the sizes this scales to.
-                  <span style={{ fontSize: '0.5em', marginRight: '0.3em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction)}>
+                  <span style={{ fontSize: '0.5em', marginRight: '0.3em' }} className={flashTextClass(isHoursFlashing, hoursFlash.direction, hoursFlash.token)}>
                     {remaining.sign}{remaining.hours}
                   </span>
                 )}
@@ -1972,9 +1994,9 @@ export default function Timer() {
                     flush as "MM:SS"; the outer gap only separates that
                     group from the hours and ms segments. */}
                 <span className="flex items-baseline">
-                  <span className={flashTextClass(isMinutesFlashing, minutesFlash.direction)}>{!remaining.hours && remaining.sign}{remaining.minutes}</span>
+                  <span className={flashTextClass(isMinutesFlashing, minutesFlash.direction, minutesFlash.token)}>{!remaining.hours && remaining.sign}{remaining.minutes}</span>
                   <span>:</span>
-                  <span className={flashTextClass(isSecondsFlashing, secondsFlash.direction)}>{remaining.seconds}</span>
+                  <span className={flashTextClass(isSecondsFlashing, secondsFlash.direction, secondsFlash.token)}>{remaining.seconds}</span>
                 </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
               </div>

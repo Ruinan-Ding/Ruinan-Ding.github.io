@@ -379,7 +379,13 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             <button
               onClick={() => setAlnumWordsOnly((prev) => !prev)}
               aria-pressed={alnumWordsOnly}
-              className="flex items-center font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
+              // min-w-0 and clipped: index.css's blanket `.flex { min-width:
+              // 0 }` lets these shrink under their own content, and
+              // whitespace-nowrap text in a shrunken box spills out of it
+              // rather than wrapping. That spill ran "words only" under the
+              // checkbox beside it and "chars only" under the hint, which
+              // read as the two rows swapping places at one width.
+              className="flex items-center font-bold whitespace-nowrap overflow-hidden min-w-0 transition-all duration-200 hover:opacity-80"
               style={{ color: capColor(rawWords, alnumWordsOnly), fontFamily: "'IBM Plex Mono', monospace", fontSize: WORD_TOGGLE_FONT_SIZE, gap: boxCap('0.375rem', 1.2) }}
               title={wordsCapHidden
                 ? `Every token counted, this is at the ${countLabel(COUNTER_MAX)} limit — click to count them all and see it`
@@ -387,13 +393,19 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               aria-label={alnumWordsOnly ? 'Disable alphanumeric-only word counting' : 'Enable alphanumeric-only word counting'}
             >
               <DotCheckbox checked={alnumWordsOnly} fontSize="1em" />
-              <span className="switch-label">Alphanumeric words only</span>
+              <span className="switch-label overflow-hidden text-ellipsis min-w-0">Alphanumeric words only</span>
             </button>
 
             <button
               onClick={() => setAlnumCharsOnly((prev) => !prev)}
               aria-pressed={alnumCharsOnly}
-              className="flex items-center font-bold whitespace-nowrap transition-all duration-200 hover:opacity-80"
+              // min-w-0 and clipped: index.css's blanket `.flex { min-width:
+              // 0 }` lets these shrink under their own content, and
+              // whitespace-nowrap text in a shrunken box spills out of it
+              // rather than wrapping. That spill ran "words only" under the
+              // checkbox beside it and "chars only" under the hint, which
+              // read as the two rows swapping places at one width.
+              className="flex items-center font-bold whitespace-nowrap overflow-hidden min-w-0 transition-all duration-200 hover:opacity-80"
               // Coloured like the switch beside it, and more sharply
               // needed: "$$$$$" counts as no characters, so C can read far
               // under a limit the text is already sitting on.
@@ -404,7 +416,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               aria-label={alnumCharsOnly ? 'Disable alphanumeric-only character counting' : 'Enable alphanumeric-only character counting'}
             >
               <DotCheckbox checked={alnumCharsOnly} fontSize="1em" />
-              <span className="switch-label">Alphanumeric chars only</span>
+              <span className="switch-label overflow-hidden text-ellipsis min-w-0">Alphanumeric chars only</span>
             </button>
             </div>
 

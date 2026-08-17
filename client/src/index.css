@@ -340,7 +340,15 @@
   }
 }
 
-.animate-increaseFlashText {
+/* Two names per flash, alternated by the token's parity, so back-to-back
+   flashes always change the class rather than removing and re-adding the
+   same one. Toggling a class off and on inside one frame is invisible to
+   the browser: it compares computed styles between recalculations, sees
+   the same animation-name at both ends and never restarts it, so five
+   rapid clicks on a chevron started exactly one flash. Two names means the
+   name really changes, which is what restarts an animation. */
+.animate-increaseFlashText,
+.animate-increaseFlashText-alt {
   animation: increaseFlashGreenText 1.2s ease-out forwards;
 }
 
@@ -353,7 +361,8 @@
   }
 }
 
-.animate-decreaseFlashText {
+.animate-decreaseFlashText,
+.animate-decreaseFlashText-alt {
   animation: decreaseFlashRedText 1.2s ease-out forwards;
 }
 
