@@ -154,8 +154,19 @@ const ringOut = async () => {
   // reached zero by then, and under the load of the full sweep it
   // sometimes hadn't: a still-running timer asks before an adjustment, so
   // the arrow check below read a legitimate ADJUST TIME as a failure.
-  for (let i = 0; i < 80 && (await status()) !== 'FINISHED'; i++) await sleep(150);
+  //
+  // Read off the digits rather than the status word. Under load the status
+  // query came back empty often enough to burn the whole poll budget while
+  // the timer was still counting, and the run carried on regardless.
+  const overtime = () => evaluate(`(() => {
+    const d = [...document.querySelectorAll('div')].find((e) => /^-\\d/.test(e.textContent.trim()) && e.className.includes('items-baseline'));
+    return !!d;
+  })()`);
+  for (let i = 0; i < 150 && !(await overtime()); i++) await sleep(100);
   await sleep(300);
+  // Named as its own check, so a run that never got there says so instead
+  // of blaming whatever is clicked next.
+  check('rang out before the ringing checks', await overtime(), true);
 };
 
 // 6. Ringing: nothing asks.

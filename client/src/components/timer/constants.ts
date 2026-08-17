@@ -21,10 +21,12 @@ export const CLOCK_FONT_SIZE = shrinkClamp(0.55, 1.5, 1.6, 1.35);
 // that leftover: the date is 17 monospace characters at 0.6em, needing
 // ~10.2x its font size, and 9cqi keeps it inside with a little spare. cqi
 // rather than a vw clamp, which would bottom out on its rem floor.
-// Bigger than it was. At a 0.72rem ceiling this clock ran at ~8.5px in a
-// 500px box, which is unreadable and was never the cqi cap's doing: the
-// ceiling bound, not the room.
-const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.85, 1.35, 1.5, 1.15);
+// Legible without competing. At the old coefficients this ran ~8.5px in a
+// 500px box, which is unreadable; at the ones that replaced them it ran
+// 14.4px, which is louder than a wall clock beside a countdown should be.
+// The ceiling is modest and the coefficients are what came up, so it sits
+// around 11-12px on a desktop and holds a floor rather than dwindling.
+const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.68, 1.1, 1.25, 0.85);
 // Two sizes, because the cluster is two lengths. With the date it is ~27
 // characters and needs ~10.2x its font size, so 9cqi is what keeps it
 // inside the room it gets; without the date it is ~15, and the same room
@@ -36,8 +38,8 @@ const COMPACT_CLOCK_FONT_SIZE = shrinkClamp(0.85, 1.35, 1.5, 1.15);
 // at 0.72rem means it overflows instead, which is the signal Timer
 // measures. So it gets bigger, tucks the date sooner, gets bigger again on
 // the room that frees, and starts shrinking from there.
-export const FULLSCREEN_CLOCK_FONT_SIZE = `max(0.85rem, min(${COMPACT_CLOCK_FONT_SIZE}, 5.2cqi))`;
-export const FULLSCREEN_CLOCK_FONT_SIZE_SOLO = `max(0.85rem, min(${COMPACT_CLOCK_FONT_SIZE}, 9cqi))`;
+export const FULLSCREEN_CLOCK_FONT_SIZE = `max(0.68rem, min(${COMPACT_CLOCK_FONT_SIZE}, 5.2cqi))`;
+export const FULLSCREEN_CLOCK_FONT_SIZE_SOLO = `max(0.68rem, min(${COMPACT_CLOCK_FONT_SIZE}, 9cqi))`;
 
 // Room the floating top-right corner takes: three square buttons, their
 // gaps, and the offset it sits at. Built from the button's own clamp
