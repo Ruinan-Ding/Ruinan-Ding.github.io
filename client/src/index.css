@@ -710,7 +710,10 @@
    need a wide box; below that they wrapped into something that read as
    five keys, and the row is a legend rather than the numbers it labels, so
    the whole thing goes and the typing area keeps the height. */
-@container counter-totals (max-width: 535px) {
+/* Below this the legend's own sizing has taken it under ~8px, which is
+   past reading. It shrinks against the totals block all the way down to
+   here and then goes, rather than clipping or crowding it. */
+@container counter-totals (max-width: 600px) {
   .counter-legend {
     display: none;
   }

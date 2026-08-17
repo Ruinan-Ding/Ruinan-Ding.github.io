@@ -627,13 +627,21 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               three lines were the easiest height in the box to give back to
               the typing area. */}
           <div
-            className={`counter-legend flex items-baseline justify-end text-right whitespace-nowrap overflow-hidden ${isActive ? 'text-green-500' : 'text-gray-400'}`}
-            // Bigger than it was, and still shrinking. Three stacked lines
-            // had to be small to cost the typing area little; one line
-            // spends a third of that height, so it can afford to be read.
-            // The floor is what it falls back to before the row gives up
-            // on it entirely.
-            style={{ fontSize: shrinkClamp(0.5, 1.3, 1.5, 0.95), gap: '0.9em' }}
+            className={`counter-legend flex items-baseline justify-end self-end text-right whitespace-nowrap overflow-hidden ${isActive ? 'text-green-500' : 'text-gray-400'}`}
+            // Sized by the room left beside the totals rather than by the
+            // window. The three keys and their gaps run about 55x the font
+            // size, and the totals block plus the gap takes ~160px off the
+            // row, so that is what there is to divide. It shrinks as the
+            // block closes on it and stops when the query below decides
+            // there is no longer enough of it to read.
+            //
+            // The window clamp stays as the ceiling: on a wide row this
+            // would otherwise grow the legend to compete with the numbers
+            // it labels.
+            style={{
+              fontSize: `min(${shrinkClamp(0.5, 1.3, 1.5, 0.95)}, calc((100cqi - 160px) / 55))`,
+              gap: '0.9em',
+            }}
           >
             <span><strong>L:</strong> Line number</span>
             <span><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</span>
