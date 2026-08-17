@@ -486,7 +486,7 @@
        the MINUTES chevrons and the three read as one wide control. Its own
        clamp so it gives way with everything else rather than holding a
        fixed 12px on the narrow window that produced this form. */
-    column-gap: clamp(0.5rem, min(1.6vw, 1.7dvh), 1.25rem);
+    column-gap: clamp(0.75rem, min(2.4vw, 2.6dvh), 2rem);
   }
 }
 

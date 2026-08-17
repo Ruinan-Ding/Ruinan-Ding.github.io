@@ -150,7 +150,12 @@ const ringOut = async () => {
   await sleep(3000);
   await activate();
   await press('Enter', 'Enter', 13, '\r');
-  await sleep(4000);
+  // Waited for rather than slept through. A fixed 4s assumed the timer had
+  // reached zero by then, and under the load of the full sweep it
+  // sometimes hadn't: a still-running timer asks before an adjustment, so
+  // the arrow check below read a legitimate ADJUST TIME as a failure.
+  for (let i = 0; i < 80 && (await status()) !== 'FINISHED'; i++) await sleep(150);
+  await sleep(300);
 };
 
 // 6. Ringing: nothing asks.

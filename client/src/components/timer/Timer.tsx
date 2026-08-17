@@ -24,7 +24,7 @@ import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, T
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 import { useAlarm } from './useAlarm';
 import { useTimeFieldsTuck } from './useTimeFieldsTuck';
-import { useLinkFit } from './useLinkFit';
+import { gapBetween, gapFromLeftEdge, useTightFit } from './useTightFit';
 import { useZoneOffsets } from './useZoneOffsets';
 
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
@@ -163,10 +163,11 @@ export default function Timer() {
   // How much room the floating top-right corner takes. The word counter's
   // fullscreen row has to stop before it, and HEADER_CORNER_RESERVE is
   // only an estimate of the same thing.
-  // The left corner's buttons and the centred website link, which the link
-  // is dropped for once the two would touch. See useLinkFit.
+  // Three things get dropped when they would touch what's beside them,
+  // all measured rather than named as widths. See useTightFit.
   const headerLeftRef = useRef<HTMLDivElement>(null);
   const linkBandRef = useRef<HTMLDivElement>(null);
+  const hintsRef = useRef<HTMLDivElement>(null);
   const headerCornerRef = useRef<HTMLDivElement>(null);
   const [headerCornerWidth, setHeaderCornerWidth] = useState(0);
   useEffect(() => {
@@ -205,7 +206,12 @@ export default function Timer() {
     panelRef: timeFieldsRef,
     setHidden: setTimeFieldsHidden,
   } = useTimeFieldsTuck(isRowLayout, isWideLayout);
-  const isLinkCrowded = useLinkFit(linkBandRef, headerLeftRef, timerRowRef);
+  const isLinkCrowded = useTightFit(gapBetween(headerLeftRef, linkBandRef), timerRowRef, 8);
+  // The hints are centred in a column that starts where the sidebar ends,
+  // so the row's own left edge is the sidebar when it's showing and the
+  // window's edge when it's tucked. Either way, that's what the "P" of
+  // "Press ENTER" runs into.
+  const areHintsCrowded = useTightFit(gapFromLeftEdge(hintsRef, timerRowRef), timerRowRef, 8);
 
   // Bumped when a fresh countdown starts, so the green fade replays even
   // if the window never left the running state.
@@ -1241,11 +1247,12 @@ export default function Timer() {
       isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
     )
     .join('   ·   ');
-  // timer-hints is the hook for the short-window tuck in index.css: three
-  // lines of instructions are the first thing worth dropping once the
-  // window is too short to hold what it's instructing.
+  // Two ways this goes. index.css drops it on a short window, where
+  // instructions are the first thing worth losing; areHintsCrowded drops
+  // it once the line reaches the sidebar beside it.
   const hintsDisplay = (
     <div
+      ref={hintsRef}
       className={`timer-hints opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
       style={{
         fontSize: shrinkClamp(0.45, 0.85, 0.95, 0.6),
@@ -1495,7 +1502,7 @@ export default function Timer() {
     // One line throughout: it gets narrower instead, then goes.
     //
     // It goes when its X reaches the buttons in the left corner, which is
-    // measured rather than named as a width: see useLinkFit for why no
+    // measured rather than named as a width: see useTightFit for why no
     // single width describes that crossing.
     <div ref={linkBandRef} className="relative z-[70] flex items-center gap-1.5 flex-shrink-0">
       <button
@@ -1593,7 +1600,12 @@ export default function Timer() {
           the row is too short for a vertical stack. */}
       <div
         className="border-4 border-white bg-black flex flex-col w-fit time-fields-box"
-        style={{ padding: shrinkClamp(0.15, 0.7, 0.8, 0.75), gap: shrinkClamp(0.15, 0.5, 0.55, 0.5) }}
+        // rowGap rather than gap: the shorthand sets both axes, and an
+        // inline style beats a stylesheet, so it was silently overriding
+        // the column-gap the 3-across form sets in index.css and leaving
+        // the three fields 2-8px apart. Stacked there is only one column,
+        // so the horizontal axis is index.css's to own.
+        style={{ padding: shrinkClamp(0.15, 0.7, 0.8, 0.75), rowGap: shrinkClamp(0.15, 0.5, 0.55, 0.5) }}
       >
         <TimeField label="HOURS" placeholder="HH" value={fieldParts.hours} negative={fieldParts.signUnit === 'hours'} unitSeconds={3600} stacked={isTimeFieldsStacked} onRequestChange={handleHoursChange} onStepTotal={handleStepTotal} onToggleSign={handleToggleSign} />
         <TimeField label="MINUTES" placeholder="MM" value={fieldParts.minutes} negative={fieldParts.signUnit === 'minutes'} unitSeconds={60} stacked={isTimeFieldsStacked} onRequestChange={handleMinutesChange} onStepTotal={handleStepTotal} onToggleSign={handleToggleSign} />
@@ -1958,7 +1970,7 @@ export default function Timer() {
                 {status}
               </div>
 
-              {hintsDisplay}
+              {!areHintsCrowded && hintsDisplay}
             </div>
             </div>
           </div>

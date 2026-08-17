@@ -6,6 +6,7 @@ import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
 import { useEntryFlash, useFizzRemove } from './useDomFlash';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
+import { gapBetween, useTightFit } from './useTightFit';
 
 type CorrectedUnits = { hours: boolean; minutes: boolean; seconds: boolean };
 
@@ -116,6 +117,12 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   // Once, not once per style property: the colour and the opacity beside it
   // are the same decision and have to stay the same answer.
   const warnColor = countColor(presets.length, PRESETS_WARN, MAX_PRESETS);
+  // Same as the history heading: the denominator goes when the count
+  // reaches Clear.
+  const headingRef = useRef<HTMLDivElement>(null);
+  const countRef = useRef<HTMLSpanElement>(null);
+  const clearRef = useRef<HTMLButtonElement>(null);
+  const isCountTight = useTightFit(gapBetween(countRef, clearRef), headingRef, 6, presets.length);
 
   // Shows exactly what was typed, out of range and all. Correcting happens
   // once, at commit, and only after asking.
@@ -229,6 +236,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
           Clear sits in the heading rule, and only when there's something
           to clear. */}
       <div
+        ref={headingRef}
         // One line at every width, like the history heading: see the note
         // there for why the count is what gives when they can't all fit.
         className="flex justify-between items-center gap-x-2 border-b-2 border-white flex-shrink-0"
@@ -237,6 +245,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
         <span className="flex items-baseline gap-1.5 min-w-0 overflow-hidden">
           <h2 className="text-white font-bold flex-shrink-0" style={{ fontSize: SIDEBAR_HEADING_FONT_SIZE }}>PRESETS</h2>
           <span
+            ref={countRef}
             className="sidebar-count text-white font-bold whitespace-nowrap"
             style={{
               fontSize: SIDEBAR_COUNT_FONT_SIZE,
@@ -245,11 +254,12 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
             }}
             title={presets.length >= MAX_PRESETS ? `Preset limit reached (${MAX_PRESETS})` : undefined}
           >
-            {presets.length}<span className="sidebar-count-max">/{MAX_PRESETS}</span>
+            {presets.length}{!isCountTight && <span>/{MAX_PRESETS}</span>}
           </span>
         </span>
         {presets.length > 0 && (
           <button
+            ref={clearRef}
             onClick={onClear}
             title="Delete every preset — asks first"
             className="text-white border border-white hover:bg-white hover:text-black transition-colors flex-shrink-0"
