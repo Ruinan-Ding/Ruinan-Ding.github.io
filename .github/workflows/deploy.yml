@@ -34,9 +34,11 @@ jobs:
       - name: Type-check
         run: pnpm run check
 
-      # the counting and capping rules are the one piece of this app that
-      # is logic rather than layout, and this is the only thing that
-      # checks them — see wordCount.check.mjs
+      # The counting and capping rules, which are the one piece of this app
+      # that is logic rather than layout. The browser suites in tests/ cover
+      # the rest and are not run here: they need a headless Chrome and a
+      # server, and they take minutes rather than seconds. Run them locally
+      # with `pnpm run test:ui`.
       - name: Run checks
         run: pnpm test
 

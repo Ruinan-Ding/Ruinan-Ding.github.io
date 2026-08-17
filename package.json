@@ -1,6 +1,12 @@
 {
-  "name": "timer-app",
+  "name": "write-timer",
   "version": "1.0.0",
+  "description": "A countdown timer that keeps counting past zero, with presets, run history, and a word counter for timed writing sessions.",
+  "homepage": "https://ruinan-ding.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ruinan-Ding/Ruinan-Ding.github.io.git"
+  },
   "type": "module",
   "license": "MIT",
   "scripts": {
