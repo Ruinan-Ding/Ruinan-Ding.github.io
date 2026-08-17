@@ -24,6 +24,7 @@ import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, T
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 import { useAlarm } from './useAlarm';
 import { useTimeFieldsTuck } from './useTimeFieldsTuck';
+import { useLinkFit } from './useLinkFit';
 import { useZoneOffsets } from './useZoneOffsets';
 
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
@@ -162,6 +163,10 @@ export default function Timer() {
   // How much room the floating top-right corner takes. The word counter's
   // fullscreen row has to stop before it, and HEADER_CORNER_RESERVE is
   // only an estimate of the same thing.
+  // The left corner's buttons and the centred website link, which the link
+  // is dropped for once the two would touch. See useLinkFit.
+  const headerLeftRef = useRef<HTMLDivElement>(null);
+  const linkBandRef = useRef<HTMLDivElement>(null);
   const headerCornerRef = useRef<HTMLDivElement>(null);
   const [headerCornerWidth, setHeaderCornerWidth] = useState(0);
   useEffect(() => {
@@ -200,6 +205,7 @@ export default function Timer() {
     panelRef: timeFieldsRef,
     setHidden: setTimeFieldsHidden,
   } = useTimeFieldsTuck(isRowLayout, isWideLayout);
+  const isLinkCrowded = useLinkFit(linkBandRef, headerLeftRef, timerRowRef);
 
   // Bumped when a fresh countdown starts, so the green fade replays even
   // if the window never left the running state.
@@ -1488,11 +1494,10 @@ export default function Timer() {
     // stop shrinking first, their controls bottoming out on rem floors.
     // One line throughout: it gets narrower instead, then goes.
     //
-    // It goes when its X reaches the speaker in the left corner, which is
-    // measured at ~1150px of viewport, not at md. On md it kept rendering
-    // through 380px of overlap, the X sitting on top of the speaker for
-    // every width between the two. See website-link-band in index.css.
-    <div className="website-link-band relative z-[70] items-center gap-1.5 flex-shrink-0">
+    // It goes when its X reaches the buttons in the left corner, which is
+    // measured rather than named as a width: see useLinkFit for why no
+    // single width describes that crossing.
+    <div ref={linkBandRef} className="relative z-[70] flex items-center gap-1.5 flex-shrink-0">
       <button
         onClick={handleHideWebsiteLinkClick}
         className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
@@ -1716,7 +1721,7 @@ export default function Timer() {
             link's space, and on a tie the link won by being later in the
             DOM. Nothing here overlaps the right strip. */}
         {!isWordCounterFullscreen && (
-        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[80] flex items-start gap-2">
+        <div ref={headerLeftRef} className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 z-[80] flex items-start gap-2">
           {/* The sidebar is force-hidden below sm whatever isSidebarHidden
               says, so this toggle matches its breakpoint and only appears
               when there's a panel for it to control. */}
@@ -1835,7 +1840,7 @@ export default function Timer() {
                 so it never blends into the window's green run flash, and
                 the glow is suppressed during pause and alarm so it doesn't
                 compete with those. */}
-            {!isWebsiteLinkHidden && !isWordCounterFullscreen && websiteLinkButton}
+            {!isWebsiteLinkHidden && !isWordCounterFullscreen && !isLinkCrowded && websiteLinkButton}
 
             {/* container-type: size turns this box's resolved height, the
                 real leftover after the word counter and the link take
