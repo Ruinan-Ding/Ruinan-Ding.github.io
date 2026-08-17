@@ -616,7 +616,7 @@
    range as well as "2/1000" does once you know the cap, and dropping five
    characters buys the count another ~35px of life. Only when even the bare
    number can't sit beside the heading and Clear does the whole thing go. */
-@container sidebar-heading (max-width: 145px) {
+@container sidebar-heading (max-width: 137px) {
   .sidebar-count-max {
     display: none;
   }
@@ -624,6 +624,26 @@
 
 @container sidebar-heading (max-width: 110px) {
   .sidebar-count {
+    display: none;
+  }
+}
+
+/* The website link and the X that hides it, which sit in a band centred
+   between the two floating header corners. Both go together, since the X
+   is only there to dismiss the link beside it.
+   They go when the X reaches the speaker in the left corner. Measured, the
+   gap between them closes between 1200px and 1100px of viewport, so 1150
+   is the crossing. Width alone rather than a container: the band's ends
+   are the corners, which are positioned against the viewport.
+   A wide but short window shrinks those corners on their dvh term and
+   would clear the X sooner than this hides it, which costs the link a
+   little of its range and never lets the two overlap. */
+.website-link-band {
+  display: flex;
+}
+
+@media (max-width: 1150px) {
+  .website-link-band {
     display: none;
   }
 }

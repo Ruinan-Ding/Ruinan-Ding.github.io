@@ -1483,14 +1483,16 @@ export default function Timer() {
     />
   );
   const websiteLinkButton = (
-    // Centred in a band whose two ends are the floating header corners,
-    // so the gap closes from both sides as the window narrows, and the
-    // corners stop shrinking first because their controls bottom out on
-    // rem floors. This stays on one line throughout: it gets narrower
-    // instead, and below md it drops out entirely rather than wrapping.
-    // The gap between two HEADER_CORNER_RESERVEs at their floors is about
-    // 7rem there, which is this label at its smallest legible size.
-    <div className="relative z-[70] hidden md:flex items-center gap-1.5 flex-shrink-0">
+    // Centred in a band whose two ends are the floating header corners, so
+    // the gap closes from both sides as the window narrows and the corners
+    // stop shrinking first, their controls bottoming out on rem floors.
+    // One line throughout: it gets narrower instead, then goes.
+    //
+    // It goes when its X reaches the speaker in the left corner, which is
+    // measured at ~1150px of viewport, not at md. On md it kept rendering
+    // through 380px of overlap, the X sitting on top of the speaker for
+    // every width between the two. See website-link-band in index.css.
+    <div className="website-link-band relative z-[70] items-center gap-1.5 flex-shrink-0">
       <button
         onClick={handleHideWebsiteLinkClick}
         className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
