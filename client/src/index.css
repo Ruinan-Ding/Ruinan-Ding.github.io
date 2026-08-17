@@ -340,16 +340,30 @@
   }
 }
 
-/* Two names per flash, alternated by the token's parity, so back-to-back
-   flashes always change the class rather than removing and re-adding the
-   same one. Toggling a class off and on inside one frame is invisible to
-   the browser: it compares computed styles between recalculations, sees
-   the same animation-name at both ends and never restarts it, so five
-   rapid clicks on a chevron started exactly one flash. Two names means the
-   name really changes, which is what restarts an animation. */
-.animate-increaseFlashText,
-.animate-increaseFlashText-alt {
+/* Two keyframes per flash, identical, alternated by the token's parity.
+   What restarts an animation is the computed animation-name changing, and
+   toggling a class off and on inside one frame doesn't do it: the browser
+   compares computed styles between recalculations and sees the same name
+   at both ends. Five rapid clicks on a chevron started one flash.
+   Two class names alone don't fix it either, which is worth writing down
+   because it looks like it should: pointed at the same @keyframes they
+   both compute to the same animation-name, and the browser is comparing
+   that rather than the class. The names have to differ. */
+@keyframes increaseFlashGreenTextAlt {
+  from {
+    color: #22c55e;
+  }
+  to {
+    color: var(--app-ink);
+  }
+}
+
+.animate-increaseFlashText {
   animation: increaseFlashGreenText 1.2s ease-out forwards;
+}
+
+.animate-increaseFlashText-alt {
+  animation: increaseFlashGreenTextAlt 1.2s ease-out forwards;
 }
 
 @keyframes decreaseFlashRedText {
@@ -361,9 +375,21 @@
   }
 }
 
-.animate-decreaseFlashText,
-.animate-decreaseFlashText-alt {
+@keyframes decreaseFlashRedTextAlt {
+  from {
+    color: #ef4444;
+  }
+  to {
+    color: var(--app-ink);
+  }
+}
+
+.animate-decreaseFlashText {
   animation: decreaseFlashRedText 1.2s ease-out forwards;
+}
+
+.animate-decreaseFlashText-alt {
+  animation: decreaseFlashRedTextAlt 1.2s ease-out forwards;
 }
 
 /* For a preset corrected at commit, 99:99:99 to 99:59:59. Yellow rather
