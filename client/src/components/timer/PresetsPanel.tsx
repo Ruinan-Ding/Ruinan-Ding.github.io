@@ -245,7 +245,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
             }}
             title={presets.length >= MAX_PRESETS ? `Preset limit reached (${MAX_PRESETS})` : undefined}
           >
-            {presets.length}/{MAX_PRESETS}
+            {presets.length}<span className="sidebar-count-max">/{MAX_PRESETS}</span>
           </span>
         </span>
         {presets.length > 0 && (

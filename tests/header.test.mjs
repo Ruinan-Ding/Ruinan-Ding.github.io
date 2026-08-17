@@ -16,8 +16,10 @@ const expr = `(() => {
   const row = words.closest('.flex.justify-between');
   const W = r(words), H = r(hint), F = r(full), C = r(copy), CL = r(clear), R = r(row);
   return {
-    hintBelowSwitches: H && W ? H.t >= W.b - 1 : null,
-    hintLeftAlignedWithSwitch: H && W ? Math.abs(H.l - W.l) <= 1 : null,
+    // The hint sits beside the switches now rather than under them, so what
+    // it has to do is share their line and stay to their right.
+    hintOnSwitchLine: H && W ? Math.abs(H.t - W.t) <= Math.max(6, W.b - W.t) : null,
+    hintRightOfSwitches: H && W ? H.l >= W.l : null,
     // the right-hand cluster must share the row's top line, not sit under it
     buttonsOnTopLine: F && W ? Math.abs(F.t - W.t) <= 6 : null,
     buttonsRightOfSwitches: F && W ? F.l > W.r : null,
@@ -56,10 +58,10 @@ for (const r of rows) {
   // show up in the wrong place, so this asks about its position only when
   // it has one.
   const hintShown = r.hint !== null && (r.hint.b - r.hint.t > 0 || r.hint.r - r.hint.l > 0);
-  const hintOk = !hintShown || (r.hintBelowSwitches && r.hintLeftAlignedWithSwitch);
+  const hintOk = !hintShown || (r.hintOnSwitchLine && r.hintRightOfSwitches);
   const ok = hintOk && r.buttonsOnTopLine && r.buttonsRightOfSwitches && r.fitsRow && !r.pageScrolls;
   if (!ok) bad++;
-  const hintState = hintShown ? `below=${r.hintBelowSwitches} aligned=${r.hintLeftAlignedWithSwitch}` : 'hidden';
+  const hintState = hintShown ? `sameline=${r.hintOnSwitchLine} right=${r.hintRightOfSwitches}` : 'hidden';
   console.log(`${String(r.w).padStart(5)}px  hint=${hintState.padEnd(24)} btnsTopLine=${String(r.buttonsOnTopLine).padEnd(5)} btnsRight=${String(r.buttonsRightOfSwitches).padEnd(5)} fits=${String(r.fitsRow).padEnd(5)} switchTop=${r.switch1?.t} fullTop=${r.fullBtn?.t} fullRight=${r.fullBtn?.r} rowRight=${r.row?.r}  ${ok ? '' : '<== FAIL'}`);
 }
 console.log(bad ? `\n${bad} failing widths` : '\nall widths pass');

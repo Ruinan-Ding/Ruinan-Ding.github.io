@@ -58,17 +58,22 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp }
   const stamp = formatStamp(entry.timestamp);
 
   return (
-    <div className="flex flex-col flex-shrink-0" style={{ gap: stamp ? STAMP_GAP : undefined }}>
-      {/* Two lines, indented to the label box: on one line it had to be
-          tiny to fit 26 characters across the sidebar, and splitting it at
-          the time/date boundary buys enough width to read it. */}
+    // An inline-size container so the stamp can tell whether both halves
+    // fit the row it's indented to.
+    <div
+      className="flex flex-col flex-shrink-0"
+      style={{ gap: stamp ? STAMP_GAP : undefined, containerType: 'inline-size', containerName: 'history-row' }}
+    >
+      {/* One line, indented to the label box. The date is the half that
+          gives when the sidebar can't hold both: a run you can still place
+          by its time is more use than one you can place by neither. */}
       {stamp && (
         <div
-          className="text-white opacity-70 font-bold leading-tight"
+          className="text-white opacity-70 font-bold leading-tight whitespace-nowrap overflow-hidden"
           style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: STAMP_FONT_SIZE, paddingLeft: STAMP_INDENT }}
         >
-          <div className="whitespace-nowrap overflow-hidden">{stamp.time}</div>
-          <div className="whitespace-nowrap overflow-hidden">{stamp.date}</div>
+          {stamp.time}
+          <span className="stamp-date">{' '}{stamp.date}</span>
         </div>
       )}
       {/* items-stretch so the − takes its height from the box beside it
@@ -130,7 +135,7 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
             }}
             title={history.length >= MAX_HISTORY ? `Full — each new run drops the oldest entry` : undefined}
           >
-            {history.length}/{MAX_HISTORY}
+            {history.length}<span className="sidebar-count-max">/{MAX_HISTORY}</span>
           </span>
         </span>
         {history.length > 0 && (

@@ -2,8 +2,8 @@
 //  1 the two switches never stack
 //  2 Copy/Clear/full-screen hold their line
 //  3 the "turn both off" hint is one line or absent, never two
-//  4 the ENTER/R/S hints are three lines, none of them wrapped
-//  5 the L/W/C legend is three lines, none of them wrapped
+//  4 the ENTER/R/S hints are one line, unwrapped, or gone
+//  5 the L/W/C legend is one line with its three keys level, or gone
 import { spawnSync } from 'node:child_process';
 
 const expr = `(() => {
@@ -17,25 +17,29 @@ const expr = `(() => {
   const full = document.querySelector('[aria-label="Full screen"], [aria-label="Exit full screen"]');
   const W = box(words), C = box(chars), F = box(full), H = box(hint);
 
-  // timer hints: the three Press ... lines
-  const hintRoot = [...document.querySelectorAll('div')].filter((d) => /^Press /.test(d.textContent.trim()) && d.children.length === 3).pop();
+  // timer hints: one joined line, or gone on a short window
+  const hintRoot = document.querySelector('.timer-hints');
   const timerLines = hintRoot ? [...hintRoot.children].map((c) => ({ h: Math.round(c.getBoundingClientRect().height), wrapped: wrapped(c), text: c.textContent.slice(0, 24) })) : null;
 
-  // legend: L / W / C
-  const legend = [...document.querySelectorAll('div')].filter((d) => d.children.length === 3 && /^L:/.test(d.textContent.trim())).pop();
+  // legend: L / W / C, three spans that have to share one line
+  const legend = document.querySelector('.counter-legend');
+  const legendKeys = legend ? [...legend.children].map((c) => box(c)) : null;
+  const legendOneRow = legendKeys && legendKeys.length === 3
+    ? legendKeys.every((k) => Math.abs(k.t - legendKeys[0].t) <= 2) : null;
   const legendLines = legend ? [...legend.children].map((c) => ({ h: Math.round(c.getBoundingClientRect().height), wrapped: wrapped(c) })) : null;
   const legendBox = box(legend);
 
   const de = document.scrollingElement;
   return {
     switchesSideBySide: W && C ? Math.abs(W.t - C.t) <= 2 && C.l > W.r : null,
-    switchFs: getComputedStyle(words).fontSize, stacked: W && C ? C.t > W.b - 2 : null, lwcH: (() => { const b=[...document.querySelectorAll('div')].find(d=>d.textContent.trim()==='L'&&d.className.includes('border-2')); return b ? Math.round(b.getBoundingClientRect().height) : null; })(), timerHintFs: (() => { const r=[...document.querySelectorAll('div')].filter(d=>/^Press /.test(d.textContent.trim())&&d.children.length===3).pop(); return r ? getComputedStyle(r).fontSize : null; })(),
+    switchFs: getComputedStyle(words).fontSize, stacked: W && C ? C.t > W.b - 2 : null, lwcH: (() => { const b=[...document.querySelectorAll('div')].find(d=>d.textContent.trim()==='L'&&d.className.includes('border-2')); return b ? Math.round(b.getBoundingClientRect().height) : null; })(), timerHintFs: (() => { const r=document.querySelector('.timer-hints'); return r ? getComputedStyle(r).fontSize : null; })(),
     buttonsOnSwitchLine: F && W ? Math.abs(F.t - W.t) <= 6 : null,
     buttonsRightOfSwitches: F && W ? F.l > W.r : null,
     hintPresent: !!hint && getComputedStyle(hint).display !== 'none',
     hintWrapped: hint && getComputedStyle(hint).display !== 'none' ? wrapped(hint) : false,
     hintFits: H && hint && getComputedStyle(hint).display !== 'none' ? H.r <= (W ? box(words.closest('.flex.flex-col')).r + 1 : 1e9) : null,
     timerHintCount: timerLines ? timerLines.length : null,
+    legendOneRow,
     timerHintWrapped: timerLines ? timerLines.some((l) => l.wrapped) : null,
     legendCount: legendLines ? legendLines.length : null,
     legendWrapped: legendLines ? legendLines.some((l) => l.wrapped) : null,
@@ -64,9 +68,13 @@ const rows = (res.stdout || '').split('\n').filter((l) => l.startsWith('{')).map
 let bad = 0;
 for (const r of rows) {
   if (r.err) { console.log(`${r.w}  ${r.err}`); continue; }
+  // The hints and the legend are each one line when they're there at all,
+  // and both are allowed to be gone: a short window drops the hints and a
+  // narrow counter drops the legend, which is the point of both.
+  const hintsOk = r.timerHintCount === null || (r.timerHintCount === 1 && !r.timerHintWrapped);
+  const legendOk = r.legendCount === null || (r.legendCount === 3 && r.legendOneRow && !r.legendWrapped && r.legendFitsRow);
   const ok = (r.switchesSideBySide || r.stacked) && r.buttonsOnSwitchLine && r.buttonsRightOfSwitches
-    && !r.hintWrapped && r.timerHintCount === 3 && !r.timerHintWrapped
-    && r.legendCount === 3 && !r.legendWrapped && r.legendFitsRow && !r.pageScrolls;
+    && !r.hintWrapped && hintsOk && legendOk && !r.pageScrolls;
   if (!ok) bad++;
   console.log(`${String(r.w).padStart(5)}  form=${r.switchesSideBySide?"side":"STACK"} switchFs=${String(r.switchFs).padEnd(8)} btnsSameLine=${String(r.buttonsOnSwitchLine).padEnd(5)} hint=${r.hintPresent ? 'shown' : 'hidden'} hintWrap=${String(r.hintWrapped).padEnd(5)} timerLines=${r.timerHintCount} timerWrap=${String(r.timerHintWrapped).padEnd(5)} legend=${r.legendCount}@${String(r.legendFs).padEnd(7)} legendWrap=${String(r.legendWrapped).padEnd(5)} lwcH=${String(r.lwcH).padEnd(3)} hintFs=${String(r.timerHintFs).padEnd(7)} scroll=${r.pageScrolls}  ${ok ? '' : '<== FAIL'}`);
 }

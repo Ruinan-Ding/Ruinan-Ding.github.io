@@ -358,18 +358,17 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
       <div className={`flex flex-col gap-1 border-4 transition-colors duration-200 w-full flex-1 ${isActive ? 'border-green-500 bg-black' : 'border-red-500 bg-black'}`} style={{ minHeight: '0' }}>
         {/* No flex-wrap on the row: the buttons on the right were the ones
             it dropped, and they landed under the switches as the window
-            narrowed. They hold their place now and the column on the left
-            gives up the width instead.
-            items-start, because that column is three lines tall and
-            centring against it pushed the buttons down the box. */}
-        <div className="flex justify-between items-start gap-3 px-3 pt-1">
-          {/* Both switches on one line, with the line about them under the
-              pair. An inline-size container so the hint can tell whether it
-              fits and the switches can size against it; flex-1 rather than
-              shrink-to-fit, since a container's own size can't come from
-              its contents. */}
+            narrowed. They hold their place now and the row on the left
+            gives up the width instead. */}
+        <div className="flex justify-between items-center gap-3 px-3 pt-1">
+          {/* Both switches and the line about them on one row, so the box
+              spends one line box here rather than two and the typing area
+              keeps the difference. An inline-size container so the hint can
+              tell whether it fits and the switches can size against it;
+              flex-1 rather than shrink-to-fit, since a container's own size
+              can't come from its contents. */}
           <div
-            className="flex flex-col items-start gap-0.5 flex-1 min-w-0"
+            className="flex items-center gap-2 flex-1 min-w-0"
             style={{ containerType: 'inline-size', containerName: 'counter-switches' }}
           >
             {/* The gaps are capped as well as the type. Fixed at 12px and
@@ -409,12 +408,13 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             </button>
             </div>
 
-            {/* Under the two switches it talks about, rather than trailing
-                them on the same line where it read as a third control.
-                It names the switch that's actually left, and once neither
-                is on it stops asking for anything and says what you have. */}
+            {/* Beside the switches it talks about, and the first thing on
+                this row to go when the row runs short: it names the switch
+                that's left, which is worth less than the switch itself.
+                Once neither is on it stops asking for anything and says
+                what you have. */}
             <span
-              className="counter-hint opacity-60 font-bold whitespace-nowrap"
+              className="counter-hint opacity-60 font-bold whitespace-nowrap overflow-hidden"
               style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.5, 0.9, 1, 0.65) }}
             >
               {alnumWordsOnly && alnumCharsOnly
@@ -555,7 +555,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             />
           </div>
         </div>
-        <div className="flex justify-between items-start px-3 pb-1 gap-4" style={{ fontSize: shrinkClamp(0.5, 1, 1.1, 0.65) }}>
+        {/* An inline-size container so the legend on the right can tell
+            whether its one row fits beside the totals. */}
+        <div
+          className="flex justify-between items-start px-3 pb-1 gap-4"
+          style={{ fontSize: shrinkClamp(0.5, 1, 1.1, 0.65), containerType: 'inline-size', containerName: 'counter-totals' }}
+        >
           {/* flex-shrink-0: the boxes below are a fixed COUNTER_COLUMN_WIDTH,
               but index.css's blanket `.flex { min-width: 0 }` lets this
               column shrink under them, and on a narrow window it did, down
@@ -605,15 +610,17 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               })}
             </div>
           </div>
-          {/* A line each, and none of them allowed to wrap: three keys
-              wrapped across two lines read as five, and the separators
-              only ever marked where the wrap wasn't. Smaller than the
-              text-xs it was, since three lines cost three times the
-              height and this is a legend, not the numbers it labels. */}
-          <div className={`flex flex-col items-end text-right ${isActive ? 'text-green-500' : 'text-gray-400'}`} style={{ fontSize: shrinkClamp(0.45, 0.8, 0.9, 0.6) }}>
-            <span className="whitespace-nowrap"><strong>L:</strong> Line number</span>
-            <span className="whitespace-nowrap"><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</span>
-            <span className="whitespace-nowrap"><strong>C:</strong> {alnumCharsOnly ? 'Alphanumeric chars (a-z, A-Z, 0-9)' : 'All characters, including spaces'}</span>
+          {/* One row, never wrapped, and gone entirely once it won't fit:
+              this is a legend rather than the numbers it labels, so its
+              three lines were the easiest height in the box to give back to
+              the typing area. */}
+          <div
+            className={`counter-legend flex items-baseline justify-end text-right whitespace-nowrap overflow-hidden ${isActive ? 'text-green-500' : 'text-gray-400'}`}
+            style={{ fontSize: shrinkClamp(0.45, 0.8, 0.9, 0.6), gap: '0.9em' }}
+          >
+            <span><strong>L:</strong> Line number</span>
+            <span><strong>W:</strong> {alnumWordsOnly ? 'Words on that line (a-z, A-Z, 0-9)' : 'Words on that line, punctuation included'}</span>
+            <span><strong>C:</strong> {alnumCharsOnly ? 'Alphanumeric chars (a-z, A-Z, 0-9)' : 'All characters, including spaces'}</span>
           </div>
         </div>
       </div>

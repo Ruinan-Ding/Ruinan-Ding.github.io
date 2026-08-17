@@ -57,7 +57,12 @@ const suites = readdirSync(here)
 
 // "18/18 passed", "all widths pass", "all 22 viewports pass" — and the
 // shapes of the same lines that mean it didn't.
-const VERDICT = /(\d+)\/(\d+) passed|all (?:\d+ )?(?:widths|viewports) pass|(\d+) (?:failing widths|of \d+ viewports fail)/;
+// Two patterns rather than one with alternatives, because a shortfall has
+// to be recognised as a shortfall. As one regex the failing-width branch
+// landed in a different capture group than the check read, so "12 failing
+// widths" scored as a pass and the runner reported all green over it.
+const VERDICT = /(\d+)\/(\d+) passed|all (?:\d+ )?(?:widths|viewports) pass|\d+ failing widths|\d+ of \d+ viewports fail|no viewports measured/;
+const SHORTFALL = /failing widths|viewports fail|no viewports measured/;
 
 let failed = 0;
 let port = 9600;
@@ -67,7 +72,8 @@ for (const suite of suites) {
   const out = (res.stdout ?? '') + (res.stderr ?? '');
   const line = out.split('\n').reverse().find((l) => VERDICT.test(l))?.trim();
   const m = line?.match(VERDICT);
-  const ok = res.status === 0 && m && !m[4] && (!m[1] || m[1] === m[2]);
+  const counted = m?.[1] !== undefined;
+  const ok = res.status === 0 && !!m && !SHORTFALL.test(line ?? '') && (!counted || m[1] === m[2]);
   if (!ok) {
     failed++;
     console.log(`FAIL  ${label.padEnd(12)} ${line ?? 'no verdict — see below'}`);

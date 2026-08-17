@@ -157,7 +157,7 @@ function ClockCluster({
   // The time and the date each set their own; this covers the cluster, so
   // the zone box gets a tracking of its own size rather than the digits'.
   return (
-    <div className="flex flex-col items-center gap-0.5 flex-shrink-0" style={{ fontSize, letterSpacing: '0.05em' }}>
+    <div className="flex items-center justify-center gap-1.5 flex-shrink-0" style={{ fontSize, letterSpacing: '0.05em' }}>
       <span className="flex items-center gap-1 leading-tight">
         {/* Boxed like the zone beside it, so the two read as a pair of
             controls rather than a label that happens to be clickable. */}

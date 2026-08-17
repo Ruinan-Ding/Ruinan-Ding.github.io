@@ -526,17 +526,13 @@
   }
 }
 
-/* The line under the word counter's two filter switches is one line or
-   nothing. Wrapped, a sentence you've already read cost the row twice the
-   height, and that height comes straight off the typing area.
-   ~374px is what the longest of them measures at its floor size — the
-   wording is conditional now, and "Turn off alphanumeric words to count
-   everything, like a classic word processor" is 78 characters against the
-   64 the old 320px figure was calibrated to. Undersized, the cutoff let a
-   nowrap line overflow its min-w-0 column and run under Copy/Clear. Only
-   the floor range is ever this narrow; above it the column grows far
-   faster than the font does, so this never hides a hint that would fit. */
-@container counter-switches (max-width: 390px) {
+/* The hint now sits beside the switches rather than under them, so what it
+   needs is the whole row's width rather than its own. The pair measures
+   ~305px at its floor and the longest wording ~374px, plus the gap between
+   them, so under ~700px of row one of the two has to go and it is this one:
+   it names the switch that's left, which is worth less than the switch.
+   Measured rather than derived — see the figure in the sweep. */
+@container counter-switches (max-width: 1000px) {
   .counter-hint {
     display: none;
   }
@@ -604,9 +600,40 @@
    are already down to 8px. Hiding it keeps the other two exactly where
    they are, which wrapping the button onto a second line did not. Above
    it the count is free to clip rather than vanish, which only a full
-   1000/1000 ever does. */
+   1000/1000 ever does.
+
+   The denominator goes first and the number stays: "2" places a list in its
+   range as well as "2/1000" does once you know the cap, and dropping five
+   characters buys the count another ~35px of life. Only when even the bare
+   number can't sit beside the heading and Clear does the whole thing go. */
 @container sidebar-heading (max-width: 145px) {
+  .sidebar-count-max {
+    display: none;
+  }
+}
+
+@container sidebar-heading (max-width: 110px) {
   .sidebar-count {
+    display: none;
+  }
+}
+
+/* A history row's stamp is one line, and the date is the half that gives:
+   a run you can place by its time beats one you can place by neither. The
+   time alone is ~10 characters where both are ~26, so this is where the
+   pair stops fitting the box they're indented to. */
+@container history-row (max-width: 165px) {
+  .stamp-date {
+    display: none;
+  }
+}
+
+/* The L/W/C legend is one row or nothing. Three keys across ~90 characters
+   need a wide box; below that they wrapped into something that read as
+   five keys, and the row is a legend rather than the numbers it labels, so
+   the whole thing goes and the typing area keeps the height. */
+@container counter-totals (max-width: 535px) {
+  .counter-legend {
     display: none;
   }
 }

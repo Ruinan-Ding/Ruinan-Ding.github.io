@@ -783,7 +783,12 @@ export default function Timer() {
       minute: '2-digit',
       second: '2-digit',
     });
-    const date = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+    // No weekday here, unlike the wall clock's own date. A history stamp is
+    // one line inside a sidebar row, and "Thu, " is five characters of the
+    // twenty-six it has to fit: with it the date never fits beside the time
+    // at any width the sidebar reaches, so it would always be the half that
+    // dropped. Without it both halves fit and the drop stays the exception.
+    const date = new Intl.DateTimeFormat('en-US', { timeZone, day: '2-digit', month: '2-digit', year: 'numeric' });
     // Two pieces rather than one string: the panel puts them on their own
     // lines, and where that break falls is a decision, not wherever the
     // text happens to wrap.
@@ -1220,13 +1225,16 @@ export default function Timer() {
     { text: `Press R to RESET the ${hintSubject}`, disabled: isIdleAtConfigured },
     { text: `Press S to STOP the ${hintSubject}`, disabled: isIdleAtConfigured },
   ];
-  // A line each. Joined onto one row they wrapped wherever the width ran
-  // out, which put a key and its description on different lines and left
-  // the separators marking nothing. Blocks, not flex items, so the three
-  // stack with no gap between them and cost only their own line boxes.
-  const hintLines = hints.map(({ text, disabled }) =>
-    isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
-  );
+  // One row, joined on a separator, and never wrapped: three stacked lines
+  // cost three line boxes of height that the digits above would rather
+  // have. It shrinks with the window and is dropped outright on a short
+  // one, which is cheaper than letting it wrap a key away from the thing
+  // it does.
+  const hintLine = hints
+    .map(({ text, disabled }) =>
+      isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
+    )
+    .join('   ·   ');
   // timer-hints is the hook for the short-window tuck in index.css: three
   // lines of instructions are the first thing worth dropping once the
   // window is too short to hold what it's instructing.
@@ -1234,16 +1242,12 @@ export default function Timer() {
     <div
       className={`timer-hints opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
       style={{
-        // Smaller than it was, since it's three lines now rather than one
-        // wrapping row, and all three of them come off the digits.
         fontSize: shrinkClamp(0.45, 0.85, 0.95, 0.6),
         color: isWordCounterFocused ? '#ef4444' : 'var(--app-ink)',
         ...textGlowStyle,
       }}
     >
-      {hintLines.map((line, i) => (
-        <div key={i} className="whitespace-nowrap leading-tight">{line}</div>
-      ))}
+      <div className="whitespace-nowrap leading-tight overflow-hidden">{hintLine}</div>
     </div>
   );
 
@@ -1866,6 +1870,15 @@ export default function Timer() {
               // max(floor, vh-scaled) tracks them while they scale and
               // takes over once they stop; the second max() is the clock's
               // own reserve, shaped like CLOCK_FONT_SIZE for the same reason.
+              //
+              // Shrinking this reserve does nothing on its own, which was
+              // measured rather than assumed: at all 22 viewports the
+              // min() picks the width term, so the digits are held by the
+              // column's width and never by this. The height the clock and
+              // hint rows gave back by going to one line each shows up as
+              // slack above and below instead, and spending it means
+              // changing how the row and the word counter split the column
+              // rather than touching anything here.
               //
               // One formula, two containers: at sm+ the nearest is the box
               // above, below sm it's the row. Same siblings either way,
