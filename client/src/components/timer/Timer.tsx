@@ -15,7 +15,7 @@ import PresetsPanel from './PresetsPanel';
 import SpeakerIcon from './SpeakerIcon';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
+import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HEADER_ICON_SIZE_LG, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
 import { readSavedHistory, readSavedPresets } from './entries';
 import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
 import { boxCap, boxClamp, fitClamp, shrinkClamp } from './responsive';
@@ -169,7 +169,7 @@ export default function Timer() {
   const linkBandRef = useRef<HTMLDivElement>(null);
   const hintsRef = useRef<HTMLDivElement>(null);
   const mainClockRef = useRef<HTMLDivElement>(null);
-  const tipRef = useRef<HTMLParagraphElement>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
   const headerCornerRef = useRef<HTMLDivElement>(null);
   // The fullscreen row's own two ends of the same question: the block that
   // holds the clock and the countdown, and the corner it closes on.
@@ -1512,11 +1512,18 @@ export default function Timer() {
           read through the clock sitting on top of it. */}
       {!isTipCrowded && (
       <p
-        ref={tipRef}
         className="alarm-tip hidden sm:block opacity-75 font-bold text-white text-left"
-        style={{ fontSize: shrinkClamp(0.4, 0.8, 0.85, 0.5), width: 0, minWidth: '100%', lineHeight: 1.25 }}
+        style={{ fontSize: shrinkClamp(0.7, 1.4, 1.5, 0.8), width: 0, minWidth: '100%', lineHeight: 1.3 }}
       >
-        Tip: mute the volume or turn off repeat to silence the alarm — OFF + start at 00:00:00 = count-up stopwatch
+        {/* The text wraps at its own measure and overflows the box above,
+            rather than wrapping inside it. In the buttons' width this was
+            six lines of 7.65px, which is past reading, and reading is the
+            only thing a tip is for: better it goes sooner and is legible
+            while it's there. The span is what's measured, since the box
+            it sits in is 108px whatever the text does. */}
+        <span ref={tipRef} className="inline-block" style={{ width: '34ch' }}>
+          Tip: mute the volume or turn off repeat to silence the alarm — OFF + start at 00:00:00 = count-up stopwatch
+        </span>
       </p>
       )}
     </div>
@@ -1550,7 +1557,7 @@ export default function Timer() {
             {/* Sun while dark, showing what clicking gets you. */}
             <HeaderToggleButton
               onClick={() => setIsLightTheme((prev) => !prev)}
-              icon={isLightTheme ? <Moon style={HEADER_ICON_SIZE} /> : <Sun style={HEADER_ICON_SIZE} />}
+              icon={isLightTheme ? <Moon style={HEADER_ICON_SIZE_LG} /> : <Sun style={HEADER_ICON_SIZE_LG} />}
               label={isLightTheme ? 'Switch to the dark theme' : 'Switch to the light theme'}
             />
 
@@ -1596,7 +1603,7 @@ export default function Timer() {
               title="Reset the website to defaults"
               aria-label="Reset the website to defaults"
             >
-              <Trash2 style={HEADER_ICON_SIZE} />
+              <Trash2 style={HEADER_ICON_SIZE_LG} />
             </button>
     </>
   );

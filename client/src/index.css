@@ -626,28 +626,17 @@
    wider than the room inside its button, and a flex item that has to
    shrink shrinks on the one axis: the bell came out 8 wide by 13 tall,
    standing out through the border it sits in. */
-/* The floating corner's three, in fullscreen only, on the same terms as
-   the row's own icons below. They sit outside the row and so have no
-   container to measure, but fullscreen is inset-0, which makes vw the same
-   measurement the row's cqi is taking. Without this they held their clamp
-   while everything beside them gave way, and ended up the largest things
-   on a narrow screen. */
-.fs-corner-icons button {
-  max-width: 6.8vw;
-  max-height: 6.8vw;
-}
-.fs-corner-icons svg {
-  max-width: min(3.7vw, 100%);
-  max-height: min(3.7vw, 100%);
-}
-
 .fs-header-row .fs-row-icons button {
   max-width: 6.8cqi;
   max-height: 6.8cqi;
 }
+/* 115%, not 100%: the speaker's viewBox carries empty margin its ink
+   never reaches, so its box is wider than the button's inside while the
+   mark it draws is not. Capped at the button it drew a size smaller here
+   than in the corner it comes from. */
 .fs-header-row .fs-row-icons svg {
-  max-width: min(3.7cqi, 100%);
-  max-height: min(3.7cqi, 100%);
+  max-width: min(3.7cqi, 115%);
+  max-height: min(3.7cqi, 115%);
 }
 .fs-header-row .fs-row-icons .ringer-bell {
   max-width: min(6.1cqi, 100%);

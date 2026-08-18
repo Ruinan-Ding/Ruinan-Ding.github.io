@@ -18,7 +18,12 @@ export default function SpeakerIcon({ volume, muted, color }: { volume: number; 
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
-      style={{ width: shrinkClamp(1.1, 3, 3, 2), height: shrinkClamp(1.1, 3, 3, 2) }}
+      // Larger than the icons beside it for the same drawn size: the
+      // speaker and its waves reach about three quarters across this
+      // viewBox where a lucide glyph reaches all of it, so at a matched
+      // box this drew noticeably smaller. The overhang is empty viewBox,
+      // not ink, so it sits inside the button either way.
+      style={{ width: shrinkClamp(1.9, 4.7, 4.7, 3.3), height: shrinkClamp(1.9, 4.7, 4.7, 3.3) }}
     >
       <polygon points="9 5 4 9 1 9 1 15 4 15 9 19 9 5" fill={color} />
       {!muted && (

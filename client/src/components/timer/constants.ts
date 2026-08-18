@@ -5,6 +5,16 @@ import type { TimeParts, TimerEntry } from './types';
 // sidebar/time-fields/word-counter hide toggles.
 export const HEADER_BUTTON_SIZE = { width: shrinkClamp(2, 5, 5, 3.5), height: shrinkClamp(2, 5, 5, 3.5) };
 export const HEADER_ICON_SIZE = { width: shrinkClamp(1.1, 3, 3, 1.375), height: shrinkClamp(1.1, 3, 3, 1.375) };
+// The same buttons, for glyphs that draw edge to edge inside their own
+// viewBox. Sized so the mark lands at about 85% of the box interior, which
+// is where the ringer bell already sat and what the rest looked small
+// against: sun, moon and bin were all drawing at half the box.
+//
+// Not one size for every icon, because the size that matters is the ink
+// and each glyph fills its viewBox differently. The chevrons are a thin
+// arrow across the middle of theirs and would need a box half again bigger
+// than the button to reach the same ink, so they keep the figure above.
+export const HEADER_ICON_SIZE_LG = { width: shrinkClamp(1.6, 3.9, 3.9, 2.7), height: shrinkClamp(1.6, 3.9, 3.9, 2.7) };
 
 // One size for every DotCheckbox, set on the checkbox rather than in em
 // off whatever label it sits beside: in em the confirmations box comes out

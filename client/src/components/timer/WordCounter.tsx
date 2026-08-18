@@ -311,8 +311,11 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 fs-row-icons is the hook for the caps in index.css: these
                 three come from Timer, at the size its floating corners use,
                 and a max-width caps them here without restating the clamp
-                that gives them that size. */}
-            <div className="flex items-center flex-1 min-w-min fs-row-icons" style={{ gap: boxCap('0.75rem', 2.2) }}>
+                that gives them that size. The gap comes from there too:
+                0.75rem was this row's own figure and it read as a wider
+                spread than the same three buttons have when they float,
+                which is the only other place anyone sees them. */}
+            <div className="flex items-center flex-1 min-w-min fs-row-icons" style={{ gap: boxCap('0.5rem', 1.5) }}>
               {!isAutoCollapsed && (
                 <HeaderToggleButton
                   onClick={toggleCollapsed}
@@ -341,7 +344,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 fs-row-icons is the hook for the caps in index.css, same as
                 the three on the left. */}
             <div className="flex-1 min-w-0 flex items-center justify-end">
-              <div ref={cornerRef} className="flex items-center flex-shrink-0 fs-row-icons" style={{ gap: boxCap('0.75rem', 2.2) }}>
+              <div ref={cornerRef} className="flex items-center flex-shrink-0 fs-row-icons" style={{ gap: boxCap('0.5rem', 1.5) }}>
                 {cornerButtons}
               </div>
             </div>
