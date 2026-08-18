@@ -31,6 +31,8 @@ interface WordCounterProps {
   // sit in this row rather than over it. Null the rest of the time,
   // when they render in their own corner.
   cornerButtons: ReactNode;
+  // So Timer can measure how close the countdown block is to them.
+  cornerRef: React.RefObject<HTMLDivElement | null>;
   timerDigits: ReactNode;
   timerBar: ReactNode;
   timerControls: ReactNode;
@@ -91,7 +93,7 @@ const countFontSize = (value: number) =>
   `min(${COUNTER_FONT_SIZE}, calc((${COUNTER_COLUMN_WIDTH} - 30px) / ${(countLabel(value).length * 1.8).toFixed(2)}))`;
 
 
-function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, cornerButtons, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, cornerButtons, cornerRef, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing has no undo, so it asks first. Same ConfirmDialog the timer
   // uses, but with local state, since `text` lives entirely here.
@@ -349,7 +351,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                   couple of hundred pixels and shrank them to 11px. Out
                   here the nearest container is the row, which is what the
                   icons opposite them are capped against. */}
-              <div className="flex items-center flex-shrink-0 fs-row-icons" style={{ gap: boxCap('0.75rem', 2.2) }}>
+              <div ref={cornerRef} className="flex items-center flex-shrink-0 fs-row-icons" style={{ gap: boxCap('0.75rem', 2.2) }}>
                 {cornerButtons}
               </div>
             </div>

@@ -172,6 +172,10 @@ export default function Timer() {
   const mainClockRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLParagraphElement>(null);
   const headerCornerRef = useRef<HTMLDivElement>(null);
+  // The fullscreen row's own two ends of the same question: the controls
+  // that finish the countdown block, and the corner they close on.
+  const fsControlsRef = useRef<HTMLDivElement>(null);
+  const fsCornerRef = useRef<HTMLDivElement>(null);
   // Tailwind's sm. At and above it the timer row is horizontal and the
   // digits column gets sm:self-stretch, which is what gives their cqh
   // sizing a height to query.
@@ -231,6 +235,9 @@ export default function Timer() {
   // and its zone box follow only once the date has gone and the cluster
   // still doesn't fit, which is what the null below says.
   const clockRoom = roomInParent(clockRootRef);
+  // The countdown's "/ total" is the half that goes when the block
+  // reaches the corner: what is left is the time actually running.
+  const isFsTotalTight = useTightFit(gapBetween(fsControlsRef, fsCornerRef), windowRef, 28, isWordCounterFullscreen);
   const isClockDateCrowded = useTightFit(clockRoom, windowRef, 8, isWordCounterFullscreen);
   const isClockTimeCrowded = useTightFit(
     () => (isClockDateCrowded ? clockRoom() : null),
@@ -1643,12 +1650,19 @@ export default function Timer() {
         // Capped against the row, which is a container: "1:02:05·00 /
         // 1:02:05" is ~12em of monospace, and the row can't wrap, so the
         // one thing that can give is the size.
-        fontSize: boxCap(shrinkClamp(0.7, 1.5, 1.6, 1), 2),
+        // A bigger readout once the total has gone, and the whole clamp
+        // moves rather than the cap: at these widths the clamp's own floor
+        // is what binds, so raising the cap alone changed nothing. The
+        // remaining time alone is about two thirds of what it and the
+        // total need together, which is the room this spends.
+        fontSize: isFsTotalTight
+          ? boxCap(shrinkClamp(0.95, 2.1, 2.2, 1.4), 3)
+          : boxCap(shrinkClamp(0.7, 1.5, 1.6, 1), 2),
         color: seconds < 0 ? '#ef4444' : 'var(--app-ink)',
       }}
     >
       {remaining.sign}{remaining.hours && `${remaining.hours}:`}{remaining.minutes}:{remaining.seconds}·{remaining.ms}
-      {' '}<span className="opacity-60">/ {configuredLabel}</span>
+      {!isFsTotalTight && <>{' '}<span className="opacity-60">/ {configuredLabel}</span></>}
     </span>
   );
   // The HOURS/MINUTES/SECONDS panel, or the arrow that brings it back.
@@ -2060,11 +2074,12 @@ export default function Timer() {
             ? renderClockCluster(isClockDateCrowded ? FULLSCREEN_CLOCK_FONT_SIZE_SOLO : FULLSCREEN_CLOCK_FONT_SIZE, true)
             : null}
           cornerButtons={isWordCounterFullscreen ? headerCornerButtons : null}
+          cornerRef={fsCornerRef}
           timerDigits={isWordCounterFullscreen ? wordCounterTimerDigits : null}
           timerBar={isWordCounterFullscreen && isRowLayout ? renderDrainBar(boxCap('clamp(3rem, 8vw, 8rem)', 9), true) : null}
           timerControls={
             isWordCounterFullscreen ? (
-              <div className="flex items-center flex-shrink-0" style={{ gap: boxCap('0.375rem', 1.2) }}>
+              <div ref={fsControlsRef} className="flex items-center flex-shrink-0" style={{ gap: boxCap('0.375rem', 1.2) }}>
                 {renderControlButtons(compactControlButtonStyle, 'border-2')}
               </div>
             ) : null
