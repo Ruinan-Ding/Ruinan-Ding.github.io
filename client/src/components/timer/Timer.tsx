@@ -172,14 +172,6 @@ export default function Timer() {
   const mainClockRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLParagraphElement>(null);
   const headerCornerRef = useRef<HTMLDivElement>(null);
-  const [headerCornerWidth, setHeaderCornerWidth] = useState(0);
-  useEffect(() => {
-    const el = headerCornerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(([entry]) => setHeaderCornerWidth(entry.contentRect.width));
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
   // Tailwind's sm. At and above it the timer row is horizontal and the
   // digits column gets sm:self-stretch, which is what gives their cqh
   // sizing a height to query.
@@ -1539,6 +1531,66 @@ export default function Timer() {
       hideTime={measured && isClockTimeCrowded}
     />
   );
+  // The three floating-corner controls. Held as a value because they
+  // render in two places: their own corner normally, and inside the word
+  // counter's fullscreen row when there is one, so that row can centre
+  // what it holds instead of padding around an absolute corner.
+  const headerCornerButtons = (
+    <>
+
+            {/* Sun while dark, showing what clicking gets you. */}
+            <HeaderToggleButton
+              onClick={() => setIsLightTheme((prev) => !prev)}
+              icon={isLightTheme ? <Moon style={HEADER_ICON_SIZE} /> : <Sun style={HEADER_ICON_SIZE} />}
+              label={isLightTheme ? 'Switch to the dark theme' : 'Switch to the light theme'}
+            />
+
+            <button
+              // Turning confirmations off is the one switch that changes
+              // what every other click does, so it asks. Through askThenRun
+              // like the rest, so its own "don't ask this again" is
+              // honoured. Not circular: askThenRun's skipConfirmations check
+              // can't fire here, since this branch only runs while they're
+              // still on. Turning them back on never asks.
+              onClick={() => {
+                if (skipConfirmations) {
+                  setSkipConfirmations(false);
+                } else {
+                  askThenRun({ type: 'skipConfirmations' }, () => setSkipConfirmations(true));
+                }
+              }}
+              aria-pressed={!skipConfirmations}
+              // Wordless, like the rest of this corner: a label here made it
+              // the widest control by a distance, and this corner is what
+              // the website link and the fullscreen row keep clear of. The
+              // tooltip says what it means, the box says whether it's on.
+              className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80 flex-shrink-0"
+              style={{
+                ...HEADER_BUTTON_SIZE,
+                borderColor: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
+                color: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
+                backgroundColor: 'var(--app-surface)',
+              }}
+              title={skipConfirmations
+                ? 'Confirmation dialogs are off — actions apply immediately (the RESET button still always asks). Click to turn confirmations back on'
+                : 'Confirmation dialogs are on — actions ask before applying (the RESET button always asks either way). Click to skip them'}
+              aria-label={skipConfirmations ? 'Turn confirmation dialogs back on' : 'Turn confirmation dialogs off'}
+            >
+              <DotCheckbox checked={!skipConfirmations} fontSize={HEADER_ICON_SIZE.width} />
+            </button>
+
+            {/* Resets the whole site. Asks even with confirmations off. */}
+            <button
+              onClick={() => setDialog({ type: 'clearCache' })}
+              className="flex items-center justify-center border-3 border-red-500 text-red-500 transition-all duration-200 hover:opacity-80 flex-shrink-0"
+              style={{ ...HEADER_BUTTON_SIZE, backgroundColor: 'var(--app-surface)' }}
+              title="Reset the website to defaults"
+              aria-label="Reset the website to defaults"
+            >
+              <Trash2 style={HEADER_ICON_SIZE} />
+            </button>
+    </>
+  );
   const websiteLinkButton = (
     // Centred in a band whose two ends are the floating header corners, so
     // the gap closes from both sides as the window narrows and the corners
@@ -1791,69 +1843,20 @@ export default function Timer() {
         </div>
         )}
 
-        {/* Measured rather than estimated; see headerCornerRef. */}
+        {/* Measured rather than estimated; see headerCornerRef.
+
+            Only while the word counter is not fullscreen. In fullscreen
+            these three move into the counter's own row, where they sit in
+            the same band as the icons facing them and the row stops
+            reserving a corner it then has to leave empty. */}
+        {!isWordCounterFullscreen && (
         <div
           ref={headerCornerRef}
-          // fs-corner-icons in fullscreen, so these three give way at the
-          // same rate as the arrow, ringer and speaker on the left, which
-          // the row caps against its own width. Out here there is no
-          // container to measure, so the caps are in vw; fullscreen is
-          // inset-0, which makes that the same measurement.
-          className={`absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2 ${isWordCounterFullscreen ? 'fs-corner-icons' : ''}`}
+          className="absolute top-2 right-2 sm:top-3 sm:right-3 md:top-4 md:right-4 z-[70] flex items-center gap-2"
         >
-
-          {/* Sun while dark, showing what clicking gets you. */}
-          <HeaderToggleButton
-            onClick={() => setIsLightTheme((prev) => !prev)}
-            icon={isLightTheme ? <Moon style={HEADER_ICON_SIZE} /> : <Sun style={HEADER_ICON_SIZE} />}
-            label={isLightTheme ? 'Switch to the dark theme' : 'Switch to the light theme'}
-          />
-
-          <button
-            // Turning confirmations off is the one switch that changes
-            // what every other click does, so it asks. Through askThenRun
-            // like the rest, so its own "don't ask this again" is
-            // honoured. Not circular: askThenRun's skipConfirmations check
-            // can't fire here, since this branch only runs while they're
-            // still on. Turning them back on never asks.
-            onClick={() => {
-              if (skipConfirmations) {
-                setSkipConfirmations(false);
-              } else {
-                askThenRun({ type: 'skipConfirmations' }, () => setSkipConfirmations(true));
-              }
-            }}
-            aria-pressed={!skipConfirmations}
-            // Wordless, like the rest of this corner: a label here made it
-            // the widest control by a distance, and this corner is what
-            // the website link and the fullscreen row keep clear of. The
-            // tooltip says what it means, the box says whether it's on.
-            className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80 flex-shrink-0"
-            style={{
-              ...HEADER_BUTTON_SIZE,
-              borderColor: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
-              color: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
-              backgroundColor: 'var(--app-surface)',
-            }}
-            title={skipConfirmations
-              ? 'Confirmation dialogs are off — actions apply immediately (the RESET button still always asks). Click to turn confirmations back on'
-              : 'Confirmation dialogs are on — actions ask before applying (the RESET button always asks either way). Click to skip them'}
-            aria-label={skipConfirmations ? 'Turn confirmation dialogs back on' : 'Turn confirmation dialogs off'}
-          >
-            <DotCheckbox checked={!skipConfirmations} fontSize={HEADER_ICON_SIZE.width} />
-          </button>
-
-          {/* Resets the whole site. Asks even with confirmations off. */}
-          <button
-            onClick={() => setDialog({ type: 'clearCache' })}
-            className="flex items-center justify-center border-3 border-red-500 text-red-500 transition-all duration-200 hover:opacity-80 flex-shrink-0"
-            style={{ ...HEADER_BUTTON_SIZE, backgroundColor: 'var(--app-surface)' }}
-            title="Reset the website to defaults"
-            aria-label="Reset the website to defaults"
-          >
-            <Trash2 style={HEADER_ICON_SIZE} />
-          </button>
+          {headerCornerButtons}
         </div>
+        )}
 
         {/* alignItems: 'safe center' falls back to start-alignment rather
             than clipping an overflowing item somewhere scrolling can't
@@ -2056,7 +2059,7 @@ export default function Timer() {
           clockCluster={isWordCounterFullscreen && isRowLayout
             ? renderClockCluster(isClockDateCrowded ? FULLSCREEN_CLOCK_FONT_SIZE_SOLO : FULLSCREEN_CLOCK_FONT_SIZE, true)
             : null}
-          headerCornerWidth={headerCornerWidth}
+          cornerButtons={isWordCounterFullscreen ? headerCornerButtons : null}
           timerDigits={isWordCounterFullscreen ? wordCounterTimerDigits : null}
           timerBar={isWordCounterFullscreen && isRowLayout ? renderDrainBar(boxCap('clamp(3rem, 8vw, 8rem)', 9), true) : null}
           timerControls={

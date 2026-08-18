@@ -3,7 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import { usePersisted } from '@/hooks/usePersisted';
 import { readBoolean, readRaw, writeRaw } from '@/lib/storage';
 import ConfirmDialog from './ConfirmDialog';
-import { HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, STORAGE_KEYS, TYPES_INTO } from './constants';
+import { HEADER_ICON_SIZE, STORAGE_KEYS, TYPES_INTO } from './constants';
 import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { boxCap, shrinkClamp } from './responsive';
@@ -27,9 +27,10 @@ interface WordCounterProps {
   speakerButton: ReactNode;
   ringerButton: ReactNode;
   clockCluster: ReactNode;
-  // Measured width of the floating top-right corner, which paints above
-  // this view. The fullscreen row reserves exactly this much on its right.
-  headerCornerWidth: number;
+  // The floating corner's controls, handed over in fullscreen so they
+  // sit in this row rather than over it. Null the rest of the time,
+  // when they render in their own corner.
+  cornerButtons: ReactNode;
   timerDigits: ReactNode;
   timerBar: ReactNode;
   timerControls: ReactNode;
@@ -90,7 +91,7 @@ const countFontSize = (value: number) =>
   `min(${COUNTER_FONT_SIZE}, calc((${COUNTER_COLUMN_WIDTH} - 30px) / ${(countLabel(value).length * 1.8).toFixed(2)}))`;
 
 
-function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, headerCornerWidth, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, cornerButtons, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing has no undo, so it asks first. Same ConfirmDialog the timer
   // uses, but with local state, since `text` lives entirely here.
@@ -285,8 +286,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
           box, so the corner's reservation is already subtracted. */}
       <div
         className={`flex items-center w-full ${isFullscreen ? 'fs-header-row' : 'gap-3 flex-wrap sm:flex-nowrap'}`}
+        // No right-hand reserve any more: the corner's controls are the
+        // last thing in this row rather than floating above its end, so
+        // the row can use its whole width and the two flex-1 ends put the
+        // countdown in the middle of it. Reserved as padding, that width
+        // came off one side only and shifted everything 80px left.
         style={isFullscreen ? {
-          paddingRight: headerCornerWidth ? headerCornerWidth + 24 : HEADER_CORNER_RESERVE,
           containerType: 'inline-size',
           gap: boxCap('0.75rem', 2.2),
         } : undefined}
@@ -329,8 +334,24 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
                 rem floor, past which the window keeps narrowing while the
                 clock doesn't, and it ends up under the corner. cqi has
                 nothing to bottom out against. */}
-            <div className="flex-1 min-w-0 flex items-center" style={{ containerType: 'inline-size' }}>
-              {clockCluster}
+            <div className="flex-1 min-w-0 flex items-center justify-end" style={{ gap: boxCap('0.75rem', 2.2) }}>
+              {/* flex-1, not shrink-to-fit: the clock's own tuck measures
+                  the room left in this box, and a box wrapped tight around
+                  the cluster has none by definition, which tucked the date
+                  and then the time at every width. Its own inline-size
+                  container too, so the clock sizes against the room it has
+                  rather than the viewport. */}
+              <div className="flex-1 min-w-0 flex items-center justify-end overflow-hidden" style={{ containerType: 'inline-size' }}>
+                {clockCluster}
+              </div>
+              {/* Outside that container on purpose: fs-row-icons caps these
+                  in cqi, and nested in the clock's box that measured a
+                  couple of hundred pixels and shrank them to 11px. Out
+                  here the nearest container is the row, which is what the
+                  icons opposite them are capped against. */}
+              <div className="flex items-center flex-shrink-0 fs-row-icons" style={{ gap: boxCap('0.75rem', 2.2) }}>
+                {cornerButtons}
+              </div>
             </div>
           </>
         ) : (
