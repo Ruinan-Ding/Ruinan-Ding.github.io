@@ -33,6 +33,7 @@ interface WordCounterProps {
   cornerButtons: ReactNode;
   // So Timer can measure how close the countdown block is to them.
   cornerRef: React.RefObject<HTMLDivElement | null>;
+  midRef: React.RefObject<HTMLDivElement | null>;
   timerDigits: ReactNode;
   timerBar: ReactNode;
   timerControls: ReactNode;
@@ -93,7 +94,7 @@ const countFontSize = (value: number) =>
   `min(${COUNTER_FONT_SIZE}, calc((${COUNTER_COLUMN_WIDTH} - 30px) / ${(countLabel(value).length * 1.8).toFixed(2)}))`;
 
 
-function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, cornerButtons, cornerRef, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, cornerButtons, cornerRef, midRef, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing has no undo, so it asks first. Same ConfirmDialog the timer
   // uses, but with local state, since `text` lives entirely here.
@@ -322,35 +323,24 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               {ringerButton}
               {speakerButton}
             </div>
-            {/* Countdown, bar and buttons as one block that never splits.
-                A smaller gap than the row's: this is the densest run in the
-                app, and a few px a gap is a dozen across it. */}
-            <div className="flex items-center flex-shrink-0" style={{ gap: boxCap('0.5rem', 1.7) }}>
+            {/* Clock, countdown, bar and buttons as one block that never
+                splits, centred by the flex-1 ends either side of it. The
+                clock leads it because it belongs next to the time it is
+                not: the running figure reads against the wall clock, and
+                across the row from it that comparison was two saccades.
+                A smaller gap than the row's: this is the densest run in
+                the app, and a few px a gap is a dozen across it. */}
+            <div ref={midRef} className="flex items-center flex-shrink-0" style={{ gap: boxCap('0.5rem', 1.7) }}>
+              {clockCluster}
               {timerDigits}
               {timerBar}
               {timerControls}
             </div>
-            {/* This box is the leftover room, and an inline-size container,
-                so the clock inside can size itself in cqi rather than vw.
-                That matters: every vw clamp in the app bottoms out on a
-                rem floor, past which the window keeps narrowing while the
-                clock doesn't, and it ends up under the corner. cqi has
-                nothing to bottom out against. */}
-            <div className="flex-1 min-w-0 flex items-center justify-end" style={{ gap: boxCap('0.75rem', 2.2) }}>
-              {/* flex-1, not shrink-to-fit: the clock's own tuck measures
-                  the room left in this box, and a box wrapped tight around
-                  the cluster has none by definition, which tucked the date
-                  and then the time at every width. Its own inline-size
-                  container too, so the clock sizes against the room it has
-                  rather than the viewport. */}
-              <div className="flex-1 min-w-0 flex items-center justify-end overflow-hidden" style={{ containerType: 'inline-size' }}>
-                {clockCluster}
-              </div>
-              {/* Outside that container on purpose: fs-row-icons caps these
-                  in cqi, and nested in the clock's box that measured a
-                  couple of hundred pixels and shrank them to 11px. Out
-                  here the nearest container is the row, which is what the
-                  icons opposite them are capped against. */}
+            {/* Leftover room opposite the icons, which is what centres the
+                block between them, with the corner pushed to its end.
+                fs-row-icons is the hook for the caps in index.css, same as
+                the three on the left. */}
+            <div className="flex-1 min-w-0 flex items-center justify-end">
               <div ref={cornerRef} className="flex items-center flex-shrink-0 fs-row-icons" style={{ gap: boxCap('0.75rem', 2.2) }}>
                 {cornerButtons}
               </div>

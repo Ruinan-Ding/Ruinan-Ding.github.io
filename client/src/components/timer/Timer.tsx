@@ -15,7 +15,7 @@ import PresetsPanel from './PresetsPanel';
 import SpeakerIcon from './SpeakerIcon';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, FULLSCREEN_CLOCK_FONT_SIZE_SOLO, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
+import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
 import { readSavedHistory, readSavedPresets } from './entries';
 import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
 import { boxCap, boxClamp, fitClamp, shrinkClamp } from './responsive';
@@ -24,7 +24,7 @@ import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, T
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 import { useAlarm } from './useAlarm';
 import { useTimeFieldsTuck } from './useTimeFieldsTuck';
-import { gapBetween, gapFromLeftEdge, roomInParent, useTightFit } from './useTightFit';
+import { gapBetween, gapFromLeftEdge, useTightFit } from './useTightFit';
 import { useZoneOffsets } from './useZoneOffsets';
 
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
@@ -168,13 +168,12 @@ export default function Timer() {
   const headerLeftRef = useRef<HTMLDivElement>(null);
   const linkBandRef = useRef<HTMLDivElement>(null);
   const hintsRef = useRef<HTMLDivElement>(null);
-  const clockRootRef = useRef<HTMLDivElement>(null);
   const mainClockRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLParagraphElement>(null);
   const headerCornerRef = useRef<HTMLDivElement>(null);
-  // The fullscreen row's own two ends of the same question: the controls
-  // that finish the countdown block, and the corner they close on.
-  const fsControlsRef = useRef<HTMLDivElement>(null);
+  // The fullscreen row's own two ends of the same question: the block that
+  // holds the clock and the countdown, and the corner it closes on.
+  const fsMidRef = useRef<HTMLDivElement>(null);
   const fsCornerRef = useRef<HTMLDivElement>(null);
   // Tailwind's sm. At and above it the timer row is horizontal and the
   // digits column gets sm:self-stretch, which is what gives their cqh
@@ -226,25 +225,28 @@ export default function Timer() {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
-  // The fullscreen row's clock, which runs out of room rather than
-  // touching anything: the row reserves the corner's width as padding, so
-  // the clock's box stops before it and the collision shows up as the
-  // cluster overflowing that box.
+  // The fullscreen row's middle block: clock, countdown, bar and buttons,
+  // centred between the icons on the left and the corner on the right. It
+  // never wraps, so what gives as the window narrows is its own contents,
+  // one piece at a time, and every rung reads the same closing gap to the
+  // corner rather than a width someone named.
   //
-  // Two rungs. The date is the rightmost piece and goes first; the time
-  // and its zone box follow only once the date has gone and the cluster
-  // still doesn't fit, which is what the null below says.
-  const clockRoom = roomInParent(clockRootRef);
-  // The countdown's "/ total" is the half that goes when the block
-  // reaches the corner: what is left is the time actually running.
-  const isFsTotalTight = useTightFit(gapBetween(fsControlsRef, fsCornerRef), windowRef, 28, isWordCounterFullscreen);
-  const isClockDateCrowded = useTightFit(clockRoom, windowRef, 8, isWordCounterFullscreen);
-  const isClockTimeCrowded = useTightFit(
-    () => (isClockDateCrowded ? clockRoom() : null),
-    windowRef,
-    8,
-    isWordCounterFullscreen
-  );
+  // The order is what the row can spare, cheapest first. The bar duplicates
+  // the countdown beside it and goes before the "/ total", which at least
+  // says something the digits don't; then the date, then the time. Each
+  // drop reopens the gap it was dropped for, which is why useTightFit
+  // records the need rather than the room.
+  //
+  // Each rung watches the one above it, and not only because the answer
+  // changes: nothing resizes when a rung fires, the block just gets
+  // narrower inside a row that is the same width it was, so without this
+  // the next rung sits on a stale check until someone drags the window
+  // again. That was the whole ladder below 820px doing nothing at all.
+  const fsRoom = gapBetween(fsMidRef, fsCornerRef);
+  const isFsBarTight = useTightFit(fsRoom, windowRef, 24, isWordCounterFullscreen);
+  const isFsTotalTight = useTightFit(() => (isFsBarTight ? fsRoom() : null), windowRef, 24, `${isWordCounterFullscreen}${isFsBarTight}`);
+  const isClockDateCrowded = useTightFit(() => (isFsTotalTight ? fsRoom() : null), windowRef, 24, `${isWordCounterFullscreen}${isFsTotalTight}`);
+  const isClockTimeCrowded = useTightFit(() => (isClockDateCrowded ? fsRoom() : null), windowRef, 24, `${isWordCounterFullscreen}${isClockDateCrowded}`);
   // States an adjustment has already been asked about, so the three fields
   // share one prompt per state. In memory on purpose: it means "you
   // answered a moment ago", which shouldn't outlive the session. The
@@ -1533,7 +1535,7 @@ export default function Timer() {
       isHourFormatFlashing={isHourFormatFlashing}
       onHourFormatClick={handleHourFormatClick}
       onTimeZoneChange={setTimeZone}
-      rootRef={rootRef ?? (measured ? clockRootRef : undefined)}
+      rootRef={rootRef}
       hideDate={measured && isClockDateCrowded}
       hideTime={measured && isClockTimeCrowded}
     />
@@ -1650,14 +1652,16 @@ export default function Timer() {
         // Capped against the row, which is a container: "1:02:05·00 /
         // 1:02:05" is ~12em of monospace, and the row can't wrap, so the
         // one thing that can give is the size.
-        // A bigger readout once the total has gone, and the whole clamp
-        // moves rather than the cap: at these widths the clamp's own floor
-        // is what binds, so raising the cap alone changed nothing. The
-        // remaining time alone is about two thirds of what it and the
-        // total need together, which is the room this spends.
+        // Bigger at each rung the row drops, and the whole clamp moves
+        // rather than the cap: at these widths the clamp's own floor is
+        // what binds, so raising the cap alone changed nothing. The bar
+        // going frees its width, and the total going frees about a third
+        // of this readout, which is what each step spends.
         fontSize: isFsTotalTight
           ? boxCap(shrinkClamp(0.95, 2.1, 2.2, 1.4), 3)
-          : boxCap(shrinkClamp(0.7, 1.5, 1.6, 1), 2),
+          : isFsBarTight
+            ? boxCap(shrinkClamp(0.8, 1.75, 1.85, 1.2), 2.5)
+            : boxCap(shrinkClamp(0.7, 1.5, 1.6, 1), 2),
         color: seconds < 0 ? '#ef4444' : 'var(--app-ink)',
       }}
     >
@@ -1986,15 +1990,6 @@ export default function Timer() {
               {/* Every child sets its own font-size, since this block's own
                   is the digit size. */}
               <div className="flex justify-center">{renderClockCluster(CLOCK_FONT_SIZE, false, mainClockRef)}</div>
-              {/* leading-none on both, here and on the digits below: the
-                  gap between the configured time and the running one was
-                  half-leading on two line boxes, ~0.5em of each font, and
-                  at the digit size that reads as a hole rather than a
-                  space. Neither line has a descender to lose, the labels
-                  are digits, colons and h/m/s. */}
-              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(0.95, 2.8, 3, 2.5), letterSpacing: '0.05em' }}>
-                {configuredLabel}
-              </div>
               <div
                 className={`flex items-baseline justify-center gap-1 leading-none ${digitWaveClass}`}
                 style={digitColorStyle}
@@ -2016,6 +2011,17 @@ export default function Timer() {
                   <span className={flashTextClass(isSecondsFlashing, secondsFlash.direction, secondsFlash.token)}>{remaining.seconds}</span>
                 </span>
                 <span style={{ fontSize: '0.5em' }}>·{remaining.ms}</span>
+              </div>
+              {/* The total, under the running time rather than over it: it
+                  is what the running figure is counting down from, and read
+                  after it that is what it says. leading-none on both, here
+                  and on the digits above: the gap between them was
+                  half-leading on two line boxes, ~0.5em of each font, and
+                  at the digit size that reads as a hole rather than a
+                  space. Neither line has a descender to lose, the labels
+                  are digits, colons and h/m/s. */}
+              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(0.95, 2.8, 3, 2.5), letterSpacing: '0.05em' }}>
+                {configuredLabel}
               </div>
               {renderDrainBar('100%')}
             </div>
@@ -2070,16 +2076,20 @@ export default function Timer() {
           greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={isWordCounterFullscreen ? speakerButton : null}
           ringerButton={isWordCounterFullscreen ? ringerButton : null}
-          clockCluster={isWordCounterFullscreen && isRowLayout
-            ? renderClockCluster(isClockDateCrowded ? FULLSCREEN_CLOCK_FONT_SIZE_SOLO : FULLSCREEN_CLOCK_FONT_SIZE, true)
+          // Nothing left to render once both its halves have gone: the
+          // cluster would still be a box, and a box in a flex row is its
+          // gap either side of nothing.
+          clockCluster={isWordCounterFullscreen && isRowLayout && !isClockTimeCrowded
+            ? renderClockCluster(FULLSCREEN_CLOCK_FONT_SIZE, true)
             : null}
           cornerButtons={isWordCounterFullscreen ? headerCornerButtons : null}
           cornerRef={fsCornerRef}
+          midRef={fsMidRef}
           timerDigits={isWordCounterFullscreen ? wordCounterTimerDigits : null}
-          timerBar={isWordCounterFullscreen && isRowLayout ? renderDrainBar(boxCap('clamp(3rem, 8vw, 8rem)', 9), true) : null}
+          timerBar={isWordCounterFullscreen && isRowLayout && !isFsBarTight ? renderDrainBar(boxCap('clamp(3rem, 8vw, 8rem)', 9), true) : null}
           timerControls={
             isWordCounterFullscreen ? (
-              <div ref={fsControlsRef} className="flex items-center flex-shrink-0" style={{ gap: boxCap('0.375rem', 1.2) }}>
+              <div className="flex items-center flex-shrink-0" style={{ gap: boxCap('0.375rem', 1.2) }}>
                 {renderControlButtons(compactControlButtonStyle, 'border-2')}
               </div>
             ) : null

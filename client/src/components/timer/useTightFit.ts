@@ -83,17 +83,6 @@ export const gapBetween = (
   return b.getBoundingClientRect().left - a.getBoundingClientRect().right;
 };
 
-// How much room is left over inside the box something sits in. This is
-// what "reaches the corner" comes to where a row already reserves the
-// corner's width as padding: the piece can never actually touch it, it
-// just runs out of the room it was left, and does it at the same moment.
-export const roomInParent = (inner: React.RefObject<HTMLElement | null>) => () => {
-  const el = inner.current;
-  const box = el?.parentElement;
-  if (!el || !box) return null;
-  return box.clientWidth - el.scrollWidth;
-};
-
 // The gap between a box's left edge and the inside of the box it sits in,
 // which is what "reaches the sidebar, or the window edge once the sidebar
 // is tucked" comes to: the row already starts where the sidebar ends.
