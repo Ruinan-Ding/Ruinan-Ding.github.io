@@ -20,7 +20,6 @@ interface WordCounterProps {
   onFullscreenChange: (fullscreen: boolean) => void;
   // Holds the glowFade A/B class while the window is green, '' otherwise.
   // The header sits directly on the window, so it has to fade with it.
-  greenFadeTextClass: string;
   // Fullscreen covers everything the timer normally shows, so Timer
   // pre-renders its controls at this row's size and hands them over.
   // All six are null while windowed, which is what lets memo() bail out.
@@ -94,7 +93,7 @@ const countFontSize = (value: number) =>
   `min(${COUNTER_FONT_SIZE}, calc((${COUNTER_COLUMN_WIDTH} - 30px) / ${(countLabel(value).length * 1.8).toFixed(2)}))`;
 
 
-function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, speakerButton, ringerButton, clockCluster, cornerButtons, cornerRef, midRef, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, onFullscreenChange, speakerButton, ringerButton, clockCluster, cornerButtons, cornerRef, midRef, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
   // Clearing has no undo, so it asks first. Same ConfirmDialog the timer
   // uses, but with local state, since `text` lives entirely here.
@@ -359,8 +358,12 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
               />
             )}
             <label
-              className={`font-bold text-left whitespace-nowrap flex-shrink-0 ${greenFadeTextClass ? `text-white ${greenFadeTextClass}` : isActive ? 'text-green-500' : 'text-red-500'}`}
-              style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5), ...(greenFadeTextClass ? { '--glow-from': 'var(--app-surface)' } : {}) } as React.CSSProperties}
+              // Its own two colours, and not the window's green: a running
+              // timer used to fade this heading green along with everything
+              // else on the window, which said "running" in a place that
+              // has nothing to do with the timer.
+              className={`font-bold text-left whitespace-nowrap flex-shrink-0 ${isActive ? 'text-green-500' : 'text-red-500'}`}
+              style={{ fontSize: shrinkClamp(0.875, 2.5, 2.7, 1.5) }}
             >
               WORD COUNTER
             </label>
@@ -655,8 +658,11 @@ function WordCounter({ onFocusChange, onFullscreenChange, greenFadeTextClass, sp
             // would otherwise grow the legend to compete with the numbers
             // it labels.
             style={{
-              fontSize: `min(${shrinkClamp(0.5, 1.3, 1.5, 0.95)}, calc((100cqi - 160px) / 55))`,
-              gap: '0.9em',
+              fontSize: `min(${shrinkClamp(0.5, 1.3, 1.5, 0.95)}, calc((100cqi - 160px) / 59))`,
+              // 2em, not 0.9: the three keys are sentences with spaces of
+              // their own, and a gap barely wider than a word space read
+              // as one long line rather than three labels.
+              gap: '2em',
             }}
           >
             <span><strong>L:</strong> Line number</span>

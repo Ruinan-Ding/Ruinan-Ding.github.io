@@ -12,7 +12,12 @@ export default function SpeakerIcon({ volume, muted, color }: { volume: number; 
   const silentSlider = !muted && volume === 0;
   return (
     <svg
-      viewBox="0 0 24 24"
+      // Shifted, not 0 0 24 24: the cone starts at x=1 of the viewBox
+      // while the waves stop short of x=19, so the drawing sits left of
+      // centre and at this size its left edge ran into the button's own
+      // border. The box moves rather than the paths, which keeps the
+      // muted slash running corner to corner through it.
+      viewBox="-2.5 0 24 24"
       fill="none"
       stroke={color}
       strokeWidth={2}

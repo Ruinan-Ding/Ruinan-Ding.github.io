@@ -17,9 +17,11 @@ const expr = `(() => {
   const full = document.querySelector('[aria-label="Full screen"], [aria-label="Exit full screen"]');
   const W = box(words), C = box(chars), F = box(full), H = box(hint);
 
-  // timer hints: one joined line, or gone on a short window
-  const hintRoot = document.querySelector('.timer-hints');
-  const timerLines = hintRoot ? [...hintRoot.children].map((c) => ({ h: Math.round(c.getBoundingClientRect().height), wrapped: wrapped(c), text: c.textContent.slice(0, 24) })) : null;
+  // The key hint is printed on its button now, so what has to hold is
+  // that it fits there: it is allowed to be gone, on a short window or
+  // because it stopped fitting, but never to be there and clipped.
+  const ctrlHint = document.querySelector('.control-hint');
+  const ctrlBtn = ctrlHint ? ctrlHint.closest('button') : null;
 
   // legend: L / W / C, three spans that have to share one line
   const legend = document.querySelector('.counter-legend');
@@ -32,15 +34,15 @@ const expr = `(() => {
   const de = document.scrollingElement;
   return {
     switchesSideBySide: W && C ? Math.abs(W.t - C.t) <= 2 && C.l > W.r : null,
-    switchFs: getComputedStyle(words).fontSize, stacked: W && C ? C.t > W.b - 2 : null, lwcH: (() => { const b=[...document.querySelectorAll('div')].find(d=>d.textContent.trim()==='L'&&d.className.includes('border-2')); return b ? Math.round(b.getBoundingClientRect().height) : null; })(), timerHintFs: (() => { const r=document.querySelector('.timer-hints'); return r ? getComputedStyle(r).fontSize : null; })(),
+    switchFs: getComputedStyle(words).fontSize, stacked: W && C ? C.t > W.b - 2 : null, lwcH: (() => { const b=[...document.querySelectorAll('div')].find(d=>d.textContent.trim()==='L'&&d.className.includes('border-2')); return b ? Math.round(b.getBoundingClientRect().height) : null; })(), timerHintFs: ctrlHint ? getComputedStyle(ctrlHint).fontSize : null,
     buttonsOnSwitchLine: F && W ? Math.abs(F.t - W.t) <= 6 : null,
     buttonsRightOfSwitches: F && W ? F.l > W.r : null,
     hintPresent: !!hint && getComputedStyle(hint).display !== 'none',
     hintWrapped: hint && getComputedStyle(hint).display !== 'none' ? wrapped(hint) : false,
     hintFits: H && hint && getComputedStyle(hint).display !== 'none' ? H.r <= (W ? box(words.closest('.flex.flex-col')).r + 1 : 1e9) : null,
-    timerHintCount: timerLines ? timerLines.length : null,
+    hintFitsButton: ctrlHint && ctrlBtn ? ctrlHint.scrollWidth <= ctrlBtn.clientWidth : null,
     legendOneRow,
-    timerHintWrapped: timerLines ? timerLines.some((l) => l.wrapped) : null,
+
     legendCount: legendLines ? legendLines.length : null,
     legendWrapped: legendLines ? legendLines.some((l) => l.wrapped) : null,
     legendFs: legend ? getComputedStyle(legend).fontSize : null,
@@ -71,12 +73,12 @@ for (const r of rows) {
   // The hints and the legend are each one line when they're there at all,
   // and both are allowed to be gone: a short window drops the hints and a
   // narrow counter drops the legend, which is the point of both.
-  const hintsOk = r.timerHintCount === null || (r.timerHintCount === 1 && !r.timerHintWrapped);
+  const hintsOk = r.hintFitsButton === null || r.hintFitsButton;
   const legendOk = r.legendCount === null || (r.legendCount === 3 && r.legendOneRow && !r.legendWrapped && r.legendFitsRow);
   const ok = (r.switchesSideBySide || r.stacked) && r.buttonsOnSwitchLine && r.buttonsRightOfSwitches
     && !r.hintWrapped && hintsOk && legendOk && !r.pageScrolls;
   if (!ok) bad++;
-  console.log(`${String(r.w).padStart(5)}  form=${r.switchesSideBySide?"side":"STACK"} switchFs=${String(r.switchFs).padEnd(8)} btnsSameLine=${String(r.buttonsOnSwitchLine).padEnd(5)} hint=${r.hintPresent ? 'shown' : 'hidden'} hintWrap=${String(r.hintWrapped).padEnd(5)} timerLines=${r.timerHintCount} timerWrap=${String(r.timerHintWrapped).padEnd(5)} legend=${r.legendCount}@${String(r.legendFs).padEnd(7)} legendWrap=${String(r.legendWrapped).padEnd(5)} lwcH=${String(r.lwcH).padEnd(3)} hintFs=${String(r.timerHintFs).padEnd(7)} scroll=${r.pageScrolls}  ${ok ? '' : '<== FAIL'}`);
+  console.log(`${String(r.w).padStart(5)}  form=${r.switchesSideBySide?"side":"STACK"} switchFs=${String(r.switchFs).padEnd(8)} btnsSameLine=${String(r.buttonsOnSwitchLine).padEnd(5)} hint=${r.hintPresent ? 'shown' : 'hidden'} hintWrap=${String(r.hintWrapped).padEnd(5)} hintFits=${String(r.hintFitsButton).padEnd(5)} legend=${r.legendCount}@${String(r.legendFs).padEnd(7)} legendWrap=${String(r.legendWrapped).padEnd(5)} lwcH=${String(r.lwcH).padEnd(3)} hintFs=${String(r.timerHintFs).padEnd(7)} scroll=${r.pageScrolls}  ${ok ? '' : '<== FAIL'}`);
 }
 console.log(bad ? `\n${bad} failing widths` : '\nall widths pass');
 process.stderr.write(res.stderr || '');

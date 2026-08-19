@@ -24,7 +24,7 @@ import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, T
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 import { useAlarm } from './useAlarm';
 import { useTimeFieldsTuck } from './useTimeFieldsTuck';
-import { gapBetween, gapFromLeftEdge, useTightFit } from './useTightFit';
+import { gapBetween, useTightFit } from './useTightFit';
 import { useZoneOffsets } from './useZoneOffsets';
 
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
@@ -167,9 +167,12 @@ export default function Timer() {
   // all measured rather than named as widths. See useTightFit.
   const headerLeftRef = useRef<HTMLDivElement>(null);
   const linkBandRef = useRef<HTMLDivElement>(null);
-  const hintsRef = useRef<HTMLDivElement>(null);
   const mainClockRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLSpanElement>(null);
+  // The first control button and the hint printed on it, so the hint can
+  // go when it no longer fits on the button rather than at a named width.
+  const firstControlRef = useRef<HTMLButtonElement>(null);
+  const controlHintRef = useRef<HTMLSpanElement>(null);
   const headerCornerRef = useRef<HTMLDivElement>(null);
   // The fullscreen row's own two ends of the same question: the block that
   // holds the clock and the countdown, and the corner it closes on.
@@ -205,15 +208,25 @@ export default function Timer() {
     setHidden: setTimeFieldsHidden,
   } = useTimeFieldsTuck(isRowLayout, isWideLayout);
   const isLinkCrowded = useTightFit(gapBetween(headerLeftRef, linkBandRef), timerRowRef, 8);
-  // The hints are centred in a column that starts where the sidebar ends,
-  // so the row's own left edge is the sidebar when it's showing and the
-  // window's edge when it's tucked. Either way, that's what the "P" of
-  // "Press ENTER" runs into.
-  const areHintsCrowded = useTightFit(gapFromLeftEdge(hintsRef, timerRowRef), timerRowRef, 8);
   // The alarm tip against the clock. It sits under the top-left buttons
   // while the clock is centred above the digits, so the two close on each
   // other as the window narrows.
   const isTipCrowded = useTightFit(gapBetween(tipRef, mainClockRef), timerRowRef, 8);
+  // The hints shrink with the buttons they sit on and go when the longest
+  // of them, "Press ENTER to", no longer fits inside one. scrollWidth
+  // rather than a rect: the line is clipped by the button, so its box
+  // reports the button's width however long the text is.
+  const isControlHintClipped = useTightFit(
+    () => {
+      const button = firstControlRef.current;
+      const hint = controlHintRef.current;
+      if (!button || !hint) return null;
+      return button.clientWidth - hint.scrollWidth;
+    },
+    timerRowRef,
+    2,
+    `${isRunning}${isPaused}${seconds < 0}`
+  );
 
   // Bumped when a fresh countdown starts, so the green fade replays even
   // if the window never left the running state.
@@ -1180,7 +1193,10 @@ export default function Timer() {
   // counter's fullscreen row, which sits near the top of the screen and so
   // puts its tooltip below the track. Height is a slice of the digit size,
   // so the bar tracks the digits rather than the window.
-  const renderDrainBar = (width: string, tooltipBelow: boolean = false) => (
+  // fillOverride is the fullscreen row's flat state colour. There the bar
+  // is one of three things saying the same state, so it says it the same
+  // way rather than in the hue-walks-with-the-clock way it does on its own.
+  const renderDrainBar = (width: string, tooltipBelow: boolean = false, fillOverride?: string) => (
     <div
       className={`relative flex justify-end border-2 flex-shrink-0 ${tooltipBelow ? '' : 'mx-auto'} ${configuredTotalSeconds > 0 ? 'cursor-pointer' : ''}`}
       style={{
@@ -1223,15 +1239,16 @@ export default function Timer() {
           can't say how full it is, saying that instead. */}
       <div
         className={
-          isOverBar ? 'animate-waveGreenBar'
-            : isAlarmRinging || (isPausedOvertime && isAlarmLooping) ? 'animate-alarmFlashBar'
-              : isPaused && !isPausedOvertime ? 'animate-pauseFlashBar'
-                : ''
+          fillOverride ? ''
+            : isOverBar ? 'animate-waveGreenBar'
+              : isAlarmRinging || (isPausedOvertime && isAlarmLooping) ? 'animate-alarmFlashBar'
+                : isPaused && !isPausedOvertime ? 'animate-pauseFlashBar'
+                  : ''
         }
         style={{
           width: `${(isBarRedState || isOverBar ? 1 : timeFraction) * 100}%`,
           height: '100%',
-          backgroundColor: barFillColor,
+          backgroundColor: fillOverride ?? barFillColor,
         }}
       />
       {barHover !== null && (
@@ -1260,41 +1277,23 @@ export default function Timer() {
   const fadeSuffix = runCycle % 2 === 0 ? 'A' : 'B';
   const runFadeClass = `animate-runFade${fadeSuffix}`;
   const glowFadeClass = `animate-glowFade${fadeSuffix}`;
-  const textGlowStyle = { '--glow-from': 'var(--app-surface)' } as React.CSSProperties;
 
   // A reloaded overtime timer isn't ringing; the keys act on the timer.
   const hintSubject = isRunning && seconds < 0 ? 'alarm' : 'timer';
-  const hints = [
-    { text: `Press ENTER to ${isRunning ? (isPaused ? 'RESUME' : 'PAUSE') : 'START'} the ${hintSubject}`, disabled: false },
-    { text: `Press R to RESET the ${hintSubject}`, disabled: isIdleAtConfigured },
-    { text: `Press S to STOP the ${hintSubject}`, disabled: isIdleAtConfigured },
-  ];
-  // One row, joined on a separator, and never wrapped: three stacked lines
-  // cost three line boxes of height that the digits above would rather
-  // have. It shrinks with the window and is dropped outright on a short
-  // one, which is cheaper than letting it wrap a key away from the thing
-  // it does.
-  const hintLine = hints
-    .map(({ text, disabled }) =>
-      isWordCounterFocused ? `${text} — disabled while typing` : disabled ? `${text} — disabled` : text
-    )
-    .join('   ·   ');
-  // Two ways this goes. index.css drops it on a short window, where
-  // instructions are the first thing worth losing; areHintsCrowded drops
-  // it once the line reaches the sidebar beside it.
-  const hintsDisplay = (
-    <div
-      ref={hintsRef}
-      className={`timer-hints opacity-75 tracking-wider text-center mt-1 ${isWindowGreen && !isWordCounterFocused ? glowFadeClass : ''}`}
-      style={{
-        fontSize: shrinkClamp(0.45, 0.85, 0.95, 0.6),
-        color: isWordCounterFocused ? '#ef4444' : 'var(--app-ink)',
-        ...textGlowStyle,
-      }}
-    >
-      <div className="whitespace-nowrap leading-tight overflow-hidden">{hintLine}</div>
-    </div>
-  );
+  // The key that works a button, printed on the button. It was a row of
+  // its own under the status word, three instructions joined on separators
+  // and read left to right to find which one went with which button; on
+  // the button there is nothing to match up. Two lines, so the button
+  // stays a button rather than becoming a sentence, and the label keeps
+  // the bottom of the box where it has always been.
+  //
+  // Gone entirely while the word counter has focus. It used to say
+  // "disabled while typing" three times, which is three lines of a screen
+  // explaining why a button you were not looking at does nothing.
+  const buttonHints: Record<string, string> = {
+    START: 'Press ENTER to', PAUSE: 'Press ENTER to', RESUME: 'Press ENTER to',
+    RESET: 'Press R to', STOP: 'Press S to',
+  };
 
   // Which digit colour applies. Pausing in overtime shows the red wave at
   // once, without waiting for the window flash to settle the way the
@@ -1338,6 +1337,39 @@ export default function Timer() {
       ? (isPaused ? 'PAUSED' : 'RUNNING')
       : (seconds === configuredTotalSeconds ? 'READY' : 'STOPPED');
 
+  // The word says what the bar says. Same colour, same animation, on the
+  // same clocks, so the two aren't two readings of one state; the text
+  // versions of the bar's keyframes are in index.css beside them.
+  //
+  // Running is the one exception, and it's asked for: the bar's running
+  // fill is a hue that walks green to red as the time goes, which on a
+  // five-letter word reads as the word changing meaning rather than the
+  // time running out. Solid green.
+  const statusFlashClass =
+    isRunning && !isPaused && seconds >= 0 ? ''
+      : isAlarmRinging || (isPausedOvertime && isAlarmLooping) ? 'animate-alarmFlashText'
+        : isPaused && !isPausedOvertime ? 'animate-pauseFlashText'
+          : '';
+  const statusColor =
+    isBarRedState ? '#ef4444'
+      : isPaused ? '#eab308'
+        : isRunning ? '#22c55e'
+          : '#6b7280';
+
+  // Fullscreen says the state in colour, across all three pieces of the
+  // countdown at once: the row has no space for a status word, so the
+  // colour is the status. White before a first start, since nothing has
+  // happened yet and green would claim it had.
+  const fsStateColor =
+    status === 'READY' ? 'var(--app-ink)'
+      : status === 'RUNNING' ? '#22c55e'
+        : status === 'PAUSED' ? '#eab308'
+          : '#ef4444';
+  // Paused after the alarm has gone splits the three: the countdown is
+  // paused and says so in yellow, while the total and the bar carry the
+  // ringing. Two facts, and one colour across all three could only say one.
+  const fsTrailColor = isPaused && (isAlarmRinging || seconds < 0) ? '#ef4444' : fsStateColor;
+
   // Sized against the digits column they sit in (fitClamp, so cqi) rather
   // than the viewport, so they give way steadily as it does. On min(vw,
   // vh) the vh term binds on any landscape window, which held these three
@@ -1350,7 +1382,11 @@ export default function Timer() {
   // with RESUME, the widest label, still in a box about 38px tall.
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${boxClamp(0.3, 1.5, 3.7, 0.85)} ${fitClamp(0.45, 2.8, 1.7)}`,
+    // Taller and wider than they were, on the room the instructions row
+    // under the status word used to take. Two lines of hint sit above the
+    // label now, and a box drawn for one line made them a stack rather
+    // than a button with a note on it.
+    padding: `${boxClamp(0.35, 1.7, 4.2, 1)} ${fitClamp(0.5, 3.1, 1.9)}`,
     fontSize: boxClamp(0.7, 2.2, 5.5, 1.4),
     borderColor: color,
     color,
@@ -1364,7 +1400,10 @@ export default function Timer() {
     // rather than picked: RESUME is 3.6em of this monospace, and the box
     // has to hold that plus both paddings and the 8px border at the size
     // each of them tops out at.
-    width: fitClamp(5.25, 18, 9.25),
+    // Solved against the widest thing on the button, which is no longer
+    // RESUME but "Press ENTER to": 14 characters of this monospace at half
+    // the label's size, about 4.2em, plus both paddings and the border.
+    width: fitClamp(6.5, 22, 11.5),
   });
   // The same buttons scaled to a single header row, for the word counter's
   // fullscreen view, which covers the real ones. Every size is capped
@@ -1669,11 +1708,11 @@ export default function Timer() {
           : isFsBarTight
             ? boxCap(shrinkClamp(0.8, 1.75, 1.85, 1.2), 2.5)
             : boxCap(shrinkClamp(0.7, 1.5, 1.6, 1), 2),
-        color: seconds < 0 ? '#ef4444' : 'var(--app-ink)',
+        color: fsStateColor,
       }}
     >
       {remaining.sign}{remaining.hours && `${remaining.hours}:`}{remaining.minutes}:{remaining.seconds}·{remaining.ms}
-      {!isFsTotalTight && <>{' '}<span className="opacity-60">/ {configuredLabel}</span></>}
+      {!isFsTotalTight && <>{' '}<span className="opacity-60" style={{ color: fsTrailColor }}>/ {configuredLabel}</span></>}
     </span>
   );
   // The HOURS/MINUTES/SECONDS panel, or the arrow that brings it back.
@@ -1737,47 +1776,83 @@ export default function Timer() {
 
   // Shared by the in-column button row and the compact fullscreen copy.
   // Same logic either way, different size and border weight.
-  const renderControlButtons = (buttonStyle: (color: string) => React.CSSProperties, borderClass: string) => (
-    <>
-      {!isRunning && (
+  const renderControlButtons = (
+    buttonStyle: (color: string) => React.CSSProperties,
+    borderClass: string,
+    // The fullscreen row's copy takes no hints: it is one line tall and
+    // the keys it would name work from anywhere on the page anyway.
+    withHints = false
+  ) => {
+    let hintIndex = 0;
+    const hint = (label: string) => {
+      if (!withHints || isWordCounterFocused || isControlHintClipped) return null;
+      // Only the first one is measured, and it is the longest: they all
+      // clip at the same width, so they all go together.
+      const first = hintIndex++ === 0;
+      return (
+        <span
+          ref={first ? controlHintRef : undefined}
+          className="control-hint block whitespace-nowrap overflow-hidden leading-tight"
+          // Half the label, with a floor: as a bare fraction it followed the
+          // button all the way down and was 5.6px on a narrow window, which
+          // is small enough that it may as well not be there. With the floor
+          // it stops shrinking, and what happens next is that it stops
+          // fitting, which is the signal above that takes it away.
+          style={{ fontSize: 'max(0.62rem, 0.5em)', opacity: 0.75, letterSpacing: 0 }}
+        >
+          {buttonHints[label]}<br />the {hintSubject}
+        </span>
+      );
+    };
+    const runLabel = isPaused ? 'RESUME' : 'PAUSE';
+    return (
+      <>
+        {!isRunning && (
+          <button
+            ref={withHints ? firstControlRef : undefined}
+            onClick={handleStart}
+            className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+            style={buttonStyle('#22c55e')}
+          >
+            {hint('START')}
+            START
+          </button>
+        )}
+
+        {isRunning && (
+          <button
+            ref={withHints ? firstControlRef : undefined}
+            onClick={togglePause}
+            className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200`}
+            style={buttonStyle(isPaused ? '#22c55e' : '#eab308')}
+          >
+            {hint(runLabel)}
+            {runLabel}
+          </button>
+        )}
+
         <button
-          onClick={handleStart}
+          onClick={handleResetClick}
+          disabled={isIdleAtConfigured}
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-          style={buttonStyle('#22c55e')}
+          style={buttonStyle('#eab308')}
         >
-          START
+          {hint('RESET')}
+          RESET
         </button>
-      )}
 
-      {isRunning && (
         <button
-          onClick={togglePause}
-          className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200`}
-          style={buttonStyle(isPaused ? '#22c55e' : '#eab308')}
+          onClick={handleStopClick}
+          disabled={isIdleAtConfigured}
+          className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+          style={buttonStyle('#ef4444')}
         >
-          {isPaused ? 'RESUME' : 'PAUSE'}
+          {hint('STOP')}
+          STOP
         </button>
-      )}
-
-      <button
-        onClick={handleResetClick}
-        disabled={isIdleAtConfigured}
-        className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-        style={buttonStyle('#eab308')}
-      >
-        RESET
-      </button>
-
-      <button
-        onClick={handleStopClick}
-        disabled={isIdleAtConfigured}
-        className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-        style={buttonStyle('#ef4444')}
-      >
-        STOP
-      </button>
-    </>
-  );
+      </>
+    );
+  };
 
   return (
     <div
@@ -1952,7 +2027,7 @@ export default function Timer() {
               style={isRowLayout ? { containerType: 'size', width: '100%', maxWidth: timerColumnMaxWidth } : undefined}
             >
             <div
-              className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
+              className="font-bold tracking-wider text-white"
               // Solved from the layout rather than picked. Two things
               // scale with this: the digit line, whose box is exactly 1x
               // its font-size under leading-none, and the drain bar, which
@@ -1998,7 +2073,7 @@ export default function Timer() {
                   is the digit size. */}
               <div className="flex justify-center">{renderClockCluster(CLOCK_FONT_SIZE, false, mainClockRef)}</div>
               <div
-                className={`flex items-baseline justify-center gap-1 leading-none ${digitWaveClass}`}
+                className={`flex items-baseline justify-center gap-1 leading-none ${digitWaveClass} ${isWindowGreen ? glowFadeClass : ''}`}
                 style={digitColorStyle}
               >
                 {remaining.hours && (
@@ -2037,7 +2112,7 @@ export default function Timer() {
                 buttons shrank onto the digits' scale, and a fixed gap at
                 that size reads as three boxes stuck together. */}
             <div className="flex flex-shrink-0" style={{ gap: fitClamp(0.5, 2.5, 1.75) }}>
-              {renderControlButtons(controlButtonStyle, 'border-4')}
+              {renderControlButtons(controlButtonStyle, 'border-4', true)}
             </div>
 
             {/* Block, not flex: a flex container picks up index.css's
@@ -2046,13 +2121,11 @@ export default function Timer() {
                 than wrapping once font-size has nothing left to give. */}
             <div className="text-center">
               <div
-                className={`font-bold tracking-wider text-white ${isWindowGreen ? glowFadeClass : ''}`}
-                style={{ fontSize: shrinkClamp(0.7, 1.9, 2, 1.25), ...textGlowStyle }}
+                className={`font-bold tracking-wider ${statusFlashClass}`}
+                style={{ fontSize: shrinkClamp(0.7, 1.9, 2, 1.25), color: statusColor }}
               >
                 {status}
               </div>
-
-              {!areHintsCrowded && hintsDisplay}
             </div>
             </div>
           </div>
@@ -2080,7 +2153,6 @@ export default function Timer() {
         <WordCounter
           onFocusChange={setIsWordCounterFocused}
           onFullscreenChange={setIsWordCounterFullscreen}
-          greenFadeTextClass={isWindowGreen ? glowFadeClass : ''}
           speakerButton={isWordCounterFullscreen ? speakerButton : null}
           ringerButton={isWordCounterFullscreen ? ringerButton : null}
           // Nothing left to render once both its halves have gone: the
@@ -2093,7 +2165,7 @@ export default function Timer() {
           cornerRef={fsCornerRef}
           midRef={fsMidRef}
           timerDigits={isWordCounterFullscreen ? wordCounterTimerDigits : null}
-          timerBar={isWordCounterFullscreen && isRowLayout && !isFsBarTight ? renderDrainBar(boxCap('clamp(3rem, 8vw, 8rem)', 9), true) : null}
+          timerBar={isWordCounterFullscreen && isRowLayout && !isFsBarTight ? renderDrainBar(boxCap('clamp(3rem, 8vw, 8rem)', 9), true, fsTrailColor) : null}
           timerControls={
             isWordCounterFullscreen ? (
               <div className="flex items-center flex-shrink-0" style={{ gap: boxCap('0.375rem', 1.2) }}>

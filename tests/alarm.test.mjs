@@ -58,7 +58,11 @@ const activate = async () => { await evaluate(`document.activeElement?.blur?.(),
 const out = [];
 const check = (name, got, want) => out.push({ name, got: String(got), want: String(want), pass: String(got) === String(want) });
 
-const CTRL = `[...document.querySelectorAll('button')].filter(b=>['START','PAUSE','RESUME','RESET','STOP'].includes(b.textContent.trim()))`;
+// A control button carries its key hint above its label now, so its
+// textContent is "Press ENTER to" + "the timer" + "START". Matching on the
+// label alone would find nothing; matching on endsWith alone would find
+// anything ending in those letters. Both, and the hint's own prefix.
+const CTRL = `[...document.querySelectorAll('button')].filter(b=>{const t=b.textContent.trim();return ['START','PAUSE','RESUME','RESET','STOP'].some(l=>t===l||(t.startsWith('Press ')&&t.endsWith(l)));})`;
 const widths = () => evaluate(`(()=>{const b=${CTRL};return b.map(x=>x.textContent.trim()+':'+Math.round(x.getBoundingClientRect().width)).join(' ')})()`);
 const widthsEqual = () => evaluate(`(()=>{const w=${CTRL}.map(x=>Math.round(x.getBoundingClientRect().width));return w.length>1 && new Set(w).size===1})()`);
 const status = () => evaluate(`[...document.querySelectorAll('div')].filter(e=>/^(READY|RUNNING|PAUSED|STOPPED|FINISHED)$/.test(e.textContent.trim())&&e.children.length===0).pop()?.textContent.trim()`);

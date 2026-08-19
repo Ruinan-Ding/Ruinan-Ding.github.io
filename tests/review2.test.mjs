@@ -56,7 +56,11 @@ const status = () => ev(`[...document.querySelectorAll('div')].filter(e=>/^(READ
 const dialogTitle = () => ev(`document.querySelector('[role="alertdialog"] h2, [role="alertdialog"] [id$="title"]')?.textContent ?? null`);
 const fields = () => ev(`[...document.querySelectorAll('.time-fields-box input')].map(i=>i.value).join(':')`);
 const digits = () => ev(`(()=>{const e=[...document.querySelectorAll('div')].find(x=>x.className.includes('items-baseline')&&x.className.includes('justify-center'));return (e.textContent||'').trim()})()`);
-const btn = (l) => `[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='${l}')`;
+// A control button carries its key hint above its label now, so its
+// textContent is "Press ENTER to" + "the timer" + "START". Matching on the
+// label alone would find nothing; matching on endsWith alone would find
+// anything ending in those letters. Both, and the hint's own prefix.
+const btn = (l) => `[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();return t==='${l}'||(t.startsWith('Press ')&&t.endsWith('${l}'));})`;
 const SEC_UP = `document.querySelectorAll('.time-fields-box [aria-label="Increase seconds"]')[0]`;
 const BAR = `[...document.querySelectorAll('div')].find(d=>d.className.includes('cursor-pointer')&&d.className.includes('border-2')&&d.style.height)`;
 const seed = (secs, extra = '') => ev(`localStorage.setItem('timerAppState', JSON.stringify({seconds:${secs},isPaused:false,isRunning:false,hours:0,minutes:${Math.floor(secs / 60)},timerSeconds:${secs % 60}})),

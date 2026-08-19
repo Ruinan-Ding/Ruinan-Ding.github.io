@@ -100,7 +100,11 @@ await activate();
 const ARROW = `document.querySelector('[aria-label*="Increase"], [aria-label*="increase"]')
   ?? [...document.querySelectorAll('button')].find(b=>b.closest('.time-fields-box'))`;
 const PRESET_ROW = `[...document.querySelectorAll('button')].find(b=>/^\\d+:\\d\\d$/.test(b.textContent.trim()))`;
-const btn = (label) => `[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='${label}')`;
+// A control button carries its key hint above its label now, so its
+// textContent is "Press ENTER to" + "the timer" + "START". Matching on the
+// label alone would find nothing; matching on endsWith alone would find
+// anything ending in those letters. Both, and the hint's own prefix.
+const btn = (label) => `[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();return t==='${label}'||(t.startsWith('Press ')&&t.endsWith('${label}'));})`;
 
 // 1. Unstarted: neither the fields nor the list asks.
 const before = await configured();

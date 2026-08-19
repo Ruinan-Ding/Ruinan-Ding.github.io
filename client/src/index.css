@@ -439,6 +439,36 @@
   animation: waveRedText 2s ease-in-out infinite;
 }
 
+/* The status word on the bar's terms: same keyframes, same durations, the
+   colour on the text instead of behind it. Fading to the surface rather
+   than to a second colour is the bar's own effect too, where the fill
+   sinks into its track. */
+@keyframes pauseFlashText {
+  from {
+    color: oklch(0.8 0.2 85);
+  }
+  to {
+    color: var(--app-surface);
+  }
+}
+
+.animate-pauseFlashText {
+  animation: pauseFlashText 8s ease-out infinite;
+}
+
+@keyframes alarmFlashText {
+  0%, 49% {
+    color: #ef4444;
+  }
+  50%, 100% {
+    color: var(--app-surface);
+  }
+}
+
+.animate-alarmFlashText {
+  animation: alarmFlashText 0.5s linear infinite;
+}
+
 .animate-runFadeA {
   animation: runFadeA 5s ease-out forwards;
 }
@@ -506,7 +536,7 @@
    at every height with these hidden and shown. This is three lines of
    clutter off a window too short to want them, and nothing more. */
 @media (max-height: 28rem) {
-  .timer-hints {
+  .control-hint {
     display: none;
   }
 }

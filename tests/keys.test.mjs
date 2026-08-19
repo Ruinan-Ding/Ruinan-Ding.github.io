@@ -52,7 +52,18 @@ await sleep(3000);
 
 const status = () => evaluate(`[...document.querySelectorAll('div')].filter(e=>/^(READY|RUNNING|PAUSED|STOPPED|FINISHED)$/.test(e.textContent.trim())&&e.children.length===0).pop()?.textContent.trim()`);
 const dialogOpen = () => evaluate(`!!document.querySelector('[role="alertdialog"][data-state="open"]')`);
-const hints = () => evaluate(`document.body.innerText.match(/Press [A-Z]+ to [A-Z]+ the (timer|alarm)/)?.[0] ?? null`);
+// The hint is printed on the button it works now, so this reads it off
+// that button and returns it beside the label it sits above: "which key"
+// and "which button" were two facts the old body-wide text search could
+// only check one of.
+const hints = () => evaluate(`(()=>{
+  const b=[...document.querySelectorAll('button')].find(x=>/(START|PAUSE|RESUME)$/.test(x.textContent.trim()));
+  if(!b) return null;
+  const h=b.querySelector('.control-hint');
+  if(!h) return null;
+  return h.innerText.split(String.fromCharCode(10)).map(x=>x.trim()).filter(Boolean).join(' ')+' -> '+b.textContent.trim().slice(h.textContent.length);
+})()`);
+const hintShown = () => evaluate(`!!document.querySelector('.control-hint')`);
 const focusTag = () => evaluate(`document.activeElement?.tagName ?? null`);
 // A click somewhere inert, for the user activation the browser wants.
 const clickBody = async () => {
@@ -64,7 +75,7 @@ const clickBody = async () => {
 const out = [];
 const check = (name, got, want) => out.push({ name, got: String(got), want: String(want), pass: String(got) === String(want) });
 
-check('hint advertises ENTER', await hints(), 'Press ENTER to START the timer');
+check('hint advertises ENTER', await hints(), 'Press ENTER to the timer -> START');
 await clickBody();
 
 check('idle status', await status(), 'READY');
@@ -72,7 +83,7 @@ await press('Space');
 check('SPACE no longer starts', await status(), 'READY');
 await press('Enter');
 check('ENTER starts', await status(), 'RUNNING');
-check('running hint', await hints(), 'Press ENTER to PAUSE the timer');
+check('running hint', await hints(), 'Press ENTER to the timer -> PAUSE');
 await press('Enter');
 check('ENTER pauses', await status(), 'PAUSED');
 await press('Enter');
@@ -100,10 +111,13 @@ await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.
 await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 });
 await sleep(600);
 check('clicked into word counter', await focusTag(), 'TEXTAREA');
-check('hints say disabled while typing', await evaluate(`document.body.innerText.includes('disabled while typing')`), 'true');
+// The hints go while typing rather than saying they are disabled: the
+// old wording was that sentence three times over, about buttons nobody
+// looking at the textarea was looking at.
+check('hints go while typing', await hintShown(), 'false');
 await press('Escape');
 check('ESC leaves the textarea', await focusTag(), 'BODY');
-check('hints back to normal', await evaluate(`document.body.innerText.includes('disabled while typing')`), 'false');
+check('hints back after ESC', await hintShown(), 'true');
 await press('Enter');
 check('ENTER starts again after ESC', await status(), 'RUNNING');
 

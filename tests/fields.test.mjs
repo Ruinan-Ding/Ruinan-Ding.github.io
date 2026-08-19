@@ -112,7 +112,7 @@ check('bar is waving green', over?.waving, 'true');
 check('bar is full while waving', over?.width, '100%');
 
 // 5. STOP returns to the original total, not the edited remaining.
-await clickEl(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='STOP')`, 'STOP');
+await clickEl(`[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();return t==='STOP'||(t.startsWith('Press ')&&t.endsWith('STOP'));})`, 'STOP');
 await sleep(800);
 check('STOP returns to the configured 5:00', await fields(), '00:05:00');
 check('stopped', await status(), 'READY');
