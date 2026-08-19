@@ -109,7 +109,7 @@ await send('Page.reload', {});
 await sleep(2500);
 await activate();
 await press('Enter', 'Enter', 13, '\r'); // start
-await clickEl(`[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();return t==='STOP'||(t.startsWith('Press ')&&t.endsWith('STOP'));})`, 'STOP');
+await clickEl(`[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='STOP')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='STOP';})`, 'STOP');
 check('dialog open', await dialogTitle(), 'CONFIRM STOP');
 // Radix opens with CANCEL focused, so Tab moves *off* it. Cycle until it
 // comes back round to CANCEL: that is focus the user placed by hand, which
@@ -125,7 +125,7 @@ await press('Enter', 'Enter', 13, '\r');
 check(`Enter on hand-focused CANCEL does not confirm`, await status(), 'RUNNING');
 check('and it closed the dialog', await dialogTitle(), 'null');
 await sleep(400);
-await clickEl(`[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();return t==='STOP'||(t.startsWith('Press ')&&t.endsWith('STOP'));})`, 'STOP again');
+await clickEl(`[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='STOP')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='STOP';})`, 'STOP again');
 check('dialog open again', await dialogTitle(), 'CONFIRM STOP');
 await press('Enter', 'Enter', 13, '\r'); // untouched
 check('untouched Enter still confirms', await status(), 'READY');

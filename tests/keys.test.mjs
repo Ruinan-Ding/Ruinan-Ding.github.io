@@ -56,14 +56,14 @@ const dialogOpen = () => evaluate(`!!document.querySelector('[role="alertdialog"
 // that button and returns it beside the label it sits above: "which key"
 // and "which button" were two facts the old body-wide text search could
 // only check one of.
-const hints = () => evaluate(`(()=>{
-  const b=[...document.querySelectorAll('button')].find(x=>/(START|PAUSE|RESUME)$/.test(x.textContent.trim()));
-  if(!b) return null;
-  const h=b.querySelector('.control-hint');
-  if(!h) return null;
-  return h.innerText.split(String.fromCharCode(10)).map(x=>x.trim()).filter(Boolean).join(' ')+' -> '+b.textContent.trim().slice(h.textContent.length);
-})()`);
-const hintShown = () => evaluate(`!!document.querySelector('.control-hint')`);
+const CTRL_FIRST = `[...document.querySelectorAll('button')].find(b=>{const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&/^(START|PAUSE|RESUME)$/.test(m.textContent.trim());})`;
+// The three rows in order, which is the thing that changed: the key on
+// top, the label in the middle, what it acts on underneath.
+const hints = () => evaluate(`(()=>{const b=${CTRL_FIRST};if(!b)return null;return [...b.children].map(c=>c.textContent.trim()).join(' | ')})()`);
+const hintShown = () => evaluate(`(()=>{const h=document.querySelector('.control-hint');return h?getComputedStyle(h).visibility==='visible':false})()`);
+// The box has to be the same box either way: that it stops moving when the
+// hint goes is the whole reason the hint is hidden instead of dropped.
+const ctrlBox = () => evaluate(`(()=>{const b=${CTRL_FIRST};if(!b)return null;const r=b.getBoundingClientRect();return Math.round(r.width)+'x'+Math.round(r.height)})()`);
 const focusTag = () => evaluate(`document.activeElement?.tagName ?? null`);
 // A click somewhere inert, for the user activation the browser wants.
 const clickBody = async () => {
@@ -75,7 +75,7 @@ const clickBody = async () => {
 const out = [];
 const check = (name, got, want) => out.push({ name, got: String(got), want: String(want), pass: String(got) === String(want) });
 
-check('hint advertises ENTER', await hints(), 'Press ENTER to the timer -> START');
+check('hint advertises ENTER', await hints(), 'Press ENTER to | START | the timer');
 await clickBody();
 
 check('idle status', await status(), 'READY');
@@ -83,7 +83,7 @@ await press('Space');
 check('SPACE no longer starts', await status(), 'READY');
 await press('Enter');
 check('ENTER starts', await status(), 'RUNNING');
-check('running hint', await hints(), 'Press ENTER to the timer -> PAUSE');
+check('running hint', await hints(), 'Press ENTER to | PAUSE | the timer');
 await press('Enter');
 check('ENTER pauses', await status(), 'PAUSED');
 await press('Enter');
@@ -114,7 +114,9 @@ check('clicked into word counter', await focusTag(), 'TEXTAREA');
 // The hints go while typing rather than saying they are disabled: the
 // old wording was that sentence three times over, about buttons nobody
 // looking at the textarea was looking at.
+const boxBefore = await ctrlBox();
 check('hints go while typing', await hintShown(), 'false');
+check('the button did not resize', await ctrlBox(), boxBefore);
 await press('Escape');
 check('ESC leaves the textarea', await focusTag(), 'BODY');
 check('hints back after ESC', await hintShown(), 'true');

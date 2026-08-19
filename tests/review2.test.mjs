@@ -60,7 +60,11 @@ const digits = () => ev(`(()=>{const e=[...document.querySelectorAll('div')].fin
 // textContent is "Press ENTER to" + "the timer" + "START". Matching on the
 // label alone would find nothing; matching on endsWith alone would find
 // anything ending in those letters. Both, and the hint's own prefix.
-const btn = (l) => `[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();return t==='${l}'||(t.startsWith('Press ')&&t.endsWith('${l}'));})`;
+// A control button is three rows now — the key, the label, what the key
+// acts on — so its textContent is "Press ENTER toSTARTthe timer" and
+// neither an exact match nor endsWith finds it. The label is the one child
+// that is not a hint, so that is what gets matched.
+const btn = (l) => `[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='${l}')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='${l}';})`;
 const SEC_UP = `document.querySelectorAll('.time-fields-box [aria-label="Increase seconds"]')[0]`;
 const BAR = `[...document.querySelectorAll('div')].find(d=>d.className.includes('cursor-pointer')&&d.className.includes('border-2')&&d.style.height)`;
 const seed = (secs, extra = '') => ev(`localStorage.setItem('timerAppState', JSON.stringify({seconds:${secs},isPaused:false,isRunning:false,hours:0,minutes:${Math.floor(secs / 60)},timerSeconds:${secs % 60}})),

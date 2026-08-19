@@ -228,6 +228,45 @@ export default function Timer() {
     `${isRunning}${isPaused}${seconds < 0}`
   );
 
+  // Whether a keypress would reach the timer at all. The hints name keys,
+  // and a key named where it does nothing is worse than no hint: in a
+  // text field ENTER types, and with the window in the background it goes
+  // to whatever is in front. One rule covers the word counter, the preset
+  // box and the three time fields, because it is the same fact about all
+  // of them rather than three lists to keep up to date.
+  //
+  // Starts true and only a real blur turns it off, rather than reading
+  // document.hasFocus() on mount: a page that has not been clicked yet
+  // still expects its shortcuts to work.
+  const [isWindowFocused, setIsWindowFocused] = useState(true);
+  const [isFieldFocused, setIsFieldFocused] = useState(false);
+  useEffect(() => {
+    const gained = () => setIsWindowFocused(true);
+    const lost = () => setIsWindowFocused(false);
+    // Deferred, because focusout fires before the next element has focus
+    // and activeElement is the body in between: a click from one field
+    // straight into another would read as a moment with none.
+    const sync = () => setTimeout(() => {
+      const el = document.activeElement as HTMLElement | null;
+      setIsFieldFocused(!!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable));
+    }, 0);
+    window.addEventListener('focus', gained);
+    window.addEventListener('blur', lost);
+    document.addEventListener('focusin', sync);
+    document.addEventListener('focusout', sync);
+    return () => {
+      window.removeEventListener('focus', gained);
+      window.removeEventListener('blur', lost);
+      document.removeEventListener('focusin', sync);
+      document.removeEventListener('focusout', sync);
+    };
+  }, []);
+  // The word counter reports its own focus and that is kept alongside the
+  // DOM check rather than folded into it: its textarea is caught either
+  // way, but the fullscreen view is its own thing and this is the signal
+  // that survives it.
+  const areShortcutsLive = isWindowFocused && !isFieldFocused && !isWordCounterFocused;
+
   // Bumped when a fresh countdown starts, so the green fade replays even
   // if the window never left the running state.
   const [runCycle, setRunCycle] = useState(0);
@@ -1380,14 +1419,33 @@ export default function Timer() {
   // the readout rather than competing with it. Three of them plus two gaps
   // have to fit 100cqi, which 13x3 clears; the floors stop the shrinking
   // with RESUME, the widest label, still in a box about 38px tall.
+  // The control button is a fixed box with three rows in it: the key at
+  // the top edge, the label in the middle, what the key acts on at the
+  // bottom edge. Every part of that comes off one label size.
+  //
+  // The height is spelled out rather than left to the contents, and that
+  // is the point: the hint comes and goes — on typing, on leaving the
+  // window, on running out of room — and a box that measured its contents
+  // resized the whole row every time it did. So the box holds still and
+  // what changes inside it is the label, which takes the freed space.
+  const CONTROL_LABEL = boxClamp(0.7, 2.2, 5.5, 1.4);
+  const CONTROL_HINT = `max(0.62rem, calc(${CONTROL_LABEL} * 0.5))`;
+  // Small on purpose: with the rows spread edge to edge this is the whole
+  // distance from the key to the top of the box.
+  const CONTROL_PAD_Y = boxClamp(0.18, 0.9, 2.2, 0.5);
+  const CONTROL_HEIGHT = `calc(${CONTROL_LABEL} * 2.1 + ${CONTROL_HINT} * 2.6 + ${CONTROL_PAD_Y} * 2)`;
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    // Taller and wider than they were, on the room the instructions row
-    // under the status word used to take. Two lines of hint sit above the
-    // label now, and a box drawn for one line made them a stack rather
-    // than a button with a note on it.
-    padding: `${boxClamp(0.35, 1.7, 4.2, 1)} ${fitClamp(0.5, 3.1, 1.9)}`,
-    fontSize: boxClamp(0.7, 2.2, 5.5, 1.4),
+    padding: `${CONTROL_PAD_Y} ${fitClamp(0.5, 3.1, 1.9)}`,
+    height: CONTROL_HEIGHT,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    // The three rows to the two edges and the middle. With the hint hidden
+    // rather than removed they stay where they are and only the label
+    // changes, which is what keeps the row from twitching.
+    justifyContent: 'space-between',
+    fontSize: CONTROL_LABEL,
     borderColor: color,
     color,
     // A surface-coloured chip keeps the borders readable on the coloured
@@ -1396,10 +1454,8 @@ export default function Timer() {
     // width, not minWidth: with a minimum, RESUME, the one six-letter
     // label, outgrew it and came out wider than the four beside it, and
     // the row shifted as START became it. A fixed width makes every button
-    // the same box whatever it says. Solved against the widest label
-    // rather than picked: RESUME is 3.6em of this monospace, and the box
-    // has to hold that plus both paddings and the 8px border at the size
-    // each of them tops out at.
+    // the same box whatever it says.
+    //
     // Solved against the widest thing on the button, which is no longer
     // RESUME but "Press ENTER to": 14 characters of this monospace at half
     // the label's size, about 4.2em, plus both paddings and the border.
@@ -1784,24 +1840,33 @@ export default function Timer() {
     withHints = false
   ) => {
     let hintIndex = 0;
-    const hint = (label: string) => {
-      if (!withHints || isWordCounterFocused || isControlHintClipped) return null;
-      // Only the first one is measured, and it is the longest: they all
-      // clip at the same width, so they all go together.
+    // Hidden, not removed. The button's height is fixed either way, but
+    // leaving the rows in place is what holds the label in the middle and
+    // the two hint lines against the edges whichever state this is in.
+    const shown = withHints && areShortcutsLive && !isControlHintClipped;
+    const rows = (label: string) => {
+      if (!withHints) return <>{label}</>;
+      // Only the first is measured, and "Press ENTER to" is the longest of
+      // them: they all stop fitting at the same width, so they all go.
       const first = hintIndex++ === 0;
+      const style = {
+        fontSize: CONTROL_HINT,
+        opacity: 0.75,
+        letterSpacing: 0,
+        visibility: (shown ? 'visible' : 'hidden') as 'visible' | 'hidden',
+      };
       return (
-        <span
-          ref={first ? controlHintRef : undefined}
-          className="control-hint block whitespace-nowrap overflow-hidden leading-tight"
-          // Half the label, with a floor: as a bare fraction it followed the
-          // button all the way down and was 5.6px on a narrow window, which
-          // is small enough that it may as well not be there. With the floor
-          // it stops shrinking, and what happens next is that it stops
-          // fitting, which is the signal above that takes it away.
-          style={{ fontSize: 'max(0.62rem, 0.5em)', opacity: 0.75, letterSpacing: 0 }}
-        >
-          {buttonHints[label]}<br />the {hintSubject}
-        </span>
+        <>
+          <span ref={first ? controlHintRef : undefined} className="control-hint block whitespace-nowrap leading-none" style={style}>
+            {buttonHints[label]}
+          </span>
+          {/* A third bigger with the hint gone, on the room it leaves. The
+              box does not move, so this is the only thing that can use it. */}
+          <span style={{ fontSize: shown ? '1em' : '1.35em', lineHeight: 1.1 }}>{label}</span>
+          <span className="control-hint block whitespace-nowrap leading-none" style={style}>
+            the {hintSubject}
+          </span>
+        </>
       );
     };
     const runLabel = isPaused ? 'RESUME' : 'PAUSE';
@@ -1814,8 +1879,7 @@ export default function Timer() {
             className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
             style={buttonStyle('#22c55e')}
           >
-            {hint('START')}
-            START
+            {rows('START')}
           </button>
         )}
 
@@ -1826,8 +1890,7 @@ export default function Timer() {
             className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200`}
             style={buttonStyle(isPaused ? '#22c55e' : '#eab308')}
           >
-            {hint(runLabel)}
-            {runLabel}
+            {rows(runLabel)}
           </button>
         )}
 
@@ -1837,8 +1900,7 @@ export default function Timer() {
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
           style={buttonStyle('#eab308')}
         >
-          {hint('RESET')}
-          RESET
+          {rows('RESET')}
         </button>
 
         <button
@@ -1847,8 +1909,7 @@ export default function Timer() {
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
           style={buttonStyle('#ef4444')}
         >
-          {hint('STOP')}
-          STOP
+          {rows('STOP')}
         </button>
       </>
     );

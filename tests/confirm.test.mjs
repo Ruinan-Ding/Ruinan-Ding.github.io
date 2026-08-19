@@ -104,7 +104,11 @@ const PRESET_ROW = `[...document.querySelectorAll('button')].find(b=>/^\\d+:\\d\
 // textContent is "Press ENTER to" + "the timer" + "START". Matching on the
 // label alone would find nothing; matching on endsWith alone would find
 // anything ending in those letters. Both, and the hint's own prefix.
-const btn = (label) => `[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();return t==='${label}'||(t.startsWith('Press ')&&t.endsWith('${label}'));})`;
+// A control button is three rows now — the key, the label, what the key
+// acts on — so its textContent is "Press ENTER toSTARTthe timer" and
+// neither an exact match nor endsWith finds it. The label is the one child
+// that is not a hint, so that is what gets matched.
+const btn = (label) => `[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='${label}')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='${label}';})`;
 
 // 1. Unstarted: neither the fields nor the list asks.
 const before = await configured();
