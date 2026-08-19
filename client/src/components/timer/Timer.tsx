@@ -212,25 +212,6 @@ export default function Timer() {
   // while the clock is centred above the digits, so the two close on each
   // other as the window narrows.
   const isTipCrowded = useTightFit(gapBetween(tipRef, mainClockRef), timerRowRef, 8);
-  // The hints shrink with the buttons they sit on and go when the longest
-  // of them, "Press ENTER to", no longer fits inside one. scrollWidth
-  // rather than a rect: the line is clipped by the button, so its box
-  // reports the button's width however long the text is.
-  const isControlHintClipped = useTightFit(
-    () => {
-      const button = firstControlRef.current;
-      const hint = controlHintRef.current;
-      if (!button || !hint) return null;
-      return button.clientWidth - hint.scrollWidth;
-    },
-    timerRowRef,
-    // 24, not 2. Measured to the last pixel the hint held on until it was
-    // touching both sides of the button, which reads as a full box rather
-    // than a note on one. This lets it go while the button still looks
-    // like a button.
-    24,
-    `${isRunning}${isPaused}${seconds < 0}`
-  );
 
   // Whether a keypress would reach the timer at all. The hints name keys,
   // and a key named where it does nothing is worse than no hint: in a
@@ -270,6 +251,26 @@ export default function Timer() {
   // way, but the fullscreen view is its own thing and this is the signal
   // that survives it.
   const areShortcutsLive = isWindowFocused && !isFieldFocused && !isWordCounterFocused;
+
+  // The hints shrink with the buttons they sit on and go when the longest
+  // of them, "Press ENTER to", no longer fits inside one. scrollWidth
+  // rather than a rect: the line is clipped by the button, so its box
+  // reports the button's width however long the text is.
+  const isControlHintClipped = useTightFit(
+    () => {
+      const button = firstControlRef.current;
+      const hint = controlHintRef.current;
+      if (!button || !hint) return null;
+      return button.clientWidth - hint.scrollWidth;
+    },
+    timerRowRef,
+    // 24, not 2. Measured to the last pixel the hint held on until it was
+    // touching both sides of the button, which reads as a full box rather
+    // than a note on one. This lets it go while the button still looks
+    // like a button.
+    24,
+    `${isRunning}${isPaused}${seconds < 0}${areShortcutsLive}`
+  );
 
   // Bumped when a fresh countdown starts, so the green fade replays even
   // if the window never left the running state.
@@ -1445,9 +1446,24 @@ export default function Timer() {
   // across a box drawn taller than they needed and read as three separate
   // things rather than one instruction with the button in the middle of it.
   const CONTROL_HEIGHT = `calc(${CONTROL_LABEL} * 1.35 + ${CONTROL_HINT} * 2.3 + ${CONTROL_PAD_Y} * 2)`;
+  const CONTROL_PAD_X = fitClamp(0.3, 3.1, 1.9);
+  const CONTROL_WIDTH = fitClamp(4.5, 22, 11.5);
+  // The label with the hint gone, filling the box it is left alone in.
+  //
+  // Solved against RESUME rather than against whichever word is showing,
+  // because all five have to be the same size: this monospace advances
+  // exactly 0.6em a character, so six of them is 3.6em, and 3.75 leaves
+  // the four percent that keeps it off its own border. 8px is the border
+  // either side, which box-sizing puts inside the width.
+  //
+  // Worth having as a figure rather than an em multiple: 1.35em was over
+  // the width at 1600, where RESUME wanted 124px of a 115px box. Only
+  // START, RESET and STOP are ever on screen at once, so it took a
+  // running timer to see it.
+  const CONTROL_FILL = `min(calc((${CONTROL_WIDTH} - 2 * ${CONTROL_PAD_X} - 8px) / 3.75), calc((${CONTROL_HEIGHT} - 2 * ${CONTROL_PAD_Y} - 8px) / 1.15))`;
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${CONTROL_PAD_Y} ${fitClamp(0.3, 3.1, 1.9)}`,
+    padding: `${CONTROL_PAD_Y} ${CONTROL_PAD_X}`,
     height: CONTROL_HEIGHT,
     display: 'flex',
     flexDirection: 'column' as const,
@@ -1470,7 +1486,7 @@ export default function Timer() {
     // Solved against the widest thing on the button, which is no longer
     // RESUME but "Press ENTER to": 14 characters of this monospace at half
     // the label's size, about 4.2em, plus both paddings and the border.
-    width: fitClamp(4.5, 22, 11.5),
+    width: CONTROL_WIDTH,
   });
   // The same buttons scaled to a single header row, for the word counter's
   // fullscreen view, which covers the real ones. Every size is capped
@@ -1874,7 +1890,10 @@ export default function Timer() {
         fontSize: CONTROL_HINT,
         opacity: 0.75,
         letterSpacing: 0,
-        visibility: (shown ? 'visible' : 'hidden') as 'visible' | 'hidden',
+        // display, not visibility: the button's height is spelled out, so
+        // taking these out of flow does not move the box, and it hands the
+        // label the whole of it rather than the third between them.
+        display: (shown ? 'block' : 'none') as 'block' | 'none',
       };
       return (
         <>
@@ -1891,7 +1910,7 @@ export default function Timer() {
               it whatever the rows either side of it are doing. */}
           <span
             className="flex flex-1 items-center justify-center"
-            style={{ fontSize: shown ? '1em' : '1.35em', lineHeight: 1.1 }}
+            style={{ fontSize: shown ? '1em' : CONTROL_FILL, lineHeight: 1.1 }}
           >
             {label}
           </span>

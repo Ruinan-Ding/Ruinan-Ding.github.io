@@ -60,7 +60,12 @@ const CTRL_FIRST = `[...document.querySelectorAll('button')].find(b=>{const m=[.
 // The three rows in order, which is the thing that changed: the key on
 // top, the label in the middle, what it acts on underneath.
 const hints = () => evaluate(`(()=>{const b=${CTRL_FIRST};if(!b)return null;return [...b.children].map(c=>c.textContent.trim()).join(' | ')})()`);
-const hintShown = () => evaluate(`(()=>{const h=document.querySelector('.control-hint');return h?getComputedStyle(h).visibility==='visible':false})()`);
+// Still in the markup either way, so the button keeps its size whether
+// the hint is showing or not. Whether it draws is the question, and a
+// client rect is the one answer that covers every way it can be taken
+// out: it has been visibility:hidden and display:none at different
+// points, and a check written against one quietly passes under the other.
+const hintShown = () => evaluate(`(()=>{const h=document.querySelector('.control-hint');return !!h&&h.getClientRects().length>0})()`);
 // The box has to be the same box either way: that it stops moving when the
 // hint goes is the whole reason the hint is hidden instead of dropped.
 const ctrlBox = () => evaluate(`(()=>{const b=${CTRL_FIRST};if(!b)return null;const r=b.getBoundingClientRect();return Math.round(r.width)+'x'+Math.round(r.height)})()`);
