@@ -179,8 +179,13 @@ function ClockCluster({
   // one seam between the two halves of this, the controls and the date,
   // and at the sizes the clock now runs to, 6px read as no seam at all —
   // "-4" ran straight into "Wed".
+  //
+  // With a floor under it, because em alone only solved the main view. The
+  // fullscreen row runs this at about 11px, where 0.45em is 5px and the
+  // two halves ran together again there instead. 7px is the width of the
+  // space this is standing in for.
   return (
-    <div ref={rootRef} className="flex items-center justify-center flex-shrink-0" style={{ fontSize, letterSpacing: '0.05em', gap: '0.45em' }}>
+    <div ref={rootRef} className="flex items-center justify-center flex-shrink-0" style={{ fontSize, letterSpacing: '0.05em', gap: 'max(0.45em, 7px)' }}>
       {!hideTime && (
       <span className="flex items-center gap-1 leading-tight">
         {/* Boxed like the zone beside it, so the two read as a pair of

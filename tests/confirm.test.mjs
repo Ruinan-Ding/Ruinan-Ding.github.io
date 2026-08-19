@@ -152,12 +152,34 @@ await press('Escape', 'Escape', 27);
 // left to run past zero. Restoring a saved run comes back paused, which is
 // not the state the button is being asked about.
 const ringOut = async () => {
-  await evaluate(`localStorage.setItem('timerAppState', JSON.stringify({seconds:2,isPaused:false,isRunning:false,hours:0,minutes:0,timerSeconds:2})),
-    localStorage.setItem('timerSilentMode','true'), 'ok'`);
-  await send('Page.reload', {});
-  await sleep(3000);
+  // Seeded and reloaded, up to twice.
+  //
+  // location.reload() schedules the navigation rather than taking it, so a
+  // timer still running from the step before goes on ticking in the gap,
+  // its persist effect writes the live state back over the seed, and the
+  // reload restores that: a running timer comes back paused, and the TAB
+  // below then resumed it instead of starting the two seconds this needs.
+  // It cost this suite about half its runs and reported itself three
+  // checks later as a dialog that should not have been there.
+  //
+  // The second pass cannot lose the same race, because the page it
+  // reloads from is the idle one the first pass produced. Bounded at two
+  // so a genuine failure still fails rather than spinning.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await evaluate(`(() => {
+      localStorage.setItem('timerAppState', JSON.stringify({seconds:2,isPaused:false,isRunning:false,hours:0,minutes:0,timerSeconds:2}));
+      localStorage.setItem('timerSilentMode','true');
+      location.reload();
+      return 'ok';
+    })()`);
+    for (let i = 0; i < 60 && (await status()) !== 'READY'; i++) await sleep(100);
+    await sleep(400);
+    if ((await status()) === 'READY') break;
+  }
+  check('reloaded idle before the ring', await status(), 'READY');
   await activate();
   await press('Tab', 'Tab', 9);
+  check('started the two seconds', await status(), 'RUNNING');
   // Waited for rather than slept through. A fixed 4s assumed the timer had
   // reached zero by then, and under the load of the full sweep it
   // sometimes hadn't: a still-running timer asks before an adjustment, so
