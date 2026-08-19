@@ -660,6 +660,16 @@
   max-width: 6.8cqi;
   max-height: 6.8cqi;
 }
+/* Except the rows of the confirm list, which hangs off one of those
+   buttons and so inherits a cap meant for a square icon. Capped, its
+   rows were 93px wide inside a 346px panel and every label wrapped onto
+   four lines. Kept as an exception rather than by scoping the rule
+   above to direct children, since the confirm button is itself nested
+   one div deep now to give the list something to hang from. */
+.fs-header-row .fs-row-icons [data-confirm-list] button {
+  max-width: none;
+  max-height: none;
+}
 /* 115%, not 100%: the speaker's viewBox carries empty margin its ink
    never reaches, so its box is wider than the button's inside while the
    mark it draws is not. Capped at the button it drew a size smaller here

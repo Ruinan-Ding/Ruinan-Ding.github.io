@@ -207,6 +207,20 @@ await clickEl(CONTROL('RESET'), 'RESET');
 check('half still asks about reset', await dialogTitle(), 'CONFIRM RESET');
 await press('Escape', 'Escape', 27);
 
+// --- the same list inside the word counter's fullscreen row -------------
+// The corner controls relocate into that row, and the list has to come
+// with them intact.
+await ev(`localStorage.setItem('wordCounterFullscreen','true'), 'ok'`);
+await send('Page.reload', {});
+await sleep(3000);
+check('the corner moves into the fullscreen row', await ev(`!!document.querySelector('.fs-header-row [data-confirm-mode]')`), 'true');
+await hoverConfirm();
+check('the list opens there too', await ev(`!!(${LIST})`), 'true');
+// That row caps every button it holds to a square icon's size, and the
+// list hangs off one of them. Capped, its rows came out 93px wide inside
+// a 346px panel and every label wrapped onto four lines.
+check('its rows fill the panel', await ev(`(()=>{const s=document.querySelector('[data-confirm-scroll]'),b=document.querySelector('[data-confirm-list] button');return !!s&&!!b&&Math.abs(s.getBoundingClientRect().width-b.getBoundingClientRect().width)<2})()`), 'true');
+
 const width = Math.max(...out.map((r) => r.name.length));
 out.forEach((r) => console.log(`${r.pass ? 'ok  ' : 'FAIL'}  ${r.name.padEnd(width)}  got=${r.got.padEnd(24)} want=${r.want}`));
 console.log(`${out.filter((r) => r.pass).length}/${out.length} passed`);
