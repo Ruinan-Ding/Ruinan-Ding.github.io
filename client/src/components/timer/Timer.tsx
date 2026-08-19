@@ -1883,7 +1883,18 @@ export default function Timer() {
           </span>
           {/* A third bigger with the hint gone, on the room it leaves. The
               box does not move, so this is the only thing that can use it. */}
-          <span style={{ fontSize: shown ? '1em' : '1.35em', lineHeight: 1.1 }}>{label}</span>
+          {/* flex-1 and centred inside itself, rather than trusting
+              space-between to place it: the two hint rows stay the size
+              they were while this grows, and once the three together come
+              to more than the box the free space runs out and the label
+              settles below the middle. Owning the leftover space centres
+              it whatever the rows either side of it are doing. */}
+          <span
+            className="flex flex-1 items-center justify-center"
+            style={{ fontSize: shown ? '1em' : '1.35em', lineHeight: 1.1 }}
+          >
+            {label}
+          </span>
           <span className="control-hint block whitespace-nowrap leading-none" style={style}>
             the {hintSubject}
           </span>
