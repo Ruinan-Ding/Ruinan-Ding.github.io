@@ -120,7 +120,12 @@ check('and it is running', await status(), 'RUNNING');
 
 // --- half -> full -------------------------------------------------------
 await clickEl(CONFIRM_BTN, 'confirm toggle');
-check('one click reaches full', await mode(), 'full');
+check('turning the full set on asks first', await dialogTitle(), 'CONFIRM EVERYTHING');
+await press('Escape', 'Escape', 27);
+check('cancelling leaves it in half', await mode(), 'half');
+await clickEl(CONFIRM_BTN, 'confirm toggle');
+await enter();
+check('confirming reaches full', await mode(), 'full');
 check('full fills the square', await ev(`(${CONFIRM_BTN})?.querySelector('span > span')?.style.clipPath || 'none'`), 'none');
 check('full is persisted', await stored(), '"full"');
 
@@ -144,7 +149,7 @@ const hoverConfirm = async () => {
 };
 await hoverConfirm();
 check('hovering opens the list', await ev(`!!(${LIST})`), 'true');
-check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button').length ?? 0`), 33);
+check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button').length ?? 0`), 34);
 check('the list scrolls', await ev(`(()=>{const l=document.querySelector('[data-confirm-scroll]');return !!l && l.scrollHeight > l.clientHeight})()`), 'true');
 // In full mode nothing is greyed: every row is a question being asked.
 check('full greys nothing', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 0);
@@ -175,7 +180,7 @@ check('none asks nothing', await dialogTitle(), 'null');
 check('and the stop went through', await status(), 'READY');
 
 await hoverConfirm();
-check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 33);
+check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 34);
 // Greyed is not disabled: the answer still lands, it just changes nothing
 // until the mode comes back round to asking that question.
 await clickRow('Stop the timer');

@@ -87,6 +87,9 @@ export type DialogState =
   // so confirming needs no case per act and an act that needs data (which
   // history row, which zone) closes over it instead of restating it here.
   | { type: 'full'; act: FullAct; run: () => void }
-  // Turning confirmations off asks; turning them back on never does.
+  // Both steps of the cycle that change what every other click does.
+  // Turning confirmations off asks, and so does turning the full set on;
+  // the step from off back to half can't ask, since nothing asks there.
+  | { type: 'fullConfirmations' }
   | { type: 'skipConfirmations' }
   | { type: 'clearWordCounter' };

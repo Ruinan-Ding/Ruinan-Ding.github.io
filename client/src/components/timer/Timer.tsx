@@ -1220,6 +1220,10 @@ export default function Timer() {
         setDuplicatePreset((prev) => bumpFlash(prev, dialog.data.id));
         closeDialog();
         break;
+      case 'fullConfirmations':
+        setConfirmMode('full');
+        closeDialog();
+        break;
       case 'skipConfirmations':
         setConfirmMode('none');
         closeDialog();
@@ -1803,8 +1807,13 @@ export default function Timer() {
                 // there.
                 onClick={() => {
                   const next = nextConfirmMode(confirmMode);
+                  // Both steps that change what every other click does ask
+                  // first. The third, none back to half, can't: nothing
+                  // asks in none, which is the mode it is leaving.
                   if (next === 'none') {
                     askThenRun({ type: 'skipConfirmations' }, () => setConfirmMode('none'));
+                  } else if (next === 'full') {
+                    askThenRun({ type: 'fullConfirmations' }, () => setConfirmMode('full'));
                   } else {
                     setConfirmMode(next);
                   }

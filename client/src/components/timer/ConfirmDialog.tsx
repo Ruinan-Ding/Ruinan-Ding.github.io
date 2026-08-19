@@ -158,6 +158,15 @@ const getCopy = (dialog: DialogState) => {
         description: `${dialog.data.label} is already one of your presets, so nothing was added. The one you have will flash red.`,
         action: 'OK',
       };
+    // The other half of the same switch. Asked in half mode, so it is a
+    // half-tier question and carries its own tick like the rest.
+    case 'fullConfirmations':
+      return {
+        title: 'CONFIRM EVERYTHING',
+        description:
+          "Ask about everything from now on? On top of what already asks, starting the timer, pausing and resuming it, stopping or resetting it while the alarm is ringing, deleting a history entry, tucking a panel away, going full screen and changing the clock's zone or its 12/24 setting will each ask first. The same button carries on round to turning confirmations off altogether. To leave one of these out, tick it in the list that button drops down.",
+        action: 'CONFIRM ALL',
+      };
     // Only reachable on the way from FULL to none, which is the one step
     // of the cycle that takes questions away rather than adding them.
     case 'skipConfirmations':

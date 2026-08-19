@@ -162,6 +162,7 @@ const HALF_QUESTIONS: [string, string][] = [
   ['correctPreset', 'Report a preset corrected to fit'],
   ['correctTime', 'Report a time corrected to fit'],
   ['duplicatePreset', 'Report a preset you already have'],
+  ['fullConfirmations', 'Warn before confirming everything'],
   ['skipConfirmations', 'Warn before turning confirmations off'],
 ];
 
