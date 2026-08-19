@@ -25,7 +25,12 @@ export const TOGGLE_FONT_SIZE = shrinkClamp(0.65, 1.35, 1.5, 0.85);
 // One size for the whole wall clock. Its widest line has to fit the
 // digits column (40vw); the floor stops just above where a 0.9em checkbox
 // has no room inside its own border for a dot.
-export const CLOCK_FONT_SIZE = shrinkClamp(0.55, 1.5, 1.6, 1.35);
+// Both terms go up, 1.5/1.6 to 2.4/2.5: dvh binds on a wide window and vw
+// on a narrow one, and the room being spent here is there in both. The digits below are capped on the column's width, not
+// its height, so once they hit that cap the column has height nobody is
+// spending and it came out as a band of nothing between the website link
+// and this. The clock is what sits in that band, so the clock takes it.
+export const CLOCK_FONT_SIZE = shrinkClamp(0.55, 2.4, 2.5, 1.5);
 // The same clock in the word counter's fullscreen header, where it gets
 // whatever the countdown, bar and buttons leave, and is capped again by
 // that leftover: the date is 17 monospace characters at 0.6em, needing

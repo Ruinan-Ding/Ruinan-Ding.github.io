@@ -2184,7 +2184,7 @@ export default function Timer() {
                   at the digit size that reads as a hole rather than a
                   space. Neither line has a descender to lose, the labels
                   are digits, colons and h/m/s. */}
-              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(0.95, 2.8, 3, 2.5), letterSpacing: '0.05em' }}>
+              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(0.95, 4.2, 4.2, 2.5), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
               {renderDrainBar('100%')}
@@ -2202,9 +2202,14 @@ export default function Timer() {
                 above, could be shrunk to zero height and vanish rather
                 than wrapping once font-size has nothing left to give. */}
             <div className="text-center">
+              {/* Sized up along with the clock at the other end of the
+                  column, and for the same reason: the digits between them
+                  cap on the column's width, so past that cap the column has
+                  height nobody is spending. It showed as a band of nothing
+                  between this word and the word counter below. */}
               <div
                 className={`font-bold tracking-wider ${statusFlashClass}`}
-                style={{ fontSize: shrinkClamp(0.7, 1.9, 2, 1.25), color: statusColor }}
+                style={{ fontSize: shrinkClamp(0.7, 3, 3.4, 1.9), color: statusColor }}
               >
                 {status}
               </div>
