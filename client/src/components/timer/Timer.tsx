@@ -19,8 +19,8 @@ import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAUL
 import { readSavedHistory, readSavedPresets } from './entries';
 import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
 import { boxCap, boxClamp, fitClamp, shrinkClamp } from './responsive';
-import { isAcknowledgement, isDialogSuppressed, suppressDialog } from './suppressions';
-import type { DialogState, FlashTarget, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
+import { isQuestionLive, isAcknowledgement, nextConfirmMode, QUESTIONS, readConfirmMode, readSuppressedKeys, setSuppressedKey, shouldAsk, suppressDialog } from './suppressions';
+import type { ConfirmMode, DialogState, FlashTarget, FullAct, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 import { useAlarm } from './useAlarm';
 import { useTimeFieldsTuck } from './useTimeFieldsTuck';
@@ -28,6 +28,25 @@ import { gapBetween, useTightFit } from './useTightFit';
 import { useZoneOffsets } from './useZoneOffsets';
 
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
+
+// What each position of the confirm button means, said in full: the box
+// itself is one 12px square and can only show how much is on, not which
+// half of the list that is.
+const CONFIRM_MODE_TITLE: Record<ConfirmMode, string> = {
+  half: 'Confirming what matters — stopping, resetting, deleting and the like ask first. Click for full confirmations',
+  full: 'Confirming everything — starting, pausing, tucking a panel away and changing the clock ask too. Click to turn confirmations off',
+  none: 'Confirmations are off — everything happens the moment you click (the site RESET still always asks). Click to go back to confirming what matters',
+};
+
+// The list names the mode it is showing, since a row greyed out has no
+// other way to say why.
+const CONFIRM_LIST_HEADING: Record<ConfirmMode, string> = {
+  half: "DON'T ASK ME AGAIN",
+  full: "DON'T ASK ME AGAIN — ALL",
+  none: "DON'T ASK ME AGAIN — NOTHING ASKS",
+};
+
+const CONFIRM_LIST_FONT_SIZE = shrinkClamp(0.6, 1, 1.1, 0.72);
 
 // Clears the header buttons in the same corner. Derived from the button so
 // it shrinks with them on a short window.
@@ -94,8 +113,17 @@ export default function Timer() {
   // quiet. Off by default, which is also what makes 00:00:00 usable as a
   // count-up stopwatch.
   const [isAlarmLooping, setIsAlarmLooping] = useState(() => readBoolean(STORAGE_KEYS.alarmLoop, false));
-  // Skips every confirmation except the site RESET, which always asks.
-  const [skipConfirmations, setSkipConfirmations] = useState(() => readBoolean(STORAGE_KEYS.skipConfirmations, false));
+  // Three positions, not two: half asks what this app has always asked,
+  // full asks that plus every act in FULL_ACTS, none asks nothing but the
+  // site RESET. See suppressions.ts for which question sits in which tier.
+  const [confirmMode, setConfirmMode] = useState<ConfirmMode>(readConfirmMode);
+  // The list the confirm button drops down, and the answers it shows.
+  // Read fresh each time it opens rather than kept in sync: every dialog's
+  // own "don't ask this again" writes the same store, the word counter
+  // writes it too, and a mirror that only this button updates goes stale
+  // the first time one of those fires.
+  const [isConfirmListOpen, setIsConfirmListOpen] = useState(false);
+  const [suppressedKeys, setSuppressedKeys] = useState<string[]>(readSuppressedKeys);
 
   // One-shot flashes on the list rows: yellow for a fresh insert, green
   // for a load, red for a refused duplicate. Never persisted, so a reload
@@ -151,7 +179,7 @@ export default function Timer() {
   useEffect(() => () => window.clearTimeout(hourFormatFlashRef.current), []);
   // useCallback: this is what the clock hangs its memo on, and a new
   // function every tick means memo() can never bail out.
-  const handleHourFormatClick = useCallback(() => {
+  const runHourFormatChange = useCallback(() => {
     setIs24Hour((prev) => !prev);
     setIsHourFormatFlashing(true);
     setHourFormatFlashToken((n) => n + 1);
@@ -330,6 +358,17 @@ export default function Timer() {
 
   const closeDialog = () => setDialog({ type: null });
 
+  // Re-read on the way open rather than kept in sync, for the reason the
+  // state itself gives: every dialog's own tick box writes the same store.
+  const openConfirmList = () => {
+    setSuppressedKeys(readSuppressedKeys());
+    setIsConfirmListOpen(true);
+  };
+  // The write hands back the new list, so this can't read back a value
+  // localStorage hasn't taken yet.
+  const toggleSuppressedKey = (key: string) =>
+    setSuppressedKeys(setSuppressedKey(key, !suppressedKeys.includes(key)));
+
   // Every "are you sure?" goes through here, so both ways a question can
   // already be answered are checked in one place: confirmations off
   // globally, or this one silenced by its own "don't ask again".
@@ -337,12 +376,32 @@ export default function Timer() {
   // The site RESET is the only dialog that calls setDialog directly, since
   // letting anything skip it would be self-defeating.
   const askThenRun = useCallback((next: DialogState, run: () => void) => {
-    if (skipConfirmations || isDialogSuppressed(next)) {
+    if (!shouldAsk(next, confirmMode)) {
       run();
       return;
     }
     setDialog(next);
-  }, [skipConfirmations]);
+  }, [confirmMode]);
+
+  // The FULL-mode questions. The action travels in the dialog, so
+  // confirming one needs no case of its own below, and an act that needs
+  // data closes over it rather than restating it in DialogState.
+  const askFull = useCallback(
+    (act: FullAct, run: () => void) => askThenRun({ type: 'full', act, run }, run),
+    [askThenRun]
+  );
+
+  // The clock's two settings. Down here rather than beside the flash they
+  // drive, since askFull isn't in scope up there; useCallback because the
+  // clock hangs its memo() on both.
+  const handleHourFormatClick = useCallback(
+    () => askFull('hourFormat', runHourFormatChange),
+    [askFull, runHourFormatChange]
+  );
+  const handleTimeZoneChange = useCallback(
+    (zone: string) => askFull('timeZone', () => setTimeZone(zone)),
+    [askFull]
+  );
 
   // Read off timeRef rather than `seconds` so a caller mid-click sees the
   // live value, like every other check here.
@@ -394,7 +453,7 @@ export default function Timer() {
   usePersisted(STORAGE_KEYS.volume, volume);
   usePersisted(STORAGE_KEYS.hasMutedBefore, hasMutedBefore);
   usePersisted(STORAGE_KEYS.alarmLoop, isAlarmLooping);
-  usePersisted(STORAGE_KEYS.skipConfirmations, skipConfirmations);
+  usePersisted(STORAGE_KEYS.confirmMode, confirmMode);
   usePersisted(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
   usePersisted(STORAGE_KEYS.sidebarHidden, isSidebarHidden);
   usePersisted(STORAGE_KEYS.lightTheme, isLightTheme);
@@ -650,7 +709,7 @@ export default function Timer() {
     setInsertedHistory((prev) => bumpFlash(prev, entry.id));
   };
 
-  const togglePause = () => {
+  const runTogglePause = () => {
     // The beep is a side effect, so it stays out of the state updater.
     const nextIsPaused = !isPaused;
     if (!isSilentMode) {
@@ -659,7 +718,13 @@ export default function Timer() {
     setIsPaused(nextIsPaused);
   };
 
-  const handleStart = () => {
+  // Wrapped here rather than at the button, so the TAB shortcut asks the
+  // same question the click does. Pausing and resuming are two questions:
+  // silencing "are you sure you want to pause" must not also silence the
+  // one that comes with letting a stopped clock run on.
+  const togglePause = () => askFull(isPaused ? 'resume' : 'pause', runTogglePause);
+
+  const runStart = () => {
     // At or past zero, start again from the configured time.
     setTime((prev) => ({
       seconds: prev.seconds <= 0 ? configuredTotalSeconds : prev.seconds,
@@ -672,6 +737,8 @@ export default function Timer() {
     restartRunFade();
     playTone('start');
   };
+
+  const handleStart = () => askFull('start', runStart);
 
   const stopToConfigured = () => {
     clearAlarmInterval();
@@ -689,8 +756,11 @@ export default function Timer() {
   // back paused, which is where a finished stopwatch usually sits.
   const isRingingNow = isOvertime && !isPaused;
   const handleStopClick = () => {
+    // Ringing, this is the FULL-tier question: half mode waves it through
+    // exactly as it always has, and shouldAsk is what decides that rather
+    // than a branch here.
     if (isRingingNow) {
-      handleConfirmStop();
+      askFull('stopRinging', handleConfirmStop);
       return;
     }
     askThenRun({ type: 'stop' }, handleConfirmStop);
@@ -704,7 +774,7 @@ export default function Timer() {
 
   const handleResetClick = () => {
     if (isRingingNow) {
-      handleConfirmReset();
+      askFull('resetRinging', handleConfirmReset);
       return;
     }
     askThenRun({ type: 'reset' }, handleConfirmReset);
@@ -856,8 +926,19 @@ export default function Timer() {
     setInsertedPreset(null);
   }, []);
 
+  // Two steps for the same reason a preset's removal has them: the fizz
+  // has to play after the question is answered, not before, or cancelling
+  // leaves a row that has already animated itself away.
+  const [removingHistoryId, setRemovingHistoryId] = useState<string | null>(null);
+
+  const handleRequestRemoveHistory = useCallback(
+    (id: string) => askFull('removeHistory', () => setRemovingHistoryId(id)),
+    [askFull]
+  );
+
   const handleRemoveHistoryEntry = useCallback((id: string) => {
     setHistory((prev) => prev.filter((entry) => entry.id !== id));
+    setRemovingHistoryId((current) => (current === id ? null : current));
   }, []);
 
   // Stamps read in the clock's own zone and 12/24 setting, so the list
@@ -1140,7 +1221,12 @@ export default function Timer() {
         closeDialog();
         break;
       case 'skipConfirmations':
-        setSkipConfirmations(true);
+        setConfirmMode('none');
+        closeDialog();
+        break;
+      // The action came with the question, so there's nothing to look up.
+      case 'full':
+        dialog.run();
         closeDialog();
         break;
     }
@@ -1673,7 +1759,7 @@ export default function Timer() {
       isHourFormatFlashing={isHourFormatFlashing}
       hourFormatFlashToken={hourFormatFlashToken}
       onHourFormatClick={handleHourFormatClick}
-      onTimeZoneChange={setTimeZone}
+      onTimeZoneChange={handleTimeZoneChange}
       rootRef={rootRef}
       hideDate={measured && isClockDateCrowded}
       hideTime={measured && isClockTimeCrowded}
@@ -1693,39 +1779,117 @@ export default function Timer() {
               label={isLightTheme ? 'Switch to the dark theme' : 'Switch to the light theme'}
             />
 
-            <button
-              // Turning confirmations off is the one switch that changes
-              // what every other click does, so it asks. Through askThenRun
-              // like the rest, so its own "don't ask this again" is
-              // honoured. Not circular: askThenRun's skipConfirmations check
-              // can't fire here, since this branch only runs while they're
-              // still on. Turning them back on never asks.
-              onClick={() => {
-                if (skipConfirmations) {
-                  setSkipConfirmations(false);
-                } else {
-                  askThenRun({ type: 'skipConfirmations' }, () => setSkipConfirmations(true));
-                }
+            {/* Wrapped so the list below can hang off it. The wrapper owns
+                the hover, not the button, or moving the pointer onto a row
+                would close the thing being pointed at. focusout with a
+                relatedTarget check does the same job for the keyboard:
+                moving between rows never leaves the wrapper, so it only
+                fires on the way out. */}
+            <div
+              className="relative flex-shrink-0"
+              onMouseEnter={openConfirmList}
+              onMouseLeave={() => setIsConfirmListOpen(false)}
+              onFocus={openConfirmList}
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsConfirmListOpen(false);
               }}
-              aria-pressed={!skipConfirmations}
-              // Wordless, like the rest of this corner: a label here made it
-              // the widest control by a distance, and this corner is what
-              // the website link and the fullscreen row keep clear of. The
-              // tooltip says what it means, the box says whether it's on.
-              className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80 flex-shrink-0"
-              style={{
-                ...HEADER_BUTTON_SIZE,
-                borderColor: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
-                color: skipConfirmations ? '#6b7280' : 'var(--app-ink)',
-                backgroundColor: 'var(--app-surface)',
-              }}
-              title={skipConfirmations
-                ? 'Confirmation dialogs are off — actions apply immediately (the RESET button still always asks). Click to turn confirmations back on'
-                : 'Confirmation dialogs are on — actions ask before applying (the RESET button always asks either way). Click to skip them'}
-              aria-label={skipConfirmations ? 'Turn confirmation dialogs back on' : 'Turn confirmation dialogs off'}
             >
-              <DotCheckbox checked={!skipConfirmations} fontSize={HEADER_ICON_SIZE.width} />
-            </button>
+              <button
+                // Three positions, and only one step of the cycle takes
+                // questions away rather than adding them, so only that one
+                // asks. Through askThenRun like the rest, so its own "don't
+                // ask this again" is honoured. Not circular: full is the
+                // only mode that branch runs in, and shouldAsk says yes
+                // there.
+                onClick={() => {
+                  const next = nextConfirmMode(confirmMode);
+                  if (next === 'none') {
+                    askThenRun({ type: 'skipConfirmations' }, () => setConfirmMode('none'));
+                  } else {
+                    setConfirmMode(next);
+                  }
+                }}
+                aria-pressed={confirmMode !== 'none'}
+                // The one thing about this button a test can read without
+                // matching on prose: which of the three it is showing.
+                data-confirm-mode={confirmMode}
+                // Wordless, like the rest of this corner: a label here made
+                // it the widest control by a distance, and this corner is
+                // what the website link and the fullscreen row keep clear
+                // of. The tooltip says what it means, the box says how much
+                // of it is on.
+                className="flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80 flex-shrink-0"
+                style={{
+                  ...HEADER_BUTTON_SIZE,
+                  borderColor: confirmMode === 'none' ? '#6b7280' : 'var(--app-ink)',
+                  color: confirmMode === 'none' ? '#6b7280' : 'var(--app-ink)',
+                  backgroundColor: 'var(--app-surface)',
+                }}
+                title={CONFIRM_MODE_TITLE[confirmMode]}
+                aria-label={CONFIRM_MODE_TITLE[confirmMode]}
+              >
+                <DotCheckbox
+                  checked={confirmMode === 'full' ? true : confirmMode === 'half' ? 'half' : false}
+                  fontSize={HEADER_ICON_SIZE.width}
+                />
+              </button>
+              {isConfirmListOpen && (
+                // Right-aligned and dropped straight out of the button with
+                // no gap: a gap is a strip the pointer has to cross on the
+                // way down, and crossing it closes the thing it was heading
+                // for. z-[95] clears the header strip and the website link,
+                // both of which this hangs over.
+                <div
+                  data-confirm-list
+                  className="absolute top-full right-0 z-[95] flex flex-col border-3 text-left"
+                  style={{
+                    width: 'min(22rem, calc(100vw - 1rem))',
+                    maxHeight: 'min(24rem, 60vh)',
+                    borderColor: 'var(--app-ink)',
+                    backgroundColor: 'var(--app-surface)',
+                    color: 'var(--app-ink)',
+                  }}
+                >
+                  <div
+                    className="px-2 py-1 font-bold border-b-3 flex-shrink-0"
+                    style={{ fontSize: CONFIRM_LIST_FONT_SIZE, borderColor: 'var(--app-ink)' }}
+                  >
+                    {CONFIRM_LIST_HEADING[confirmMode]}
+                  </div>
+                  {/* The one scrolling list in the app. Thirty-odd
+                      questions fit no window this button floats over, and
+                      a list cut to fit is questions with no way to answer
+                      them. */}
+                  <div data-confirm-scroll className="overflow-y-auto">
+                    {QUESTIONS.map((question) => {
+                      const live = isQuestionLive(question.tier, confirmMode);
+                      const silenced = suppressedKeys.includes(question.key);
+                      return (
+                        <button
+                          key={question.key}
+                          type="button"
+                          onClick={() => toggleSuppressedKey(question.key)}
+                          aria-pressed={silenced}
+                          // Greyed rather than disabled: a question the
+                          // current mode never asks is still one that can
+                          // be answered ahead of time, and ticking it here
+                          // is what makes switching modes later do what was
+                          // already decided.
+                          className="w-full flex items-center gap-2 px-2 py-1 text-left hover:opacity-70 transition-opacity"
+                          style={{ fontSize: CONFIRM_LIST_FONT_SIZE, color: live ? 'var(--app-ink)' : '#6b7280' }}
+                          title={live
+                            ? 'Tick to stop this one asking'
+                            : "Tick to stop this one asking. The confirm mode you're in doesn't ask it, so nothing changes until you cycle back to one that does"}
+                        >
+                          <DotCheckbox checked={silenced} fontSize={CONFIRM_LIST_FONT_SIZE} />
+                          <span className="flex-1">{question.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Resets the whole site. Asks even with confirmations off. */}
             <button
@@ -1841,7 +2005,7 @@ export default function Timer() {
       style={isRowLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
     >
       <HeaderToggleButton
-        onClick={() => setTimeFieldsHidden(true)}
+        onClick={() => askFull('tuckTimeFields', () => setTimeFieldsHidden(true))}
         icon={<ChevronsRight style={HEADER_ICON_SIZE} />}
         label="Hide hours/minutes/seconds"
       />
@@ -2022,7 +2186,9 @@ export default function Timer() {
           <HistoryPanel
             history={history}
             onSelect={handleSelectEntry}
+            onRequestRemove={handleRequestRemoveHistory}
             onRemove={handleRemoveHistoryEntry}
+            removingId={removingHistoryId}
             onClear={handleRequestClearHistory}
             inserted={insertedHistory}
             loaded={loadedEntry}
@@ -2046,7 +2212,7 @@ export default function Timer() {
               says, so this toggle matches its breakpoint and only appears
               when there's a panel for it to control. */}
           <HeaderToggleButton
-            onClick={() => setIsSidebarHidden((prev) => !prev)}
+            onClick={() => (isSidebarHidden ? setIsSidebarHidden(false) : askFull('tuckSidebar', () => setIsSidebarHidden(true)))}
             icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
             label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
             className="hidden sm:flex"
@@ -2269,6 +2435,7 @@ export default function Timer() {
             so the timer still sits on the row's midpoint. */}
         <WordCounter
           onFocusChange={setIsWordCounterFocused}
+          confirmMode={confirmMode}
           onFullscreenChange={setIsWordCounterFullscreen}
           speakerButton={isWordCounterFullscreen ? speakerButton : null}
           ringerButton={isWordCounterFullscreen ? ringerButton : null}

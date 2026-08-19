@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { countColor, HISTORY_WARN, MAX_HISTORY, LIST_ROW_BUTTON_STYLE, LIST_ROW_FONT_SIZE, LIST_ROW_REMOVE_BUTTON_STYLE, LIST_ROW_REMOVE_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE_SOLO, SIDEBAR_HEADING_FONT_SIZE } from './constants';
 import { formatEntryLabel } from './format';
 import { shrinkClamp } from './responsive';
@@ -31,7 +31,13 @@ const HISTORY_ROW_GAP = shrinkClamp(0.75, 1.25, 1.35, 1.2);
 interface HistoryPanelProps {
   history: TimerEntry[];
   onSelect: (entry: TimerEntry) => void;
+  // Asked first, applied second: the fizz only starts once the question is
+  // answered, so cancelling leaves a row that never animated. Same shape
+  // as PresetsPanel, for the same reason.
+  onRequestRemove: (id: string) => void;
   onRemove: (id: string) => void;
+  // The row currently fizzing out, null the rest of the time.
+  removingId: string | null;
   onClear: () => void;
   inserted: FlashTarget;
   loaded: FlashTarget;
@@ -45,16 +51,24 @@ interface HistoryPanelProps {
 // kind of thing as a preset, a time you can load, so it gets the same box
 // and the same − beside it. What it has that a preset doesn't is a when,
 // which sits above the row.
-function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp }: {
+function HistoryRow({ entry, onSelect, onRequestRemove, onRemove, isRemoving, inserted, loaded, formatStamp }: {
   entry: TimerEntry;
   onSelect: (entry: TimerEntry) => void;
+  onRequestRemove: (id: string) => void;
   onRemove: (id: string) => void;
+  isRemoving: boolean;
   inserted: FlashTarget;
   loaded: FlashTarget;
   formatStamp: (timestamp: number) => { time: string; date: string } | null;
 }) {
   const buttonRef = useEntryFlash(entry.id, inserted, loaded);
   const fizz = useFizzRemove(useCallback(() => onRemove(entry.id), [onRemove, entry.id]));
+  // The − no longer starts its own fizz. The panel above says when, once
+  // whatever question the click raised has been answered.
+  const { start } = fizz;
+  useEffect(() => {
+    if (isRemoving) start();
+  }, [isRemoving, start]);
   const stamp = formatStamp(entry.timestamp);
 
   return (
@@ -80,7 +94,7 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp }
           rather than its own smaller font. */}
       <div className="flex items-stretch" style={{ gap: ROW_GAP }}>
       <button
-        onClick={fizz.start}
+        onClick={() => onRequestRemove(entry.id)}
         disabled={fizz.isRemoving}
         aria-label={`Remove history entry ${formatEntryLabel(entry)}`}
         className="border-2 border-red-500 text-red-500 font-bold hover:bg-red-500 hover:text-white transition-colors"
@@ -107,7 +121,7 @@ function HistoryRow({ entry, onSelect, onRemove, inserted, loaded, formatStamp }
   );
 }
 
-function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, formatStamp }: HistoryPanelProps) {
+function HistoryPanel({ history, onSelect, onRequestRemove, onRemove, removingId, onClear, inserted, loaded, formatStamp }: HistoryPanelProps) {
   const warnColor = countColor(history.length, HISTORY_WARN, MAX_HISTORY);
   // The denominator goes when the count reaches Clear. Measured rather
   // than named as a width, since the count's own text is part of the sum.
@@ -168,7 +182,7 @@ function HistoryPanel({ history, onSelect, onRemove, onClear, inserted, loaded, 
           <p className="text-white opacity-50" style={{ fontSize: shrinkClamp(0.75, 1, 1.05, 0.875) }}>No history yet</p>
         ) : (
           history.map((entry) => (
-            <HistoryRow key={entry.id} entry={entry} onSelect={onSelect} onRemove={onRemove} inserted={inserted} loaded={loaded} formatStamp={formatStamp} />
+            <HistoryRow key={entry.id} entry={entry} onSelect={onSelect} onRequestRemove={onRequestRemove} onRemove={onRemove} isRemoving={removingId === entry.id} inserted={inserted} loaded={loaded} formatStamp={formatStamp} />
           ))
         )}
       </div>

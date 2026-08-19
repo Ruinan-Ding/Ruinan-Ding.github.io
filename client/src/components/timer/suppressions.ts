@@ -1,6 +1,6 @@
-import { readJSON, writeJSON } from '@/lib/storage';
+import { readBoolean, readJSON, writeJSON } from '@/lib/storage';
 import { STORAGE_KEYS } from './constants';
-import type { DialogState } from './types';
+import type { ConfirmMode, DialogState, FullAct } from './types';
 
 // Questions answered with a dialog's "Don't ask again" checkbox, kept in
 // localStorage so they stay answered across a reload. The site RESET wipes
@@ -11,9 +11,18 @@ import type { DialogState } from './types';
 // it changes at most once per dialog, only on click paths, and both Timer
 // and WordCounter read it independently.
 
-const readKeys = (): string[] => {
+export const readSuppressedKeys = (): string[] => {
   const saved = readJSON<unknown>(STORAGE_KEYS.dontAskAgain, null);
   return Array.isArray(saved) ? saved.filter((key): key is string => typeof key === 'string') : [];
+};
+
+// Writes and hands back the new list, so a caller mirroring it into React
+// state doesn't have to read back a write that has only just landed.
+export const setSuppressedKey = (key: string, silenced: boolean): string[] => {
+  const kept = readSuppressedKeys().filter((k) => k !== key);
+  const next = silenced ? [...kept, key] : kept;
+  writeJSON(STORAGE_KEYS.dontAskAgain, next);
+  return next;
 };
 
 // Which question a dialog is asking, which is not the same as its type:
@@ -39,10 +48,127 @@ export const dialogKey = (dialog: DialogState): string | null => {
       return `switch:${dialog.mode}`;
     case 'seek':
       return `seek:${dialog.data.mode}`;
+    // One member, one question per act. The act names are kept apart from
+    // the dialog types below, so both share the one flat key space.
+    case 'full':
+      return dialog.act;
     default:
       return dialog.type;
   }
 };
+
+// Copy for the FULL-mode questions, and the labels their rows carry in the
+// confirm button's list. One table, so an act can't reach the dialog
+// without also reaching the list.
+export const FULL_ACTS: Record<FullAct, { label: string; title: string; description: string; action: string }> = {
+  start: {
+    label: 'Start the timer',
+    title: 'START TIMER',
+    description: 'Start the timer?',
+    action: 'START',
+  },
+  pause: {
+    label: 'Pause the timer',
+    title: 'PAUSE TIMER',
+    description: 'Pause the timer? It holds where it is until you resume it.',
+    action: 'PAUSE',
+  },
+  resume: {
+    label: 'Resume the timer',
+    title: 'RESUME TIMER',
+    description: 'Resume the timer from where it is paused?',
+    action: 'RESUME',
+  },
+  // The two an alarm normally waves straight through: ringing, a dialog
+  // between the button and the silence is the wrong thing to meet. FULL
+  // is the mode where someone has asked for one anyway.
+  stopRinging: {
+    label: 'Stop while the alarm is ringing',
+    title: 'CONFIRM STOP',
+    description: 'Stop the ringing timer? This will silence it and reset it to the initial time.',
+    action: 'CONFIRM',
+  },
+  resetRinging: {
+    label: 'Reset while the alarm is ringing',
+    title: 'CONFIRM RESET',
+    description: 'Reset the ringing timer? This will silence it and restart it from the beginning.',
+    action: 'CONFIRM',
+  },
+  removeHistory: {
+    label: 'Delete a history entry',
+    title: 'DELETE ENTRY',
+    description: "Delete this run from the history? This can't be undone.",
+    action: 'DELETE',
+  },
+  tuckSidebar: {
+    label: 'Tuck away presets & history',
+    title: 'HIDE PANEL',
+    description: 'Hide presets & history? Nothing in them is lost, and the arrow brings the panel back.',
+    action: 'HIDE',
+  },
+  tuckTimeFields: {
+    label: 'Tuck away the HOURS/MINUTES/SECONDS box',
+    title: 'HIDE TIME FIELDS',
+    description: 'Hide the HOURS/MINUTES/SECONDS box? The arrow brings it back.',
+    action: 'HIDE',
+  },
+  tuckWordCounter: {
+    label: 'Tuck away the word counter',
+    title: 'HIDE WORD COUNTER',
+    description: 'Hide the word counter? What you typed is kept, and the arrow brings it back.',
+    action: 'HIDE',
+  },
+  fullscreen: {
+    label: 'Open the word counter full screen',
+    title: 'FULL SCREEN',
+    description: 'Put the word counter full screen? It covers the page until you come back out.',
+    action: 'CONFIRM',
+  },
+  timeZone: {
+    label: "Change the clock's time zone",
+    title: 'CHANGE TIME ZONE',
+    description: "Change the clock's time zone? The wall clock and every history stamp re-read in the new one.",
+    action: 'CHANGE',
+  },
+  hourFormat: {
+    label: 'Switch the clock between 12-hour and 24-hour',
+    title: 'CHANGE CLOCK FORMAT',
+    description: 'Switch the clock between 12-hour and 24-hour?',
+    action: 'CHANGE',
+  },
+};
+
+// The half-tier half of the list the confirm button shows, in the order it
+// shows them. The keys have to agree with dialogKey above: a row whose key
+// no dialog produces is a checkbox that silences nothing.
+const HALF_QUESTIONS: [string, string][] = [
+  ['stop', 'Stop the timer'],
+  ['reset', 'Reset the timer'],
+  ['mute', 'Mute the alarm'],
+  ['switch:switchRunning', 'Switch to another time mid-run'],
+  ['switch:loadOnly', 'Switch to another time while paused or stopped'],
+  ['seek:idle', 'Set the time by clicking the bar'],
+  ['seek:paused', 'Move a paused timer by clicking the bar'],
+  ['seek:running', 'Move a running timer by clicking the bar'],
+  ['adjust:unstarted', 'Change the configured time'],
+  ['adjust:running', 'Change the remaining time while running'],
+  ['adjust:paused', 'Change the remaining time while paused'],
+  ['adjust:ringing', 'Change the remaining time while ringing'],
+  ['removePreset', 'Delete a preset'],
+  ['clearPresets', 'Delete every preset'],
+  ['clearHistory', 'Clear all history'],
+  ['clearWordCounter', 'Clear the word counter'],
+  ['hideWebsiteLink', 'Hide the website link'],
+  ['correctPreset', 'Report a preset corrected to fit'],
+  ['correctTime', 'Report a time corrected to fit'],
+  ['duplicatePreset', 'Report a preset you already have'],
+  ['skipConfirmations', 'Warn before turning confirmations off'],
+];
+
+export const QUESTIONS: { key: string; label: string; tier: 'half' | 'full' }[] = [
+  ...HALF_QUESTIONS.map(([key, label]) => ({ key, label, tier: 'half' as const })),
+  ...(Object.keys(FULL_ACTS) as FullAct[]).map((act) => ({ key: act, label: FULL_ACTS[act].label, tier: 'full' as const })),
+];
 
 // Dialogs that report what happened rather than ask whether it should.
 // They get one OK and no CANCEL, and dismissing lands on the same result
@@ -52,13 +178,41 @@ export const isAcknowledgement = (dialog: DialogState): boolean =>
 
 export const isDialogSuppressed = (dialog: DialogState): boolean => {
   const key = dialogKey(dialog);
-  return key !== null && readKeys().includes(key);
+  return key !== null && readSuppressedKeys().includes(key);
+};
+
+// The one place a question is weighed against the mode. Three ways it can
+// already be answered: confirmations are off, the mode is half and this is
+// one of the questions only full asks, or this one has been silenced on
+// its own. The site RESET is outside all three.
+export const shouldAsk = (dialog: DialogState, mode: ConfirmMode): boolean => {
+  if (dialog.type === null) return false;
+  if (dialog.type === 'clearCache') return true;
+  if (mode === 'none') return false;
+  if (mode === 'half' && dialog.type === 'full') return false;
+  return !isDialogSuppressed(dialog);
+};
+
+// Whether a row in that list is one the current mode actually asks. A row
+// that isn't still toggles; it just changes nothing until the mode comes
+// back round to it.
+export const isQuestionLive = (tier: 'half' | 'full', mode: ConfirmMode): boolean =>
+  mode === 'full' || (mode === 'half' && tier === 'half');
+
+// What the button cycles to: half, then full, then off, round again.
+export const nextConfirmMode = (mode: ConfirmMode): ConfirmMode =>
+  mode === 'half' ? 'full' : mode === 'full' ? 'none' : 'half';
+
+// Migrates the old two-state key, which only ever said "skip everything":
+// true reads as none, false as the half it always meant.
+export const readConfirmMode = (): ConfirmMode => {
+  const saved = readJSON<unknown>(STORAGE_KEYS.confirmMode, null);
+  if (saved === 'half' || saved === 'full' || saved === 'none') return saved;
+  return readBoolean(STORAGE_KEYS.skipConfirmations, false) ? 'none' : 'half';
 };
 
 export const suppressDialog = (dialog: DialogState) => {
   const key = dialogKey(dialog);
   if (key === null) return;
-  const keys = readKeys();
-  if (keys.includes(key)) return;
-  writeJSON(STORAGE_KEYS.dontAskAgain, [...keys, key]);
+  setSuppressedKey(key, true);
 };

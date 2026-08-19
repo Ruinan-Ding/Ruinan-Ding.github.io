@@ -75,7 +75,7 @@ await sleep(3000);
 // 5 minutes, confirmations off so an edit lands without a dialog in the way
 // (the dialog itself is covered separately, below).
 await evaluate(`localStorage.setItem('timerAppState', JSON.stringify({seconds:300,isPaused:false,isRunning:false,hours:0,minutes:5,timerSeconds:0})),
-  localStorage.setItem('timerSkipConfirmations','true'), localStorage.setItem('timerDontAskAgain','[]'),
+  localStorage.setItem('timerConfirmMode','"none"'), localStorage.setItem('timerDontAskAgain','[]'),
   localStorage.setItem('timerSilentMode','true'), localStorage.setItem('timerAlarmLoop','false'),
   localStorage.setItem('wordCounterCollapsed','true'), localStorage.setItem('wordCounterCollapsedAt','null'),
   localStorage.setItem('timerSidebarHidden','false'), localStorage.setItem('timerTimeFieldsHidden','false'), 'ok'`);
@@ -120,7 +120,7 @@ const back = await bar();
 check('bar stopped waving', back?.waving, 'false');
 
 // 6. With confirmations on, the running edit asks — in the new words.
-await evaluate(`localStorage.setItem('timerSkipConfirmations','false'), localStorage.setItem('timerDontAskAgain','[]'), 'ok'`);
+await evaluate(`localStorage.setItem('timerConfirmMode','"half"'), localStorage.setItem('timerDontAskAgain','[]'), 'ok'`);
 await send('Page.reload', {});
 await sleep(3000);
 await activate();

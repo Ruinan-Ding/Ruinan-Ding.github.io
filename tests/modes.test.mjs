@@ -1,0 +1,212 @@
+// The confirm button's three positions, and the list it drops down.
+// Real clicks, keys and pointer moves through CDP, so hover and focus
+// behave as they will for a person.
+import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { CHROME } from './chrome.mjs';
+const port = Number(process.argv[2] ?? 9545);
+const profile = mkdtempSync(join(tmpdir(), 'modes-'));
+const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
+  '--no-first-run', '--no-default-browser-check', '--force-device-scale-factor=1', '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+let wsUrl;
+for (let i = 0; i < 100 && !wsUrl; i++) {
+  try {
+    const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+    wsUrl = list.find((t) => t.type === 'page')?.webSocketDebuggerUrl;
+  } catch { /* not up */ }
+  if (!wsUrl) await sleep(100);
+}
+const ws = new WebSocket(wsUrl);
+await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+let id = 1; const pending = new Map();
+// The leave guard arms whenever a timer is running, so a reload here can
+// raise a native beforeunload dialog. Unanswered it blocks the whole CDP
+// session, so it gets accepted the moment it opens.
+ws.onmessage = (m) => {
+  const x = JSON.parse(m.data);
+  if (x.method === 'Page.javascriptDialogOpening') {
+    ws.send(JSON.stringify({ id: id++, method: 'Page.handleJavaScriptDialog', params: { accept: true } }));
+    return;
+  }
+  if (pending.has(x.id)) { pending.get(x.id)(x.result); pending.delete(x.id); }
+};
+const send = (method, params = {}) => new Promise((res) => { const i = id++; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
+const ev = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result?.value;
+
+// ENTER needs its char event as well as the key one, or the focused
+// button never activates and the dialog just sits there.
+const press = async (key, code, vk, text) => {
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code, windowsVirtualKeyCode: vk });
+  if (text) await send('Input.dispatchKeyEvent', { type: 'char', key, code, windowsVirtualKeyCode: vk, text });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk });
+  await sleep(700);
+};
+const enter = () => press('Enter', 'Enter', 13, String.fromCharCode(13));
+const moveTo = async (x, y) => {
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+  await sleep(300);
+};
+const clickAt = async (x, y) => {
+  // Moved first, or the pointer teleports onto the target and the hover
+  // the list hangs on never opens.
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+  await sleep(600);
+};
+const centreOf = (expr) => ev(`(()=>{const e=${expr};if(!e)return null;const r=e.getBoundingClientRect();return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)}})()`);
+
+const out = [];
+const check = (name, got, want) => out.push({ name, got: String(got), want: String(want), pass: String(got) === String(want) });
+const clickEl = async (expr, name) => {
+  const p = await centreOf(expr);
+  if (!p) { check(`${name} (not found)`, 'missing', 'found'); return false; }
+  await clickAt(p.x, p.y);
+  return true;
+};
+
+// A row past the fold has a rect the panel clips, so clicking its centre
+// lands on the page behind. Scrolled into view first, the way a person
+// reaching it would.
+const clickRow = async (label) => {
+  const found = await ev(`(()=>{const b=[...document.querySelectorAll('[data-confirm-list] button')].find(b=>b.textContent.trim()===${JSON.stringify(label)});if(!b)return false;b.scrollIntoView({block:'center'});return true})()`);
+  if (!found) { check(`${label} row (not found)`, 'missing', 'found'); return false; }
+  await sleep(200);
+  return clickEl(`[...document.querySelectorAll('[data-confirm-list] button')].find(b=>b.textContent.trim()===${JSON.stringify(label)})`, `${label} row`);
+};
+
+// The button carries its mode as an attribute, so nothing here has to
+// match on the prose in its tooltip.
+const CONFIRM_BTN = `document.querySelector('[data-confirm-mode]')`;
+const LIST = `document.querySelector('[data-confirm-list]')`;
+const CONTROL = (label) => `[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='${label}')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='${label}';})`;
+
+const mode = () => ev(`(${CONFIRM_BTN})?.dataset.confirmMode ?? null`);
+const dialogTitle = () => ev(`document.querySelector('[role="alertdialog"][data-state="open"] h2')?.textContent ?? null`);
+const status = () => ev(`[...document.querySelectorAll('div')].filter(e=>/^(READY|RUNNING|PAUSED|STOPPED|FINISHED)$/.test(e.textContent.trim())&&e.children.length===0).pop()?.textContent.trim()`);
+const stored = () => ev(`localStorage.getItem('timerConfirmMode')`);
+
+await send('Page.enable');
+await send('Runtime.enable');
+await send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
+await send('Page.navigate', { url: 'http://localhost:5199/' });
+await sleep(3000);
+const seed = `localStorage.setItem('timerAppState', JSON.stringify({seconds:600,isPaused:false,isRunning:false,hours:0,minutes:10,timerSeconds:0})),
+  localStorage.removeItem('timerConfirmMode'),
+  localStorage.setItem('timerSkipConfirmations','false'),
+  localStorage.setItem('timerDontAskAgain','[]'),
+  localStorage.setItem('timerSilentMode','true'),
+  localStorage.setItem('wordCounterCollapsed','false'),
+  localStorage.setItem('wordCounterCollapsedAt','null'),
+  localStorage.setItem('wordCounterFullscreen','false'),
+  localStorage.setItem('timerSidebarHidden','false'),
+  localStorage.setItem('timerTimeFieldsHidden','false'), 'ok'`;
+await ev(seed);
+await send('Page.reload', {});
+await sleep(3000);
+await ev(`document.activeElement?.blur?.(), 'ok'`);
+
+// --- half: the mode a browser that never knew this button lands in ------
+check('starts in half', await mode(), 'half');
+check('half fills to the diagonal', await ev(`(${CONFIRM_BTN})?.querySelector('span > span')?.style.clipPath || null`), 'polygon(0% 0%, 0% 100%, 100% 100%)');
+await clickEl(CONTROL('START'), 'START');
+check('half mode starts without asking', await dialogTitle(), 'null');
+check('and it is running', await status(), 'RUNNING');
+
+// --- half -> full -------------------------------------------------------
+await clickEl(CONFIRM_BTN, 'confirm toggle');
+check('one click reaches full', await mode(), 'full');
+check('full fills the square', await ev(`(${CONFIRM_BTN})?.querySelector('span > span')?.style.clipPath || 'none'`), 'none');
+check('full is persisted', await stored(), '"full"');
+
+// TAB is pause/resume, and full mode asks about it.
+await press('Tab', 'Tab', 9);
+check('full mode asks before pausing', await dialogTitle(), 'PAUSE TIMER');
+await press('Escape', 'Escape', 27);
+check('cancelling leaves it running', await status(), 'RUNNING');
+await press('Tab', 'Tab', 9);
+await enter();
+check('confirming pauses', await status(), 'PAUSED');
+
+// --- the list -----------------------------------------------------------
+// Hovering is the only way in, so a missing button here is fatal to
+// everything below it rather than one failed check.
+const hoverConfirm = async () => {
+  const p = await centreOf(CONFIRM_BTN);
+  if (!p) { check('confirm button (not found)', 'missing', 'found'); return false; }
+  await moveTo(p.x, p.y);
+  return true;
+};
+await hoverConfirm();
+check('hovering opens the list', await ev(`!!(${LIST})`), 'true');
+check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button').length ?? 0`), 33);
+check('the list scrolls', await ev(`(()=>{const l=document.querySelector('[data-confirm-scroll]');return !!l && l.scrollHeight > l.clientHeight})()`), 'true');
+// In full mode nothing is greyed: every row is a question being asked.
+check('full greys nothing', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 0);
+
+// Ticking a row silences that one question and nothing else.
+await clickRow('Start the timer');
+check('the tick is written', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('"start"')`), 'true');
+await moveTo(700, 500);
+await clickEl(CONTROL('STOP'), 'STOP');
+await enter();
+await sleep(400);
+await clickEl(CONTROL('START'), 'START');
+check('a silenced question stops asking', await dialogTitle(), 'null');
+check('and the action went through', await status(), 'RUNNING');
+// Its neighbour is untouched.
+await press('Tab', 'Tab', 9);
+check('its neighbour still asks', await dialogTitle(), 'PAUSE TIMER');
+await press('Escape', 'Escape', 27);
+
+// --- full -> none, which is the one step that warns ---------------------
+await clickEl(CONFIRM_BTN, 'confirm toggle');
+check('turning it off asks first', await dialogTitle(), 'TURN OFF CONFIRMATIONS');
+await enter();
+check('two clicks reach none', await mode(), 'none');
+check('none empties the square', await ev(`(${CONFIRM_BTN})?.querySelector('span > span')?.style.backgroundColor`), 'transparent');
+await clickEl(CONTROL('STOP'), 'STOP');
+check('none asks nothing', await dialogTitle(), 'null');
+check('and the stop went through', await status(), 'READY');
+
+await hoverConfirm();
+check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 33);
+// Greyed is not disabled: the answer still lands, it just changes nothing
+// until the mode comes back round to asking that question.
+await clickRow('Stop the timer');
+check('a greyed row still toggles', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('"stop"')`), 'true');
+
+// --- none -> half, round again ------------------------------------------
+await moveTo(700, 500);
+await clickEl(CONFIRM_BTN, 'confirm toggle');
+check('three clicks come back to half', await mode(), 'half');
+await hoverConfirm();
+check('half greys only the full rows', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 12);
+await moveTo(700, 500);
+check('leaving closes the list', await ev(`!!(${LIST})`), 'false');
+
+// Half mode ignores a FULL-tier answer as well as the question: pausing
+// asks nothing here whether or not it was ticked above.
+await clickEl(CONTROL('START'), 'START');
+await press('Tab', 'Tab', 9);
+check('half mode never asks a full question', await dialogTitle(), 'null');
+check('and it paused', await status(), 'PAUSED');
+
+// --- the half-tier questions still work the way they always did ---------
+await clickEl(CONTROL('RESET'), 'RESET');
+check('half still asks about reset', await dialogTitle(), 'CONFIRM RESET');
+await press('Escape', 'Escape', 27);
+
+const width = Math.max(...out.map((r) => r.name.length));
+out.forEach((r) => console.log(`${r.pass ? 'ok  ' : 'FAIL'}  ${r.name.padEnd(width)}  got=${r.got.padEnd(24)} want=${r.want}`));
+console.log(`${out.filter((r) => r.pass).length}/${out.length} passed`);
+ws.close();
+chrome.kill();
+await sleep(300);
+try { rmSync(profile, { recursive: true, force: true }); } catch { /* windows holds it briefly */ }
+process.exit(out.every((r) => r.pass) ? 0 : 1);

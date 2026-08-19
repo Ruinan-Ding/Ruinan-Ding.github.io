@@ -27,6 +27,27 @@ export interface TimeParts {
   seconds: number;
 }
 
+// The questions FULL confirm mode adds. Spelled out here rather than
+// beside their copy in suppressions.ts so that module can import
+// DialogState without the two importing each other.
+export type FullAct =
+  | 'start'
+  | 'pause'
+  | 'resume'
+  | 'stopRinging'
+  | 'resetRinging'
+  | 'removeHistory'
+  | 'tuckSidebar'
+  | 'tuckTimeFields'
+  | 'tuckWordCounter'
+  | 'fullscreen'
+  | 'timeZone'
+  | 'hourFormat';
+
+// half asks what this app has always asked. full asks that plus every
+// FullAct. none asks nothing but the site RESET, which is never skippable.
+export type ConfirmMode = 'half' | 'full' | 'none';
+
 export type DialogState =
   | { type: null }
   | { type: 'stop' }
@@ -62,6 +83,10 @@ export type DialogState =
   // Adding a time the list already holds. Nothing to decide either: it says
   // so and points at the row that time is already in.
   | { type: 'duplicatePreset'; data: { id: string; label: string } }
+  // Every FULL-mode question in one member. The action travels with it,
+  // so confirming needs no case per act and an act that needs data (which
+  // history row, which zone) closes over it instead of restating it here.
+  | { type: 'full'; act: FullAct; run: () => void }
   // Turning confirmations off asks; turning them back on never does.
   | { type: 'skipConfirmations' }
   | { type: 'clearWordCounter' };

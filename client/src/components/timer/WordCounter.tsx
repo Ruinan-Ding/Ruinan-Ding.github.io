@@ -7,14 +7,18 @@ import { HEADER_ICON_SIZE, STORAGE_KEYS, TYPES_INTO } from './constants';
 import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import { boxCap, shrinkClamp } from './responsive';
-import { isDialogSuppressed, suppressDialog } from './suppressions';
+import { shouldAsk, suppressDialog } from './suppressions';
 import { capInsertion, countLabel, countStats, COUNTER_MAX, COUNTER_WARN } from './wordCount';
-import type { DialogState } from './types';
+import type { ConfirmMode, DialogState, FullAct } from './types';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
 import { useWordCounterCollapse } from './useWordCounterCollapse';
 
 interface WordCounterProps {
   onFocusChange: (focused: boolean) => void;
+  // Which questions the app is asking. This box owns three of them, so it
+  // has to weigh them the same way Timer does rather than reading the
+  // stored mode behind Timer's back.
+  confirmMode: ConfirmMode;
   // Lets the timer hide its own header controls while this covers the
   // page they'd otherwise float over.
   onFullscreenChange: (fullscreen: boolean) => void;
@@ -38,8 +42,8 @@ interface WordCounterProps {
   timerControls: ReactNode;
 }
 
-// The one dialog this component owns. A constant so the "is it silenced?"
-// check and the "silence it" call can't drift apart.
+// The dialog this component owns outright. A constant so the "is it
+// silenced?" check and the "silence it" call can't drift apart.
 const CLEAR_DIALOG = { type: 'clearWordCounter' } as const;
 
 // Keys that drive the focused control rather than typing into it. The
@@ -93,11 +97,12 @@ const countFontSize = (value: number) =>
   `min(${COUNTER_FONT_SIZE}, calc((${COUNTER_COLUMN_WIDTH} - 30px) / ${(countLabel(value).length * 1.8).toFixed(2)}))`;
 
 
-function WordCounter({ onFocusChange, onFullscreenChange, speakerButton, ringerButton, clockCluster, cornerButtons, cornerRef, midRef, timerDigits, timerBar, timerControls }: WordCounterProps) {
+function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerButton, ringerButton, clockCluster, cornerButtons, cornerRef, midRef, timerDigits, timerBar, timerControls }: WordCounterProps) {
   const [text, setText] = useState(() => readRaw(STORAGE_KEYS.wordCounter, ''));
-  // Clearing has no undo, so it asks first. Same ConfirmDialog the timer
-  // uses, but with local state, since `text` lives entirely here.
-  const [clearDialog, setClearDialog] = useState<DialogState>({ type: null });
+  // Clearing has no undo, so it asks first, and tucking this box away and
+  // going full screen ask in FULL mode. Same ConfirmDialog the timer uses,
+  // but with local state, since all three act on things that live here.
+  const [dialog, setDialog] = useState<DialogState>({ type: null });
   // Copy reports on its own button for a beat instead of opening a dialog.
   // Shares the app's one-shot cue duration so it reads at the same tempo.
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -116,6 +121,24 @@ function WordCounter({ onFocusChange, onFullscreenChange, speakerButton, ringerB
   useEffect(() => {
     onFullscreenChange(isFullscreen);
   }, [isFullscreen, onFullscreenChange]);
+
+  // The same gate Timer's askThenRun is, against the same mode. Only the
+  // dialog state is local.
+  const ask = (next: DialogState, run: () => void) => {
+    if (!shouldAsk(next, confirmMode)) {
+      run();
+      return;
+    }
+    setDialog(next);
+  };
+  const askFull = (act: FullAct, run: () => void) => ask({ type: 'full', act, run }, run);
+  // Only on the way in. Coming back out of a tuck or out of full screen
+  // gives something back rather than taking it away, and the auto-collapse
+  // on a shrinking window never reaches either of these.
+  const handleToggleCollapsed = () =>
+    isCollapsed ? toggleCollapsed() : askFull('tuckWordCounter', toggleCollapsed);
+  const handleToggleFullscreen = () =>
+    isFullscreen ? setIsFullscreen(false) : askFull('fullscreen', () => setIsFullscreen(true));
 
   const rowsRef = useRef<HTMLDivElement | null>(null);
 
@@ -317,7 +340,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, speakerButton, ringerB
             <div className="flex items-center flex-1 min-w-min fs-row-icons" style={{ gap: boxCap('0.5rem', 1.5) }}>
               {!isAutoCollapsed && (
                 <HeaderToggleButton
-                  onClick={toggleCollapsed}
+                  onClick={handleToggleCollapsed}
                   icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
                   label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
                 />
@@ -352,7 +375,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, speakerButton, ringerB
           <>
             {!isAutoCollapsed && (
               <HeaderToggleButton
-                onClick={toggleCollapsed}
+                onClick={handleToggleCollapsed}
                 icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
                 label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
               />
@@ -479,7 +502,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, speakerButton, ringerB
               {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Failed' : 'Copy'}
             </button>
             <button
-              onClick={() => (isDialogSuppressed(CLEAR_DIALOG) ? setText('') : setClearDialog(CLEAR_DIALOG))}
+              onClick={() => ask(CLEAR_DIALOG, () => setText(''))}
               disabled={text === ''}
               title={text === '' ? 'Nothing to clear yet' : 'Clear everything typed here'}
               className="text-white border border-white px-2 py-1 hover:bg-white hover:text-black transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-white"
@@ -490,7 +513,7 @@ function WordCounter({ onFocusChange, onFullscreenChange, speakerButton, ringerB
             {/* Filled red in fullscreen: it's the only way back out, so it
                 reads as the exit rather than one more square in the row. */}
             <button
-              onClick={() => setIsFullscreen((prev) => !prev)}
+              onClick={handleToggleFullscreen}
               className={`border p-1 transition-colors flex-shrink-0 ${isFullscreen ? 'border-red-500 bg-red-500 text-black hover:opacity-80' : 'border-white text-white hover:bg-white hover:text-black'}`}
               title={isFullscreen ? 'Exit full screen' : 'Full screen'}
               aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
@@ -674,12 +697,15 @@ function WordCounter({ onFocusChange, onFullscreenChange, speakerButton, ringerB
       )}
     </div>
     <ConfirmDialog
-      dialog={clearDialog}
-      onDismiss={() => setClearDialog({ type: null })}
+      dialog={dialog}
+      onDismiss={() => setDialog({ type: null })}
       onConfirm={(dontAskAgain) => {
-        if (dontAskAgain) suppressDialog(CLEAR_DIALOG);
-        setText('');
-        setClearDialog({ type: null });
+        if (dontAskAgain) suppressDialog(dialog);
+        // A FULL question carries its own action; the only other thing
+        // this dialog can be is the clear.
+        if (dialog.type === 'full') dialog.run();
+        else setText('');
+        setDialog({ type: null });
       }}
     />
     </>

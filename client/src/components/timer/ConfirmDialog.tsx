@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import DotCheckbox from './DotCheckbox';
 import { formatEntryLabel, formatSignedLabel, fromTotalSeconds } from './format';
-import { dialogKey, isAcknowledgement } from './suppressions';
+import { dialogKey, FULL_ACTS, isAcknowledgement } from './suppressions';
 import type { DialogState } from './types';
 
 interface ConfirmDialogProps {
@@ -158,13 +158,19 @@ const getCopy = (dialog: DialogState) => {
         description: `${dialog.data.label} is already one of your presets, so nothing was added. The one you have will flash red.`,
         action: 'OK',
       };
+    // Only reachable on the way from FULL to none, which is the one step
+    // of the cycle that takes questions away rather than adding them.
     case 'skipConfirmations':
       return {
         title: 'TURN OFF CONFIRMATIONS',
         description:
-          "Turn off confirmations? Stopping, resetting, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset, clearing presets or history, correcting an out-of-range preset, pointing out a preset you already have and hiding the website link will all happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. You can turn confirmations back on with the same button — it won't ask twice. To silence just one of these instead, tick \"Don't ask this again\" in its own dialog.",
+          "Turn off confirmations? Everything — stopping, resetting, starting, pausing, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset or a history entry, clearing presets, history or the word counter, tucking a panel away, going full screen, changing the clock and hiding the website link — will happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. The same button cycles back round to confirmations, and won't ask twice. To silence just one question instead, tick it in the list that button drops down, or tick \"Don't ask this again\" in its own dialog.",
         action: 'TURN OFF',
       };
+    // Every FULL-mode question reads its copy out of the one table, so an
+    // act that exists has copy by construction rather than by a case here.
+    case 'full':
+      return FULL_ACTS[dialog.act];
     case 'clearWordCounter':
       return {
         title: 'CLEAR TEXT',

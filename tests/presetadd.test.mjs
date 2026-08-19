@@ -68,7 +68,7 @@ await send('Runtime.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
 await send('Page.navigate', { url: 'http://localhost:5199/' });
 await sleep(2400);
-await ev(`localStorage.setItem('timerAppPresets','[]'), localStorage.setItem('timerSkipConfirmations','true'),
+await ev(`localStorage.setItem('timerAppPresets','[]'), localStorage.setItem('timerConfirmMode','"none"'),
   localStorage.setItem('timerSilentMode','true'), localStorage.setItem('wordCounterCollapsed','true'),
   localStorage.setItem('wordCounterCollapsedAt','null'), localStorage.setItem('timerSidebarHidden','false'), 'ok'`);
 await send('Page.reload', {});
@@ -90,7 +90,7 @@ check('minus adds a negative preset', (await rows()).some((r) => r.startsWith('-
 // 99:99:99 has no hour left to carry into, so it is refused — with
 // confirmations on, since the whole point of the refusal is the question,
 // and skipConfirmations answers it silently by design.
-await ev(`localStorage.setItem('timerSkipConfirmations','false'), 'ok'`);
+await ev(`localStorage.setItem('timerConfirmMode','"half"'), 'ok'`);
 await send('Page.reload', {});
 await sleep(2600);
 await enter('999999');
