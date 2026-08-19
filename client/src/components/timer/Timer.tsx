@@ -149,6 +149,7 @@ export default function Timer() {
   // Here rather than in ClockCluster: both copies of the clock have to
   // agree, and it persists. The tick itself lives down there.
   const [isHourFormatFlashing, setIsHourFormatFlashing] = useState(false);
+  const [hourFormatFlashToken, setHourFormatFlashToken] = useState(0);
   const hourFormatFlashRef = useRef(0);
   useEffect(() => () => window.clearTimeout(hourFormatFlashRef.current), []);
   // useCallback: this is what the clock hangs its memo on, and a new
@@ -156,6 +157,7 @@ export default function Timer() {
   const handleHourFormatClick = useCallback(() => {
     setIs24Hour((prev) => !prev);
     setIsHourFormatFlashing(true);
+    setHourFormatFlashToken((n) => n + 1);
     window.clearTimeout(hourFormatFlashRef.current);
     hourFormatFlashRef.current = window.setTimeout(() => setIsHourFormatFlashing(false), FLASH_DURATION_MS);
   }, [setIs24Hour]);
@@ -1672,6 +1674,7 @@ export default function Timer() {
       is24Hour={is24Hour}
       zoneOffsets={zoneOffsets}
       isHourFormatFlashing={isHourFormatFlashing}
+      hourFormatFlashToken={hourFormatFlashToken}
       onHourFormatClick={handleHourFormatClick}
       onTimeZoneChange={setTimeZone}
       rootRef={rootRef}

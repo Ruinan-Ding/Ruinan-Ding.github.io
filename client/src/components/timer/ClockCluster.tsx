@@ -35,6 +35,9 @@ interface ClockClusterProps {
   // costs an Intl.DateTimeFormat per zone and both clocks share it.
   zoneOffsets: Record<string, string>;
   isHourFormatFlashing: boolean;
+  // Bumped on every click, so a click during a flash starts a new one
+  // rather than joining the one already fading.
+  hourFormatFlashToken: number;
   onHourFormatClick: () => void;
   onTimeZoneChange: (zone: string) => void;
   // The fullscreen row runs this clock up against the floating corner, so
@@ -66,6 +69,7 @@ function ClockCluster({
   is24Hour,
   zoneOffsets,
   isHourFormatFlashing,
+  hourFormatFlashToken,
   onHourFormatClick,
   onTimeZoneChange,
   rootRef,
@@ -171,8 +175,12 @@ function ClockCluster({
   // 0.05em to a 150px readout and more than half an em to a 13px label.
   // The time and the date each set their own; this covers the cluster, so
   // the zone box gets a tracking of its own size rather than the digits'.
+  // The cluster's gap is in em rather than Tailwind's flat 6px: it is the
+  // one seam between the two halves of this, the controls and the date,
+  // and at the sizes the clock now runs to, 6px read as no seam at all —
+  // "-4" ran straight into "Wed".
   return (
-    <div ref={rootRef} className="flex items-center justify-center gap-1.5 flex-shrink-0" style={{ fontSize, letterSpacing: '0.05em' }}>
+    <div ref={rootRef} className="flex items-center justify-center flex-shrink-0" style={{ fontSize, letterSpacing: '0.05em', gap: '0.45em' }}>
       {!hideTime && (
       <span className="flex items-center gap-1 leading-tight">
         {/* Boxed like the zone beside it, so the two read as a pair of
@@ -192,6 +200,12 @@ function ClockCluster({
               else. */}
           {isHourFormatFlashing && (
             <span
+              // key, so a click while this is still fading replaces the
+              // element instead of reusing it. Reused, the animation keeps
+              // running from wherever it had got to and only the word
+              // changed, so holding the button down read as one flash
+              // fading out under a stream of clicks rather than one a click.
+              key={hourFormatFlashToken}
               aria-hidden
               className="absolute inset-0 flex items-center justify-center animate-hourFormatFizz"
               style={{ backgroundColor: 'var(--app-surface)', color: '#eab308' }}
