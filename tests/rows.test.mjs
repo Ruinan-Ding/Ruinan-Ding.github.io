@@ -18,8 +18,10 @@ const expr = `(() => {
   const W = box(words), C = box(chars), F = box(full), H = box(hint);
 
   // The key hint is printed on its button now, so what has to hold is
-  // that it fits there: it is allowed to be gone, on a short window or
-  // because it stopped fitting, but never to be there and clipped.
+  // that it fits there whenever it is showing. It is allowed to be hidden
+  // — on a short window, while typing, or because it stopped fitting —
+  // and a hidden one is allowed to be clipped, since that is the state it
+  // was hidden for. What is not allowed is visible and clipped.
   const ctrlHint = document.querySelector('.control-hint');
   const ctrlBtn = ctrlHint ? ctrlHint.closest('button') : null;
 
@@ -40,7 +42,8 @@ const expr = `(() => {
     hintPresent: !!hint && getComputedStyle(hint).display !== 'none',
     hintWrapped: hint && getComputedStyle(hint).display !== 'none' ? wrapped(hint) : false,
     hintFits: H && hint && getComputedStyle(hint).display !== 'none' ? H.r <= (W ? box(words.closest('.flex.flex-col')).r + 1 : 1e9) : null,
-    hintFitsButton: ctrlHint && ctrlBtn ? ctrlHint.scrollWidth <= ctrlBtn.clientWidth : null,
+    hintFitsButton: ctrlHint && ctrlBtn && getComputedStyle(ctrlHint).visibility === 'visible' && getComputedStyle(ctrlHint).display !== 'none'
+      ? ctrlHint.scrollWidth <= ctrlBtn.clientWidth : null,
     legendOneRow,
 
     legendCount: legendLines ? legendLines.length : null,

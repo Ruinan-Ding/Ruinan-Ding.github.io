@@ -224,7 +224,11 @@ export default function Timer() {
       return button.clientWidth - hint.scrollWidth;
     },
     timerRowRef,
-    2,
+    // 24, not 2. Measured to the last pixel the hint held on until it was
+    // touching both sides of the button, which reads as a full box rather
+    // than a note on one. This lets it go while the button still looks
+    // like a button.
+    24,
     `${isRunning}${isPaused}${seconds < 0}`
   );
 
@@ -1428,15 +1432,22 @@ export default function Timer() {
   // window, on running out of room — and a box that measured its contents
   // resized the whole row every time it did. So the box holds still and
   // what changes inside it is the label, which takes the freed space.
-  const CONTROL_LABEL = boxClamp(0.7, 2.2, 5.5, 1.4);
+  // The floors are low on purpose. At 0.7rem and 6.5rem these bottomed out
+  // around 900px and the buttons then held their size while everything
+  // beside them kept shrinking, which made them the largest thing on a
+  // narrow window.
+  const CONTROL_LABEL = boxClamp(0.55, 2.2, 5.5, 1.4);
   const CONTROL_HINT = `max(0.62rem, calc(${CONTROL_LABEL} * 0.5))`;
   // Small on purpose: with the rows spread edge to edge this is the whole
   // distance from the key to the top of the box.
-  const CONTROL_PAD_Y = boxClamp(0.18, 0.9, 2.2, 0.5);
-  const CONTROL_HEIGHT = `calc(${CONTROL_LABEL} * 2.1 + ${CONTROL_HINT} * 2.6 + ${CONTROL_PAD_Y} * 2)`;
+  const CONTROL_PAD_Y = boxClamp(0.12, 0.6, 1.5, 0.32);
+  // 1.35 and 2.3, where it was 2.1 and 2.6: the three rows were spread
+  // across a box drawn taller than they needed and read as three separate
+  // things rather than one instruction with the button in the middle of it.
+  const CONTROL_HEIGHT = `calc(${CONTROL_LABEL} * 1.35 + ${CONTROL_HINT} * 2.3 + ${CONTROL_PAD_Y} * 2)`;
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
-    padding: `${CONTROL_PAD_Y} ${fitClamp(0.5, 3.1, 1.9)}`,
+    padding: `${CONTROL_PAD_Y} ${fitClamp(0.3, 3.1, 1.9)}`,
     height: CONTROL_HEIGHT,
     display: 'flex',
     flexDirection: 'column' as const,
@@ -1459,7 +1470,7 @@ export default function Timer() {
     // Solved against the widest thing on the button, which is no longer
     // RESUME but "Press ENTER to": 14 characters of this monospace at half
     // the label's size, about 4.2em, plus both paddings and the border.
-    width: fitClamp(6.5, 22, 11.5),
+    width: fitClamp(4.5, 22, 11.5),
   });
   // The same buttons scaled to a single header row, for the word counter's
   // fullscreen view, which covers the real ones. Every size is capped
@@ -1608,7 +1619,17 @@ export default function Timer() {
       {!isTipCrowded && (
       <p
         className="alarm-tip hidden sm:block opacity-75 font-bold text-white text-left"
-        style={{ fontSize: shrinkClamp(0.7, 1.4, 1.5, 0.8), width: 0, minWidth: '100%', lineHeight: 1.3 }}
+        // marginLeft is one button and the row's gap, which puts the left
+        // edge of this exactly under the left edge of the speaker: the tip
+        // is about the speaker, and starting it under the bell beside it
+        // pointed at the wrong control.
+        style={{
+          fontSize: shrinkClamp(0.65, 1.25, 1.35, 0.72),
+          width: 0,
+          minWidth: '100%',
+          marginLeft: `calc(${HEADER_BUTTON_SIZE.width} + 0.5rem)`,
+          lineHeight: 1.3,
+        }}
       >
         {/* The text wraps at its own measure and overflows the box above,
             rather than wrapping inside it. In the buttons' width this was
