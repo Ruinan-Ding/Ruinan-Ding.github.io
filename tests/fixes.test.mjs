@@ -108,7 +108,7 @@ await seed('', 600);
 await send('Page.reload', {});
 await sleep(2500);
 await activate();
-await press('Enter', 'Enter', 13, '\r'); // start
+await press('Tab', 'Tab', 9); // start
 await clickEl(`[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='STOP')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='STOP';})`, 'STOP');
 check('dialog open', await dialogTitle(), 'CONFIRM STOP');
 // Radix opens with CANCEL focused, so Tab moves *off* it. Cycle until it
@@ -130,17 +130,17 @@ check('dialog open again', await dialogTitle(), 'CONFIRM STOP');
 await press('Enter', 'Enter', 13, '\r'); // untouched
 check('untouched Enter still confirms', await status(), 'READY');
 
-// 4. Held Enter is one press, not thirty.
+// 4. Held TAB is one press, not thirty.
 await seed('', 600);
 await send('Page.reload', {});
 await sleep(2500);
 await activate();
-await press('Enter', 'Enter', 13, '\r');
-check('running after one Enter', await status(), 'RUNNING');
+await press('Tab', 'Tab', 9);
+check('running after one TAB', await status(), 'RUNNING');
 for (let i = 0; i < 20; i++) {
-  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, autoRepeat: true });
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, autoRepeat: true });
 }
-await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
 await sleep(800);
 check('20 autorepeats changed nothing', await status(), 'RUNNING');
 

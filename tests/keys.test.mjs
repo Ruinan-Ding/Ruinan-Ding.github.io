@@ -32,6 +32,7 @@ const KEYS = {
   Enter: { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' },
   Space: { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: ' ' },
   Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 },
+  Tab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 },
 };
 const press = async (name) => {
   const k = KEYS[name];
@@ -80,21 +81,26 @@ const clickBody = async () => {
 const out = [];
 const check = (name, got, want) => out.push({ name, got: String(got), want: String(want), pass: String(got) === String(want) });
 
-check('hint advertises ENTER', await hints(), 'Press ENTER to | START | the timer');
+check('hint advertises TAB', await hints(), 'Press TAB to | START | the timer');
 await clickBody();
 
 check('idle status', await status(), 'READY');
 await press('Space');
 check('SPACE no longer starts', await status(), 'READY');
+await press('Tab');
+check('TAB starts', await status(), 'RUNNING');
+check('running hint', await hints(), 'Press TAB to | PAUSE | the timer');
+await press('Tab');
+check('TAB pauses', await status(), 'PAUSED');
+await press('Tab');
+check('TAB resumes', await status(), 'RUNNING');
+// ENTER is the dialog's key now, not the timer's: loose on the page it
+// should do nothing at all.
 await press('Enter');
-check('ENTER starts', await status(), 'RUNNING');
-check('running hint', await hints(), 'Press ENTER to | PAUSE | the timer');
-await press('Enter');
-check('ENTER pauses', await status(), 'PAUSED');
-await press('Enter');
-check('ENTER resumes', await status(), 'RUNNING');
+check('ENTER no longer toggles', await status(), 'RUNNING');
 
-// S opens the stop confirmation; ENTER should take it.
+// S opens the stop confirmation; ENTER should take it. The dialog keeps
+// ENTER — only the timer's own start/pause moved to TAB.
 await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 's', code: 'KeyS', windowsVirtualKeyCode: 83 });
 await send('Input.dispatchKeyEvent', { type: 'char', key: 's', code: 'KeyS', windowsVirtualKeyCode: 83, text: 's' });
 await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 's', code: 'KeyS', windowsVirtualKeyCode: 83 });
@@ -125,8 +131,8 @@ check('the button did not resize', await ctrlBox(), boxBefore);
 await press('Escape');
 check('ESC leaves the textarea', await focusTag(), 'BODY');
 check('hints back after ESC', await hintShown(), 'true');
-await press('Enter');
-check('ENTER starts again after ESC', await status(), 'RUNNING');
+await press('Tab');
+check('TAB starts again after ESC', await status(), 'RUNNING');
 
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(34)} got=${r.got.padEnd(30)} want=${r.want}`);
 console.log(`\n${out.filter((r) => r.pass).length}/${out.length} passed`);

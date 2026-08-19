@@ -30,7 +30,7 @@ export const TOGGLE_FONT_SIZE = shrinkClamp(0.65, 1.35, 1.5, 0.85);
 // its height, so once they hit that cap the column has height nobody is
 // spending and it came out as a band of nothing between the website link
 // and this. The clock is what sits in that band, so the clock takes it.
-export const CLOCK_FONT_SIZE = shrinkClamp(0.55, 2.4, 3.4, 2.1);
+export const CLOCK_FONT_SIZE = shrinkClamp(0.5, 1.7, 2.2, 1.35);
 // The same clock in the word counter's fullscreen header, where it gets
 // whatever the countdown, bar and buttons leave, and is capped again by
 // that leftover: the date is 17 monospace characters at 0.6em, needing

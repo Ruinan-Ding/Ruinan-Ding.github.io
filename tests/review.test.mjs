@@ -78,7 +78,7 @@ await ev(`localStorage.setItem('wordCounterFullscreen','false'), 'ok'`);
 await send('Page.reload', {});
 await sleep(3000);
 await clickAt(700, 500);
-await key({ key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+await key({ key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
 check('timer running before RESET', await status(), 'RUNNING');
 check('leave guard armed', await ev(`document.dispatchEvent, window.dispatchEvent(new Event('beforeunload',{cancelable:true})) === false`), true);
 await clickSel(`document.querySelector('[aria-label="Reset the website to defaults"]')`);

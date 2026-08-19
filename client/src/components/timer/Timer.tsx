@@ -48,9 +48,6 @@ const liveSeconds = ({ seconds, milliseconds }: { seconds: number; milliseconds:
 // up to -2 floors straight back, leaving the boxes still.
 const liveShownSeconds = (time: { seconds: number; milliseconds: number }) => Math.trunc(liveSeconds(time));
 
-// ENTER presses whatever is focused, so every activatable control claims
-// it; a letter only ever gets typed. See the window listener.
-const ENTER_ACTIVATES = `${TYPES_INTO}, button, a, [role="button"]`;
 
 export default function Timer() {
   // Read before first render, so the persist effects can't save defaults
@@ -514,13 +511,13 @@ export default function Timer() {
   // browser takes, with nothing to undo it.
   const isSelfReloadingRef = useLeaveGuard(isRunning || isPaused || isAlarmRinging);
 
-  // Enter/S/R mirror the on-screen controls. The ref lets the keydown
+  // Tab/S/R mirror the on-screen controls. The ref lets the keydown
   // listener register once instead of rebinding every tick.
   const keyActionRef = useRef<(code: string) => boolean>(() => false);
   keyActionRef.current = (code) => {
     // The dialog owns the keyboard while it's open.
     if (dialog.type !== null) return false;
-    if (code === 'Enter') {
+    if (code === 'Tab') {
       if (isRunning) {
         togglePause();
       } else {
@@ -543,19 +540,19 @@ export default function Timer() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // key, not code, for Enter: the numpad's own Enter reports
-      // NumpadEnter and is the same key to anyone pressing it.
-      const action = e.key === 'Enter' ? 'Enter' : e.code === 'KeyS' || e.code === 'KeyR' ? e.code : null;
+      const action = e.key === 'Tab' ? 'Tab' : e.code === 'KeyS' || e.code === 'KeyR' ? e.code : null;
       if (!action) return;
-      // Autorepeat is not three hundred presses: held down, Enter fires
+      // Autorepeat is not three hundred presses: held down, the key fires
       // ~30 pause/resume toggles a second, each with its own oscillator.
       if (e.repeat) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // Whatever is focused keeps a key it wants itself, and which
-      // controls those are depends on the key. Blocking S and R on buttons
-      // as well as fields would kill both shortcuts for anyone who had
-      // just clicked something: click START, and R stops resetting.
-      if ((e.target as HTMLElement | null)?.closest?.(action === 'Enter' ? ENTER_ACTIVATES : TYPES_INTO)) return;
+      // A text field keeps its own keys: TAB moves out of one, and S and R
+      // are letters someone is typing. Everywhere else these three are the
+      // timer's, which for TAB means the page gives up focus stepping
+      // outside its fields — the trade the shortcut is worth having.
+      // Buttons are deliberately not exempt: blocking S and R there would
+      // kill both shortcuts for anyone who had just clicked something.
+      if ((e.target as HTMLElement | null)?.closest?.(TYPES_INTO)) return;
       if (keyActionRef.current(action)) {
         e.preventDefault();
       }
@@ -1337,7 +1334,7 @@ export default function Timer() {
   // "disabled while typing" three times, which is three lines of a screen
   // explaining why a button you were not looking at does nothing.
   const buttonHints: Record<string, string> = {
-    START: 'Press ENTER to', PAUSE: 'Press ENTER to', RESUME: 'Press ENTER to',
+    START: 'Press TAB to', PAUSE: 'Press TAB to', RESUME: 'Press TAB to',
     RESET: 'Press R to', STOP: 'Press S to',
   };
 
@@ -1486,8 +1483,8 @@ export default function Timer() {
     // the same box whatever it says.
     //
     // Solved against the widest thing on the button, which is no longer
-    // RESUME but "Press ENTER to": 14 characters of this monospace at half
-    // the label's size, about 4.2em, plus both paddings and the border.
+    // RESUME but the hint above it, and the widest of those is "Press TAB
+    // to" at 12 characters of this monospace, plus both paddings.
     width: CONTROL_WIDTH,
   });
   // The same buttons scaled to a single header row, for the word counter's
@@ -1886,7 +1883,7 @@ export default function Timer() {
     const shown = withHints && areShortcutsLive && !isControlHintClipped;
     const rows = (label: string) => {
       if (!withHints) return <>{label}</>;
-      // Only the first is measured, and "Press ENTER to" is the longest of
+      // Only the first is measured, and "Press TAB to" is the longest of
       // them: they all stop fitting at the same width, so they all go.
       const first = hintIndex++ === 0;
       const style = {
@@ -2173,7 +2170,7 @@ export default function Timer() {
               // above, below sm it's the row. Same siblings either way,
               // since the website link is hidden below md.
               style={{
-                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(9rem, 1.5rem + 15.9dvh) - max(2.6rem, min(4.5vw, 4.9dvh))) / 1.29)), ${digitCeiling})`,
+                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(7.5rem, 1.5rem + 13dvh) - max(2.2rem, min(4.5vw, 4.2dvh))) / 1.29)), ${digitCeiling})`,
                 fontFamily: "'IBM Plex Mono', monospace",
                 // Vertical and horizontal on separate clamps. They were one
                 // figure, and the horizontal one is the useful one, it
@@ -2217,7 +2214,7 @@ export default function Timer() {
                   at the digit size that reads as a hole rather than a
                   space. Neither line has a descender to lose, the labels
                   are digits, colons and h/m/s. */}
-              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(0.95, 4.2, 5.4, 3.2), letterSpacing: '0.05em' }}>
+              <div className="opacity-60 text-center leading-none" style={{ fontSize: shrinkClamp(0.7, 2.6, 3.2, 1.9), letterSpacing: '0.05em' }}>
                 {configuredLabel}
               </div>
               {renderDrainBar('100%')}
@@ -2242,7 +2239,7 @@ export default function Timer() {
                   between this word and the word counter below. */}
               <div
                 className={`font-bold tracking-wider ${statusFlashClass}`}
-                style={{ fontSize: shrinkClamp(0.7, 3, 4.2, 2.4), color: statusColor }}
+                style={{ fontSize: shrinkClamp(0.6, 1.9, 2.5, 1.5), color: statusColor }}
               >
                 {status}
               </div>

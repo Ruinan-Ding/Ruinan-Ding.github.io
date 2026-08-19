@@ -87,10 +87,10 @@ await activate();
 // 1. Every control button is the same box, in every run state.
 check('idle widths equal', await widthsEqual(), 'true');
 const idleW = await widths();
-await press('Enter', 'Enter', 13, '\r');
+await press('Tab', 'Tab', 9);
 check('running now', await status(), 'RUNNING');
 check('running widths equal', await widthsEqual(), 'true');
-await press('Enter', 'Enter', 13, '\r');
+await press('Tab', 'Tab', 9);
 check('paused now', await status(), 'PAUSED');
 check('paused widths equal (RESUME)', await widthsEqual(), 'true');
 const pausedW = await widths();
@@ -114,7 +114,7 @@ await seed(`localStorage.setItem('timerSilentMode','true'),`);
 await send('Page.reload', {});
 await sleep(3000);
 await activate();
-await press('Enter', 'Enter', 13, '\r');
+await press('Tab', 'Tab', 9);
 await sleep(3000);
 // .h-dvh.flex.overflow-hidden, not .h-dvh: there are two elements with
 // that class and the outer one is an inert wrapper that never changes
@@ -146,7 +146,7 @@ await clickEl(BAR, 'bar while unstarted');
 check('idle seek asks', await dialogTitle(), 'SET TIME');
 await press('Escape', 'Escape', 27);
 await activate();
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
+await press('Tab', 'Tab', 9);
 await clickEl(BAR, 'bar while running');
 check('running seek asks', await dialogTitle(), 'MOVE TIMER');
 await press('Escape', 'Escape', 27);

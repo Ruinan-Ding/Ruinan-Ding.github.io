@@ -132,7 +132,7 @@ await press('Escape', 'Escape', 27);
 
 // 4. Paused: the list asks.
 await activate();
-await press('Enter', 'Enter', 13, '\r');
+await press('Tab', 'Tab', 9);
 check('paused now', await status(), 'PAUSED');
 await clickEl(PRESET_ROW, 'preset row while paused');
 check('paused preset: asks', await dialogTitle(), 'SWITCH TIMER');
@@ -143,7 +143,7 @@ await press('Escape', 'Escape', 27);
 
 // 5. STOP while counting down still asks.
 await activate();
-await press('Enter', 'Enter', 13, '\r'); // resume
+await press('Tab', 'Tab', 9); // resume
 await clickEl(btn('STOP'), 'STOP');
 check('stop mid-countdown asks', await dialogTitle(), 'CONFIRM STOP');
 await press('Escape', 'Escape', 27);
@@ -157,7 +157,7 @@ const ringOut = async () => {
   await send('Page.reload', {});
   await sleep(3000);
   await activate();
-  await press('Enter', 'Enter', 13, '\r');
+  await press('Tab', 'Tab', 9);
   // Waited for rather than slept through. A fixed 4s assumed the timer had
   // reached zero by then, and under the load of the full sweep it
   // sometimes hadn't: a still-running timer asks before an adjustment, so

@@ -85,7 +85,7 @@ await sleep(3000);
 // 1. Idle: the fields are the configured time.
 check('idle fields show the total', await fields(), '00:05:00');
 await activate();
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
+await press('Tab', 'Tab', 9);
 check('running', await status(), 'RUNNING');
 
 // 2. Running: they tick down.
@@ -124,7 +124,7 @@ await evaluate(`localStorage.setItem('timerSkipConfirmations','false'), localSto
 await send('Page.reload', {});
 await sleep(3000);
 await activate();
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
+await press('Tab', 'Tab', 9);
 await sleep(600);
 await clickEl(MINUTE_UP, 'a minutes arrow');
 check('running edit asks', await dialogTitle(), 'ADJUST TIME');

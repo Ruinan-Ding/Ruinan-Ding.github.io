@@ -79,9 +79,9 @@ const pausedOvertime = async () => {
   await send('Page.reload', {});
   await sleep(2500);
   await activate();
-  await press('Enter', 'Enter', 13, String.fromCharCode(13));
+  await press('Tab', 'Tab', 9);
   await sleep(5000);
-  await press('Enter', 'Enter', 13, String.fromCharCode(13)); // pause mid-overtime
+  await press('Tab', 'Tab', 9); // pause mid-overtime
   await sleep(400);
 };
 
@@ -138,7 +138,7 @@ await seed(600);
 await send('Page.reload', {});
 await sleep(2500);
 await activate();
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
+await press('Tab', 'Tab', 9);
 await clickEl(btn('STOP'), 'STOP');
 check('dialog open', await dialogTitle(), 'CONFIRM STOP');
 check('focus starts on the action', await ev(`/CONFIRM/.test(document.activeElement?.textContent ?? '')`), 'true');

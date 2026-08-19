@@ -1,4 +1,4 @@
-// Enter is a global shortcut now, so prove it still belongs to whatever is
+// TAB is the global shortcut, so prove ENTER still belongs to whatever is
 // being typed into: a newline in the word counter, a commit in a time field,
 // and no timer started behind either.
 import { spawn } from 'node:child_process';
@@ -30,6 +30,14 @@ const evaluate = async (e) => (await send('Runtime.evaluate', { expression: e, a
 const pressEnter = async () => {
   for (const type of ['rawKeyDown', 'char', 'keyUp']) {
     await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+  }
+  await sleep(700);
+};
+// TAB is the timer's key now. ENTER is still what a field and a textarea
+// take, which is what most of this file is about.
+const pressTab = async () => {
+  for (const type of ['rawKeyDown', 'keyUp']) {
+    await send('Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   }
   await sleep(700);
 };
@@ -90,10 +98,10 @@ if (mins) {
   check('ENTER committed the digits', after.value, '07');
   check('an idle edit asks nothing', after.dialog, false);
   check('timer did not start from the field', after.status, 'READY');
-  // Committing blurs the field, so the next ENTER is the window's again.
-  await pressEnter();
+  // Committing blurs the field, so the next TAB is the window's again.
+  await pressTab();
   await sleep(400);
-  check('ENTER after the commit starts the timer', await status(), 'RUNNING');
+  check('TAB after the commit starts the timer', await status(), 'RUNNING');
 }
 
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(36)} got=${String(r.got).padEnd(14)} want=${r.want}`);
