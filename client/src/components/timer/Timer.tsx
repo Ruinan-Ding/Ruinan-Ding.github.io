@@ -24,7 +24,7 @@ import type { ConfirmMode, DialogState, FlashTarget, FullAct, TimeParts, TimerEn
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 import { useAlarm } from './useAlarm';
 import { useTimeFieldsTuck } from './useTimeFieldsTuck';
-import { gapBetween, useTightFit } from './useTightFit';
+import { gapBetween, gapWhenLevel, useTightFit } from './useTightFit';
 import { useZoneOffsets } from './useZoneOffsets';
 
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
@@ -240,6 +240,12 @@ export default function Timer() {
   // while the clock is centred above the digits, so the two close on each
   // other as the window narrows.
   const isTipCrowded = useTightFit(gapBetween(tipRef, mainClockRef), timerRowRef, 8);
+  // The wall clock against the ringer and speaker in the top-left corner.
+  // The clock is centred over the digits and those buttons float above it,
+  // so on a short window the clock rides up into their band and the date
+  // runs under them. The date is what goes: it is the half of the clock
+  // that isn't the time, and losing it pulls the centred cluster clear.
+  const isMainClockCrowded = useTightFit(gapWhenLevel(headerLeftRef, mainClockRef), timerRowRef, 8);
 
   // Whether a keypress would reach the timer at all. The hints name keys,
   // and a key named where it does nothing is worse than no hint: in a
@@ -1780,7 +1786,7 @@ export default function Timer() {
       onHourFormatClick={handleHourFormatClick}
       onTimeZoneChange={handleTimeZoneChange}
       rootRef={rootRef}
-      hideDate={measured && isClockDateCrowded}
+      hideDate={measured ? isClockDateCrowded : isMainClockCrowded}
       hideTime={measured && isClockTimeCrowded}
     />
   );
@@ -2373,7 +2379,17 @@ export default function Timer() {
             >
               {/* Every child sets its own font-size, since this block's own
                   is the digit size. */}
-              <div className="flex justify-center">{renderClockCluster(CLOCK_FONT_SIZE, false, mainClockRef)}</div>
+              {/* Crowded, the clock gives up its date and a fifth of its
+                  size together. The date alone left it a pixel short of
+                  the speaker at 780x420: it is centred, so half of what it
+                  gives up is all that moves its left edge. */}
+              <div className="flex justify-center">
+                {renderClockCluster(
+                  isMainClockCrowded ? `calc(${CLOCK_FONT_SIZE} * 0.75)` : CLOCK_FONT_SIZE,
+                  false,
+                  mainClockRef
+                )}
+              </div>
               <div
                 className={`flex items-baseline justify-center gap-1 leading-none ${digitWaveClass} ${isWindowGreen ? glowFadeClass : ''}`}
                 style={digitColorStyle}

@@ -56,15 +56,40 @@ export function useTightFit(
         setIsTight(true);
       }
     };
-    check();
-    window.addEventListener('resize', check);
-    const observer = new ResizeObserver(check);
+    // One pass per resize is one too few. Dropping the piece changes the
+    // layout that decides whether to drop it, and a pass that bails —
+    // because the two boxes weren't level yet, or the gap hadn't settled —
+    // records nothing, so nothing brings it back. A window resized in one
+    // jump then keeps whatever the first frame happened to say: measured
+    // over 182 viewports, two of them sat with the clock 12px under the
+    // speaker until something else moved. A second look on the next frame
+    // costs one rect read and settles both cases.
+    // Two of them, because the state this reads is the state it writes:
+    // dropping the piece reopens the gap, restoring it closes one, and
+    // each pass can only move one step. The frame after covers a drop
+    // React has committed but the browser hasn't laid out; the short delay
+    // after that covers the other direction, where a piece coming back
+    // widens its row only once it has actually rendered.
+    let queued = 0;
+    let later = 0;
+    const checkSoon = () => {
+      check();
+      cancelAnimationFrame(queued);
+      window.clearTimeout(later);
+      queued = requestAnimationFrame(check);
+      later = window.setTimeout(check, 150);
+    };
+    checkSoon();
+    window.addEventListener('resize', checkSoon);
+    const observer = new ResizeObserver(checkSoon);
     if (container.current) observer.observe(container.current);
     // The app is monospace with a narrower fallback, so a first check
     // before the real font lands can clear a gap that it won't.
     document.fonts?.ready.then(check);
     return () => {
-      window.removeEventListener('resize', check);
+      cancelAnimationFrame(queued);
+      window.clearTimeout(later);
+      window.removeEventListener('resize', checkSoon);
       observer.disconnect();
     };
   }, [container, clearance, isTight, watch]);
@@ -81,6 +106,26 @@ export const gapBetween = (
   const b = right.current;
   if (!a || !b) return null;
   return b.getBoundingClientRect().left - a.getBoundingClientRect().right;
+};
+
+// The same gap, but only where the two boxes share a horizontal band.
+// Two things at different heights pass each other without touching, and a
+// bare left-of/right-of test would drop the piece anyway: on a tall window
+// the wall clock sits well below the top-left buttons and overlaps their
+// column the whole time without ever meeting them. null means "not level,
+// so nothing to collide with", which is what useTightFit already treats as
+// no collision.
+export const gapWhenLevel = (
+  left: React.RefObject<HTMLElement | null>,
+  right: React.RefObject<HTMLElement | null>
+) => () => {
+  const a = left.current;
+  const b = right.current;
+  if (!a || !b) return null;
+  const ra = a.getBoundingClientRect();
+  const rb = b.getBoundingClientRect();
+  if (rb.top >= ra.bottom || rb.bottom <= ra.top) return null;
+  return rb.left - ra.right;
 };
 
 // The gap between a box's left edge and the inside of the box it sits in,
