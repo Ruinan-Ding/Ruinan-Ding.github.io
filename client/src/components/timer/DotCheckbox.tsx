@@ -23,7 +23,14 @@ export default function DotCheckbox({ checked, fontSize = TOGGLE_FONT_SIZE }: { 
       <span
         className="flex-1"
         style={{
-          backgroundColor: checked === false ? 'transparent' : 'currentColor',
+          // Half is drawn in half the ink as well as half the box, so the
+          // three positions read as a dial turning down rather than a
+          // shape changing. Mixed toward transparent rather than toward a
+          // named grey, so it lands between the fill and the empty box in
+          // whichever theme is on.
+          backgroundColor: checked === false ? 'transparent'
+            : checked === 'half' ? 'color-mix(in oklab, currentColor 55%, transparent)'
+              : 'currentColor',
           clipPath: checked === 'half' ? 'polygon(0% 0%, 0% 100%, 100% 100%)' : undefined,
         }}
       />

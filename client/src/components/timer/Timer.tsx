@@ -232,6 +232,7 @@ export default function Timer() {
     isStacked: isTimeFieldsStacked,
     rowRef: timerRowRef,
     panelRef: timeFieldsRef,
+    controlsRef: controlsRowRef,
     setHidden: setTimeFieldsHidden,
   } = useTimeFieldsTuck(isRowLayout, isWideLayout);
   const isLinkCrowded = useTightFit(gapBetween(headerLeftRef, linkBandRef), timerRowRef, 8);
@@ -2398,7 +2399,7 @@ export default function Timer() {
             {/* Gap on the column's own measure rather than a flat 8px: the
                 buttons shrank onto the digits' scale, and a fixed gap at
                 that size reads as three boxes stuck together. */}
-            <div className="flex flex-shrink-0" style={{ gap: fitClamp(0.5, 2.5, 1.75) }}>
+            <div ref={controlsRowRef} className="flex flex-shrink-0" style={{ gap: fitClamp(0.5, 2.5, 1.75) }}>
               {renderControlButtons(controlButtonStyle, 'border-4', true)}
             </div>
 

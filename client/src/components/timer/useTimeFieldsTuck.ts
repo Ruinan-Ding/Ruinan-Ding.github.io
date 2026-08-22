@@ -33,6 +33,18 @@ export function useTimeFieldsTuck(isRowLayout: boolean, isWideLayout: boolean) {
   // The panel itself, so the height check can ask whether this is what
   // overflows the row rather than reading the row's own scrollHeight.
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // START/RESET/STOP. The one thing in the countdown column that stops
+  // shrinking before the column does: the buttons bottom out on a rem
+  // floor, so past that point the row goes on giving the column less than
+  // they draw. Centred in it, they then spill equally both ways, and the
+  // left half lands outside this row, where its overflow:hidden takes it.
+  // That is a START button with no S and a clock with no first digit.
+  //
+  // Measured rather than left to scrollWidth, which cannot see it: in a
+  // left-to-right box scrollWidth reports overflow past the right edge
+  // only, so a centred spill shows up as half of itself and the half that
+  // actually gets clipped is invisible to it.
+  const controlsRef = useRef<HTMLDivElement | null>(null);
 
   // What the row NEEDED to keep the panel, measured with the panel still
   // in it, or null when it isn't auto-tucked. Once hidden the panel is out
@@ -96,10 +108,20 @@ export function useTimeFieldsTuck(isRowLayout: boolean, isWideLayout: boolean) {
         setIsAutoTucked(false);
         return;
       }
+      // Two ways the row can be too narrow, and only one of them
+      // overflows the row itself. The other is the countdown column being
+      // handed less than its buttons draw; see controlsRef.
+      const controls = controlsRef.current;
+      const controlsBox = controls?.parentElement;
+      const controlsShort = controls && controlsBox
+        ? controls.getBoundingClientRect().width - controlsBox.clientWidth
+        : 0;
+      // How much wider the row had to be, by whichever measure is worse.
       // A few px of tolerance throughout: sub-pixel rounding off
       // fractional clamp() results and font metrics is enough to trip a
       // bare `>` and tuck the panel over an overflow nobody can see.
-      const tooWide = el.scrollWidth > el.clientWidth + 4;
+      const shortBy = Math.max(el.scrollWidth - el.clientWidth, controlsShort);
+      const tooWide = shortBy > 4;
       // The panel's own box against the row's, not the row's scrollHeight.
       // The digits column is the tallest thing here, so on a short window
       // it's what overflows, and tucking the panel for that frees no
@@ -131,7 +153,7 @@ export function useTimeFieldsTuck(isRowLayout: boolean, isWideLayout: boolean) {
       if (panel && (tooWide || tooTall)) {
         // Recorded while the panel is still measurable, and as what it
         // needed rather than what the row had.
-        tuckedNeedsRef.current = { w: el.scrollWidth, h: neededHeight };
+        tuckedNeedsRef.current = { w: el.clientWidth + shortBy, h: neededHeight };
         setIsHidden(true);
         setIsAutoTucked(true);
         return;
@@ -184,5 +206,5 @@ export function useTimeFieldsTuck(isRowLayout: boolean, isWideLayout: boolean) {
     setIsHidden(hidden);
   };
 
-  return { isHidden, isAutoTucked, isStacked, rowRef, panelRef, setHidden };
+  return { isHidden, isAutoTucked, isStacked, rowRef, panelRef, controlsRef, setHidden };
 }
