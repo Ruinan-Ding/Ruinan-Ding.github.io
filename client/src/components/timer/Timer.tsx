@@ -1527,7 +1527,7 @@ export default function Timer() {
   // around 900px and the buttons then held their size while everything
   // beside them kept shrinking, which made them the largest thing on a
   // narrow window.
-  const CONTROL_LABEL = boxClamp(0.55, 2.5, 6.2, 1.6);
+  const CONTROL_LABEL = boxClamp(0.55, 2.0, 5.0, 1.3);
   const CONTROL_HINT = `max(0.62rem, calc(${CONTROL_LABEL} * 0.5))`;
   // Small on purpose: with the rows spread edge to edge this is the whole
   // distance from the key to the top of the box.
@@ -1537,7 +1537,7 @@ export default function Timer() {
   // things rather than one instruction with the button in the middle of it.
   const CONTROL_HEIGHT = `calc(${CONTROL_LABEL} * 1.35 + ${CONTROL_HINT} * 2.3 + ${CONTROL_PAD_Y} * 2)`;
   const CONTROL_PAD_X = fitClamp(0.3, 3.1, 1.9);
-  const CONTROL_WIDTH = fitClamp(4.5, 22, 11.5);
+  const CONTROL_WIDTH = fitClamp(4.5, 17, 9);
   // The label with the hint gone, filling the box it is left alone in.
   //
   // Solved against RESUME rather than against whichever word is showing,
@@ -1551,6 +1551,20 @@ export default function Timer() {
   // START, RESET and STOP are ever on screen at once, so it took a
   // running timer to see it.
   const CONTROL_FILL = `min(calc((${CONTROL_WIDTH} - 2 * ${CONTROL_PAD_X} - 8px) / 3.75), calc((${CONTROL_HEIGHT} - 2 * ${CONTROL_PAD_Y} - 8px) / 1.15))`;
+
+  // Everything the countdown has to leave room for below itself: the
+  // control row, the status word under it, and the column's two gaps.
+  //
+  // Written as the controls' own height rather than estimated, which is
+  // what the reserve used to be: max(7.5rem, 1.5rem + 13dvh). Measured
+  // against what actually sits there, that guess was 42 to 56px too big
+  // at every size tried, and on a short window it cost the countdown a
+  // quarter of the column for space nothing then used — the readout came
+  // out at 46px with 47px buttons beside it. An expression can't drift
+  // from the thing it is made of, which is the point of boxClamp sizing
+  // the controls on both axes in the first place.
+  const STATUS_FONT_SIZE = shrinkClamp(0.6, 1.9, 2.5, 1.5);
+  const BELOW_DIGITS = `calc(${CONTROL_HEIGHT} + ${STATUS_FONT_SIZE} * 1.5 + 0.5rem)`;
   const controlButtonStyle = (color: string) => ({
     fontFamily: "'IBM Plex Mono', monospace",
     padding: `${CONTROL_PAD_Y} ${CONTROL_PAD_X}`,
@@ -2346,7 +2360,7 @@ export default function Timer() {
               // above, below sm it's the row. Same siblings either way,
               // since the website link is hidden below md.
               style={{
-                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - max(7.5rem, 1.5rem + 13dvh) - max(2.2rem, min(4.5vw, 4.2dvh))) / 1.29)), ${digitCeiling})`,
+                fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - ${BELOW_DIGITS}) / 1.8)), ${digitCeiling})`,
                 fontFamily: "'IBM Plex Mono', monospace",
                 // Vertical and horizontal on separate clamps. They were one
                 // figure, and the horizontal one is the useful one, it
@@ -2415,7 +2429,7 @@ export default function Timer() {
                   between this word and the word counter below. */}
               <div
                 className={`font-bold tracking-wider ${statusFlashClass}`}
-                style={{ fontSize: shrinkClamp(0.6, 1.9, 2.5, 1.5), color: statusColor }}
+                style={{ fontSize: STATUS_FONT_SIZE, color: statusColor }}
               >
                 {status}
               </div>
