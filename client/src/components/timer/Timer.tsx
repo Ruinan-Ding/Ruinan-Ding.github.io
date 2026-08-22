@@ -1745,15 +1745,14 @@ export default function Timer() {
       {!isTipCrowded && (
       <p
         className="alarm-tip hidden sm:block opacity-75 font-bold text-white text-left"
-        // marginLeft is one button and the row's gap, which puts the left
-        // edge of this exactly under the left edge of the speaker: the tip
-        // is about the speaker, and starting it under the bell beside it
-        // pointed at the wrong control.
+        // Flush with the bell's left edge and as wide as the pair above
+        // it, so it reads as a note on both buttons rather than on the one
+        // it happens to start under. It was indented by a button and a gap
+        // for a while, which pointed it at the speaker alone.
         style={{
           fontSize: shrinkClamp(0.65, 1.25, 1.35, 0.72),
           width: 0,
           minWidth: '100%',
-          marginLeft: `calc(${HEADER_BUTTON_SIZE.width} + 0.5rem)`,
           lineHeight: 1.3,
         }}
       >
@@ -2114,13 +2113,26 @@ export default function Timer() {
         </>
       );
     };
+    // A clicked button keeps focus, and a focused button answers ENTER
+    // and SPACE with another press of itself. This app's start/pause key
+    // is TAB, and TAB never reaches a button — the window handler takes it
+    // before focus moves — so those two are presses nobody asked for:
+    // click START and hit ENTER and the run you just started pauses.
+    // Dropping focus on the way out is what stops it, and costs nothing,
+    // since TAB being spoken for means these were never reachable by
+    // keyboard to begin with. Before the action, so a dialog it opens
+    // keeps the focus it takes for itself.
+    const press = (run: () => void) => (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.blur();
+      run();
+    };
     const runLabel = isPaused ? 'RESUME' : 'PAUSE';
     return (
       <>
         {!isRunning && (
           <button
             ref={withHints ? firstControlRef : undefined}
-            onClick={handleStart}
+            onClick={press(handleStart)}
             className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
             style={buttonStyle('#22c55e')}
           >
@@ -2131,7 +2143,7 @@ export default function Timer() {
         {isRunning && (
           <button
             ref={withHints ? firstControlRef : undefined}
-            onClick={togglePause}
+            onClick={press(togglePause)}
             className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200`}
             style={buttonStyle(isPaused ? '#22c55e' : '#eab308')}
           >
@@ -2140,7 +2152,7 @@ export default function Timer() {
         )}
 
         <button
-          onClick={handleResetClick}
+          onClick={press(handleResetClick)}
           disabled={isIdleAtConfigured}
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
           style={buttonStyle('#eab308')}
@@ -2149,7 +2161,7 @@ export default function Timer() {
         </button>
 
         <button
-          onClick={handleStopClick}
+          onClick={press(handleStopClick)}
           disabled={isIdleAtConfigured}
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
           style={buttonStyle('#ef4444')}

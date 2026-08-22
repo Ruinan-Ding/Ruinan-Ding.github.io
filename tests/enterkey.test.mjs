@@ -1,0 +1,123 @@
+// Two things a click leaves behind.
+//
+// A clicked button keeps focus, and a focused button answers ENTER and
+// SPACE by pressing itself again. This app's start/pause key is TAB, and
+// TAB never reaches a button — the window handler takes it first — so
+// those two were presses nobody asked for: click START, hit ENTER, and the
+// run you just started pauses.
+//
+// And the alarm tip, which is a note on the bell and the speaker together,
+// so it starts at the bell's left edge and its box ends at the speaker's
+// right edge.
+import { spawn } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { CHROME } from './chrome.mjs';
+
+const port = 9583;
+const profile = mkdtempSync(join(tmpdir(), 'enter-'));
+const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
+  '--no-first-run', '--no-default-browser-check', '--force-device-scale-factor=1', '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let wsUrl;
+for (let i = 0; i < 100 && !wsUrl; i++) {
+  try {
+    const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+    wsUrl = list.find((t) => t.type === 'page')?.webSocketDebuggerUrl;
+  } catch { /* not up */ }
+  if (!wsUrl) await sleep(100);
+}
+const ws = new WebSocket(wsUrl);
+await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+let id = 1; const pending = new Map();
+ws.onmessage = (m) => {
+  const x = JSON.parse(m.data);
+  if (x.method === 'Page.javascriptDialogOpening') { ws.send(JSON.stringify({ id: id++, method: 'Page.handleJavaScriptDialog', params: { accept: true } })); return; }
+  if (pending.has(x.id)) { pending.get(x.id)(x.result); pending.delete(x.id); }
+};
+const send = (method, params = {}) => new Promise((res) => { const i = id++; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
+const ev = async (e) => (await send('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.value;
+
+const press = async (key, code, vk, text) => {
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code, windowsVirtualKeyCode: vk });
+  if (text) await send('Input.dispatchKeyEvent', { type: 'char', key, code, windowsVirtualKeyCode: vk, text });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk });
+  await sleep(700);
+};
+const clickAt = async (x, y) => {
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+  await sleep(700);
+};
+const CONTROL = (label) => `[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='${label}')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='${label}';})`;
+const centreOf = (expr) => ev(`(()=>{const e=${expr};if(!e)return null;const r=e.getBoundingClientRect();return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)}})()`);
+const status = () => ev(`[...document.querySelectorAll('div')].filter(e=>/^(READY|RUNNING|PAUSED|FINISHED)$/.test(e.textContent.trim())&&e.children.length===0).pop()?.textContent.trim()`);
+
+const out = [];
+const check = (name, got, want) => out.push({ name, got: String(got), want: String(want), pass: String(got) === String(want) });
+const clickEl = async (expr, name) => {
+  const p = await centreOf(expr);
+  if (!p) { check(`${name} (not found)`, 'missing', 'found'); return false; }
+  await clickAt(p.x, p.y);
+  return true;
+};
+
+await send('Page.enable');
+await send('Runtime.enable');
+await send('Emulation.setDeviceMetricsOverride', { width: 1500, height: 900, deviceScaleFactor: 1, mobile: false });
+await send('Page.navigate', { url: 'http://localhost:5199/' });
+await sleep(2500);
+await ev(`localStorage.clear(),
+  localStorage.setItem('timerAppState', JSON.stringify({seconds:600,isPaused:false,isRunning:false,hours:0,minutes:10,timerSeconds:0})),
+  localStorage.setItem('timerSilentMode','true'),
+  localStorage.setItem('timerSidebarHidden','true'),
+  localStorage.setItem('wordCounterCollapsed','false'),
+  localStorage.setItem('wordCounterCollapsedAt','null'),
+  localStorage.setItem('wordCounterFullscreen','false'), 'ok'`);
+await send('Page.reload', {});
+await sleep(2500);
+
+// --- ENTER must not press the button the mouse just left --------------
+await clickEl(CONTROL('START'), 'START');
+check('clicking START runs it', await status(), 'RUNNING');
+check('the button did not keep focus', await ev(`document.activeElement === document.body || document.activeElement === null`), 'true');
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('ENTER does not pause it', await status(), 'RUNNING');
+await press(' ', 'Space', 32, ' ');
+check('SPACE does not pause it either', await status(), 'RUNNING');
+// TAB is the one key that does.
+await press('Tab', 'Tab', 9);
+check('TAB still pauses', await status(), 'PAUSED');
+await press('Tab', 'Tab', 9);
+check('TAB still resumes', await status(), 'RUNNING');
+
+// Same for the pause button once it has been clicked.
+await clickEl(CONTROL('PAUSE'), 'PAUSE');
+check('clicking PAUSE pauses', await status(), 'PAUSED');
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('ENTER does not resume', await status(), 'PAUSED');
+
+// --- the tip against the two buttons above it -------------------------
+// The row's own box is the honest right edge: the speaker sits inside a
+// wrapper for its volume popup, so the last <button> in there is the bell.
+const tip = await ev(`(()=>{
+  const p=document.querySelector('.alarm-tip');
+  if(!p) return null;
+  const row=p.parentElement.querySelector(':scope > div');
+  const r=p.getBoundingClientRect(), rr=row.getBoundingClientRect();
+  return { tipL: Math.round(r.left), tipR: Math.round(r.right), rowL: Math.round(rr.left), rowR: Math.round(rr.right) };
+})()`);
+if (!tip) check('alarm tip (not found)', 'missing', 'found');
+else {
+  check("tip starts at the bell's left edge", Math.abs(tip.tipL - tip.rowL) <= 1, true);
+  check("tip box ends at the speaker's right edge", Math.abs(tip.tipR - tip.rowR) <= 1, true);
+}
+
+const width = Math.max(...out.map((r) => r.name.length));
+out.forEach((r) => console.log(`${r.pass ? 'ok  ' : 'FAIL'}  ${r.name.padEnd(width)}  got=${r.got.padEnd(10)} want=${r.want}`));
+console.log(`${out.filter((r) => r.pass).length}/${out.length} passed`);
+ws.close(); chrome.kill();
+await sleep(200);
+process.exit(out.every((r) => r.pass) ? 0 : 1);
