@@ -22,6 +22,9 @@ const expr = `(() => {
       const hint = b.querySelector('.control-hint');
       const r = b.getBoundingClientRect();
       const cs = getComputedStyle(b);
+      const hrng = document.createRange();
+      hrng.selectNodeContents(hint);
+      const hintW = hrng.getBoundingClientRect().width;
       const rng = document.createRange();
       rng.selectNodeContents(lab);
       const t = rng.getBoundingClientRect();
@@ -31,6 +34,10 @@ const expr = `(() => {
         word: lab.textContent.trim(),
         shown: getComputedStyle(hint).display !== 'none',
         base: Math.round(parseFloat(cs.fontSize) * 10) / 10,
+        hintFs: Math.round(parseFloat(getComputedStyle(hint).fontSize) * 10) / 10,
+        // What isControlHintClipped watches: the line against the box less
+        // its borders. It drops the hint once this falls under 24.
+        hintSlack: Math.round(b.clientWidth - hintW),
         fs: Math.round(parseFloat(getComputedStyle(lab).fontSize) * 10) / 10,
         // What the label is solved against: the border box less its two
         // 4px borders, and the height less the borders and the padding.
@@ -88,11 +95,23 @@ for (const r of rows) {
   // the borders, and with the hint gone a label solved inside it left a
   // fifth of the button empty and still passed that test.
   const claims = off.every((b) => b.fs * 3.6 >= b.innerW - 5 || b.fs * 1.15 >= b.availH - 2);
-  const ok = fits && claims;
+  // And the hint, when it is there: it either fills the width down to the
+  // clearance that hides it, or it has run into the label's size, which is
+  // what keeps a note from outgrowing the word it is a note on. Neither
+  // held before: at 1440 the line was 84px of a 128px box at 0.70 of the
+  // label, half its own width in room it was not allowed to use.
+  // The first button only: its "Press TAB to" is the longest of the three
+  // and the one the app itself measures, so it is what decides whether any
+  // of them show. "Press R to" beside it is two characters shorter and
+  // would report slack that isn't the app's to use.
+  const on = r.btns.slice(0, 1).filter((b) => b.shown);
+  const hintClaims = on.every((b) => b.hintSlack <= 32 || b.hintFs >= b.base * 0.85);
+  const ok = fits && claims && hintClaims;
   if (!ok) bad++;
   const b0 = r.btns[0];
-  console.log(`${String(r.w).padStart(5)}x${String(r.h).padEnd(5)} hint=${b0.shown ? 'shown ' : 'hidden'} base=${String(b0.base).padEnd(5)} label=${String(b0.fs).padEnd(5)} over=${[b0.overL, b0.overR, b0.overT, b0.overB].join('/')} fits=${String(fits).padEnd(5)} claims=${String(claims).padEnd(5)} ${ok ? '' : '<== FAIL'}`);
+  console.log(`${String(r.w).padStart(5)}x${String(r.h).padEnd(5)} hint=${b0.shown ? 'shown ' : 'hidden'} base=${String(b0.base).padEnd(5)} label=${String(b0.fs).padEnd(5)} over=${[b0.overL, b0.overR, b0.overT, b0.overB].join('/')} fits=${String(fits).padEnd(5)} claims=${String(claims).padEnd(5)} hint=${on.length ? `${b0.hintFs}px slack=${b0.hintSlack}` : '-'.padEnd(14)} hintClaims=${String(hintClaims).padEnd(5)} ${ok ? '' : '<== FAIL'}`);
 }
+if (!rows.some((r) => r.btns?.some((b) => b.shown))) { console.log('no viewport showed the hint — its ask was never exercised'); bad++; }
 if (!hidden) { console.log('\nno viewport hid the hint — the second ask was never exercised'); bad++; }
 if (!rows.some((r) => r.btns?.some((b) => b.word === 'RESUME'))) { console.log('the six-letter label never rendered — the widest case went untested'); bad++; }
 console.log(bad ? `\n${bad} of ${rows.length} viewports fail` : `\nall ${rows.length} viewports pass`);

@@ -278,9 +278,22 @@ export default function Timer() {
       setTipLines(Math.max(0, Math.min(TIP_MAX_LINES, Math.floor((d.top - t.top - 4) / lineHeight))));
     };
     check();
-    // The same two-pass settle useTightFit needs, and for the same reason:
-    // the clamp changes the box that was measured to choose it.
-    const soon = () => { check(); requestAnimationFrame(check); };
+    // The same three-pass settle useTightFit needs, and for the same
+    // reason: the clamp changes the box that was measured to choose it,
+    // and what sits above the readout — the controls, whose height is
+    // spelled out from their own label and hint — moves the line this is
+    // measured against without resizing the row that is observed. Two
+    // passes left one viewport in the sweep reading a clamp chosen for the
+    // layout before it.
+    let queued = 0;
+    let later = 0;
+    const soon = () => {
+      check();
+      cancelAnimationFrame(queued);
+      window.clearTimeout(later);
+      queued = requestAnimationFrame(check);
+      later = window.setTimeout(check, 150);
+    };
     window.addEventListener('resize', soon);
     const observer = new ResizeObserver(soon);
     if (timerRowRef.current) observer.observe(timerRowRef.current);
@@ -288,6 +301,8 @@ export default function Timer() {
     return () => {
       window.removeEventListener('resize', soon);
       observer.disconnect();
+      cancelAnimationFrame(queued);
+      window.clearTimeout(later);
     };
   }, [timerRowRef]);
 
@@ -1611,7 +1626,34 @@ export default function Timer() {
   // beside them kept shrinking, which made them the largest thing on a
   // narrow window.
   const CONTROL_LABEL = boxClamp(0.5, 1.85, 4.6, 1.25);
-  const CONTROL_HINT = `max(0.62rem, calc(${CONTROL_LABEL} * 0.7))`;
+  const CONTROL_PAD_X = fitClamp(0.25, 1.4, 1.0);
+  const CONTROL_WIDTH = fitClamp(4, 16, 8.5);
+  // The hint against the width it actually has, rather than at a fixed
+  // fraction of the label.
+  //
+  // The width is a clamp that tops out, and the label is not, so above
+  // that cap the button stopped growing while the note inside it went on
+  // shrinking with the window's height: at 1440x900 "Press TAB to" was
+  // 84px of a 128px box, and on a short window 71px of 127px. Half the
+  // line's own width in space it wasn't allowed to use, at a size that is
+  // hard to read, which is the whole reason it is there.
+  //
+  // 7.4 is what the button will show: twelve characters of "Press TAB to"
+  // at 0.6em each is 7.2em, and the hint is dropped once it comes within
+  // 24px of both sides (see isControlHintClipped), so the line has to fit
+  // the box less that clearance. The extra 0.2 keeps it off the edge of
+  // its own hide rule rather than sitting exactly on it and flickering.
+  //
+  // Capped by the label as well, which is what stops this growing the
+  // button on a short window: the label carries a cqh term and the width
+  // doesn't, so on its own the width term would hold a full-size note
+  // over a shrinking word and make the box taller exactly where height is
+  // scarcest. 0.9 rather than 1 so the note stays smaller than the word
+  // it is a note on, which at the short end they had come level with.
+  // The floor is a real floor, above what the narrow end can
+  // fit, so down there the line stops fitting and goes rather than
+  // shrinking to nothing — the label takes the whole box then.
+  const CONTROL_HINT = `max(0.72rem, min(calc((${CONTROL_WIDTH} - 32px) / 7.4), calc(${CONTROL_LABEL} * 0.9)))`;
   // Small on purpose: with the rows spread edge to edge this is the whole
   // distance from the key to the top of the box.
   const CONTROL_PAD_Y = boxClamp(0.12, 0.6, 1.5, 0.32);
@@ -1619,8 +1661,6 @@ export default function Timer() {
   // across a box drawn taller than they needed and read as three separate
   // things rather than one instruction with the button in the middle of it.
   const CONTROL_HEIGHT = `calc(${CONTROL_LABEL} * 1.35 + ${CONTROL_HINT} * 2.3 + ${CONTROL_PAD_Y} * 2)`;
-  const CONTROL_PAD_X = fitClamp(0.25, 1.4, 1.0);
-  const CONTROL_WIDTH = fitClamp(4, 16, 8.5);
   // The label with the hint gone, filling the box it is left alone in.
   //
   // Solved against RESUME rather than against whichever word is showing,
