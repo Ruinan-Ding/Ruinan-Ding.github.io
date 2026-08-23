@@ -195,7 +195,12 @@ export default function Timer() {
   const headerLeftRef = useRef<HTMLDivElement>(null);
   const linkBandRef = useRef<HTMLDivElement>(null);
   const mainClockRef = useRef<HTMLDivElement>(null);
-  const tipRef = useRef<HTMLSpanElement>(null);
+  // The ringer and the speaker alone. Not the corner they sit in: the
+  // alarm tip is in there too, and now that it wraps it is a nine-line
+  // column, so the corner's box reaches far below the buttons and the
+  // clock reads as level with it at heights where it clears them easily.
+  const headerButtonsRef = useRef<HTMLDivElement>(null);
+  const tipRef = useRef<HTMLParagraphElement>(null);
   // The first control button and the hint printed on it, so the hint can
   // go when it no longer fits on the button rather than at a named width.
   const firstControlRef = useRef<HTMLButtonElement>(null);
@@ -245,7 +250,7 @@ export default function Timer() {
   // so on a short window the clock rides up into their band and the date
   // runs under them. The date is what goes: it is the half of the clock
   // that isn't the time, and losing it pulls the centred cluster clear.
-  const isMainClockCrowded = useTightFit(gapWhenLevel(headerLeftRef, mainClockRef), timerRowRef, 8);
+  const isMainClockCrowded = useTightFit(gapWhenLevel(headerButtonsRef, mainClockRef), timerRowRef, 8);
 
   // Whether a keypress would reach the timer at all. The hints name keys,
   // and a key named where it does nothing is worse than no hint: in a
@@ -1533,8 +1538,8 @@ export default function Timer() {
   // around 900px and the buttons then held their size while everything
   // beside them kept shrinking, which made them the largest thing on a
   // narrow window.
-  const CONTROL_LABEL = boxClamp(0.55, 2.0, 5.0, 1.3);
-  const CONTROL_HINT = `max(0.62rem, calc(${CONTROL_LABEL} * 0.5))`;
+  const CONTROL_LABEL = boxClamp(0.5, 1.85, 4.6, 1.25);
+  const CONTROL_HINT = `max(0.62rem, calc(${CONTROL_LABEL} * 0.7))`;
   // Small on purpose: with the rows spread edge to edge this is the whole
   // distance from the key to the top of the box.
   const CONTROL_PAD_Y = boxClamp(0.12, 0.6, 1.5, 0.32);
@@ -1542,8 +1547,8 @@ export default function Timer() {
   // across a box drawn taller than they needed and read as three separate
   // things rather than one instruction with the button in the middle of it.
   const CONTROL_HEIGHT = `calc(${CONTROL_LABEL} * 1.35 + ${CONTROL_HINT} * 2.3 + ${CONTROL_PAD_Y} * 2)`;
-  const CONTROL_PAD_X = fitClamp(0.3, 3.1, 1.9);
-  const CONTROL_WIDTH = fitClamp(4.5, 17, 9);
+  const CONTROL_PAD_X = fitClamp(0.25, 1.4, 1.0);
+  const CONTROL_WIDTH = fitClamp(4, 16, 8.5);
   // The label with the hint gone, filling the box it is left alone in.
   //
   // Solved against RESUME rather than against whichever word is showing,
@@ -1725,7 +1730,7 @@ export default function Timer() {
   // well as show them.
   const ringerAndSpeakerCluster = (
     <div className="flex flex-col items-start gap-1">
-      <div className="flex items-center gap-2">
+      <div ref={headerButtonsRef} className="flex items-center gap-2">
         {ringerButton}
         {speakerButton}
       </div>
@@ -1737,13 +1742,12 @@ export default function Timer() {
           above without contributing to how the fit-content parent measures
           itself; a plain width: 100% would size that parent to this
           paragraph instead. */}
-      {/* And out entirely once it reaches the clock. Its box is as wide as
-          the buttons above it, but the text inside can run past that, and
-          on a narrow window it ran under the time box. A tip is the most
+      {/* And out entirely once it reaches the clock. A tip is the most
           expendable thing on this screen, so it goes rather than being
           read through the clock sitting on top of it. */}
       {!isTipCrowded && (
       <p
+        ref={tipRef}
         className="alarm-tip hidden sm:block opacity-75 font-bold text-white text-left"
         // Flush with the bell's left edge and as wide as the pair above
         // it, so it reads as a note on both buttons rather than on the one
@@ -1756,15 +1760,12 @@ export default function Timer() {
           lineHeight: 1.3,
         }}
       >
-        {/* The text wraps at its own measure and overflows the box above,
-            rather than wrapping inside it. In the buttons' width this was
-            six lines of 7.65px, which is past reading, and reading is the
-            only thing a tip is for: better it goes sooner and is legible
-            while it's there. The span is what's measured, since the box
-            it sits in is 108px whatever the text does. */}
-        <span ref={tipRef} className="inline-block" style={{ width: '34ch' }}>
-          Tip: mute the volume or turn off repeat to silence the alarm — OFF + start at 00:00:00 = count-up stopwatch
-        </span>
+        {/* Wrapped inside that box rather than running past it. Set to
+            its own 34ch measure for a while, it overflowed the buttons and
+            could reach the clock; capped here it is a tall narrow column
+            instead, which is the trade already asked for: tucks in sooner,
+            readable while it's there. */}
+        Tip: mute the volume or turn off repeat to silence the alarm — OFF + start at 00:00:00 = count-up stopwatch
       </p>
       )}
     </div>
@@ -2397,7 +2398,7 @@ export default function Timer() {
                   gives up is all that moves its left edge. */}
               <div className="flex justify-center">
                 {renderClockCluster(
-                  isMainClockCrowded ? `calc(${CLOCK_FONT_SIZE} * 0.75)` : CLOCK_FONT_SIZE,
+                  isMainClockCrowded ? `calc(${CLOCK_FONT_SIZE} * 0.7)` : CLOCK_FONT_SIZE,
                   false,
                   mainClockRef
                 )}

@@ -107,12 +107,23 @@ const tip = await ev(`(()=>{
   if(!p) return null;
   const row=p.parentElement.querySelector(':scope > div');
   const r=p.getBoundingClientRect(), rr=row.getBoundingClientRect();
-  return { tipL: Math.round(r.left), tipR: Math.round(r.right), rowL: Math.round(rr.left), rowR: Math.round(rr.right) };
+  return {
+    tipL: Math.round(r.left), tipR: Math.round(r.right),
+    rowL: Math.round(rr.left), rowR: Math.round(rr.right),
+    // Wider content than box means a line ran past the cap.
+    overflow: Math.round(p.scrollWidth - p.clientWidth),
+    lines: Math.round(r.height / parseFloat(getComputedStyle(p).lineHeight)),
+    fontPx: Math.round(parseFloat(getComputedStyle(p).fontSize) * 10) / 10,
+  };
 })()`);
 if (!tip) check('alarm tip (not found)', 'missing', 'found');
 else {
   check("tip starts at the bell's left edge", Math.abs(tip.tipL - tip.rowL) <= 1, true);
   check("tip box ends at the speaker's right edge", Math.abs(tip.tipR - tip.rowR) <= 1, true);
+  // The point of the box: the text is capped by it rather than running on
+  // past the speaker and out over whatever is to the right.
+  check('tip text is capped by that box', tip.overflow <= 1, true);
+  console.log(`  tip: ${tip.lines} lines at ${tip.fontPx}px in ${tip.tipR - tip.tipL}px`);
 }
 
 const width = Math.max(...out.map((r) => r.name.length));

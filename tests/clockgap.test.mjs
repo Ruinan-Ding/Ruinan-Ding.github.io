@@ -60,7 +60,11 @@ const PROBE = `(()=>{
   // the wrapper spans the column and its left edge says nothing about
   // where the clock is drawn.
   const clock=[...document.querySelectorAll('div')].find(e=>e.style && e.style.letterSpacing==='0.05em' && e.style.fontSize && e.querySelector('select'));
-  const left=[...document.querySelectorAll('div')].find(e=>typeof e.className==='string' && e.className.includes('absolute') && e.className.includes('left-2') && e.className.includes('items-start'));
+  // The two buttons, not the corner around them: the alarm tip lives in
+  // that corner and wraps to a tall column, and running under the tip is
+  // not what this is about.
+  const corner=[...document.querySelectorAll('div')].find(e=>typeof e.className==='string' && e.className.includes('absolute') && e.className.includes('left-2') && e.className.includes('items-start'));
+  const left=corner?corner.querySelector('.flex.flex-col.items-start > div'):null;
   if(!clock||!left) return {err:!clock?'no clock':'no corner'};
   const c=clock.getBoundingClientRect(), l=left.getBoundingClientRect();
   const overlapX=Math.round(Math.min(c.right,l.right)-Math.max(c.left,l.left));
