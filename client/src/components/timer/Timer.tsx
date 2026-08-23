@@ -48,6 +48,10 @@ const CONFIRM_LIST_HEADING: Record<ConfirmMode, string> = {
 
 const CONFIRM_LIST_FONT_SIZE = shrinkClamp(0.6, 1, 1.1, 0.72);
 
+// The whole tip is nine lines in the width of the two buttons it sits
+// under; ten is "no clamp".
+const TIP_MAX_LINES = 10;
+
 // Clears the header buttons in the same corner. Derived from the button so
 // it shrinks with them on a short window.
 const TIME_FIELDS_TOP_MARGIN = { marginTop: `calc(${HEADER_BUTTON_SIZE.height} + 0.5rem)` };
@@ -195,6 +199,7 @@ export default function Timer() {
   const headerLeftRef = useRef<HTMLDivElement>(null);
   const linkBandRef = useRef<HTMLDivElement>(null);
   const mainClockRef = useRef<HTMLDivElement>(null);
+  const digitsRef = useRef<HTMLDivElement>(null);
   // The ringer and the speaker alone. Not the corner they sit in: the
   // alarm tip is in there too, and now that it wraps it is a nine-line
   // column, so the corner's box reaches far below the buttons and the
@@ -241,6 +246,51 @@ export default function Timer() {
     setHidden: setTimeFieldsHidden,
   } = useTimeFieldsTuck(isRowLayout, isWideLayout);
   const isLinkCrowded = useTightFit(gapBetween(headerLeftRef, linkBandRef), timerRowRef, 8);
+  // How many lines of the alarm tip there is room for before it reaches
+  // the readout beside it.
+  //
+  // A height media query can't answer this: the tip and the readout only
+  // collide where they share horizontal space, and where they do is a
+  // question about the sidebar, the window's width and how wide the
+  // countdown has grown, not about how tall the window is. Measured, it
+  // was running over the digits at 13 of 72 viewports.
+  //
+  // TIP_MAX_LINES when they don't overlap horizontally at all, which is
+  // most wide windows: the tip is off to the left of everything and can
+  // have its whole say.
+  const [tipLines, setTipLines] = useState(TIP_MAX_LINES);
+  useEffect(() => {
+    const check = () => {
+      const tip = tipRef.current;
+      const digits = digitsRef.current;
+      if (!tip || !digits) return;
+      const t = tip.getBoundingClientRect();
+      const d = digits.getBoundingClientRect();
+      // Clear of each other across the page, so height is no constraint.
+      if (t.right <= d.left || t.left >= d.right) {
+        setTipLines(TIP_MAX_LINES);
+        return;
+      }
+      const lineHeight = parseFloat(getComputedStyle(tip).lineHeight);
+      if (!lineHeight) return;
+      // The gap is measured from the tip's own top, so clamping it can't
+      // move the number that decided the clamp.
+      setTipLines(Math.max(0, Math.min(TIP_MAX_LINES, Math.floor((d.top - t.top - 4) / lineHeight))));
+    };
+    check();
+    // The same two-pass settle useTightFit needs, and for the same reason:
+    // the clamp changes the box that was measured to choose it.
+    const soon = () => { check(); requestAnimationFrame(check); };
+    window.addEventListener('resize', soon);
+    const observer = new ResizeObserver(soon);
+    if (timerRowRef.current) observer.observe(timerRowRef.current);
+    document.fonts?.ready.then(soon);
+    return () => {
+      window.removeEventListener('resize', soon);
+      observer.disconnect();
+    };
+  }, [timerRowRef]);
+
   // The alarm tip against the clock. It sits under the top-left buttons
   // while the clock is centred above the digits, so the two close on each
   // other as the window narrows.
@@ -1077,7 +1127,13 @@ export default function Timer() {
     }
 
     const state = timerStateKind();
-    if (hasRunToLose() && !askedAdjustInStatesRef.current.has(state)) {
+    // Half asks the way it always has: only where there's a run to lose,
+    // and once per state, since three fields doing the same thing
+    // shouldn't be three questions. Full asks every time and in every
+    // state, which is what makes the idle and ringing rows in the confirm
+    // list reachable at all — nothing else ever produces them.
+    const askEveryAdjustment = confirmMode === 'full';
+    if (askEveryAdjustment || (hasRunToLose() && !askedAdjustInStatesRef.current.has(state))) {
       // An out-of-range edit comes through here too, so a running timer
       // gets the same question before it's discarded.
       //
@@ -1097,7 +1153,7 @@ export default function Timer() {
       return;
     }
     applyAndReport();
-  }, [shownTotal, timerStateKind, hasRunToLose, applyAdjustment, askThenRun]);
+  }, [shownTotal, timerStateKind, hasRunToLose, applyAdjustment, askThenRun, confirmMode]);
 
   // A typed commit replaces one unit's magnitude and keeps the sign. 61
   // arrives here as 61 and toSignedTotal turns the whole thing into 1m 01s.
@@ -1748,7 +1804,7 @@ export default function Timer() {
       {!isTipCrowded && (
       <p
         ref={tipRef}
-        className="alarm-tip hidden sm:block opacity-75 font-bold text-white text-left"
+        className="alarm-tip opacity-75 font-bold text-white text-left"
         // Flush with the bell's left edge and as wide as the pair above
         // it, so it reads as a note on both buttons rather than on the one
         // it happens to start under. It was indented by a button and a gap
@@ -1758,6 +1814,16 @@ export default function Timer() {
           width: 0,
           minWidth: '100%',
           lineHeight: 1.3,
+          // -webkit-box, so index.css can cut it to the lines the window
+          // has room for and end them in an ellipsis. Tailwind's
+          // `hidden sm:block` used to own this, and block would beat the
+          // clamp; isRowLayout is the same breakpoint sm is. The number of
+          // lines stays in the stylesheet, since an inline style would win
+          // over the height queries that set it.
+          display: isRowLayout && tipLines > 0 ? '-webkit-box' : 'none',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: tipLines,
+          overflow: 'hidden',
         }}
       >
         {/* Wrapped inside that box rather than running past it. Set to
@@ -2404,6 +2470,7 @@ export default function Timer() {
                 )}
               </div>
               <div
+                ref={digitsRef}
                 className={`flex items-baseline justify-center gap-1 leading-none ${digitWaveClass} ${isWindowGreen ? glowFadeClass : ''}`}
                 style={digitColorStyle}
               >

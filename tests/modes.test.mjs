@@ -221,6 +221,44 @@ check('the list opens there too', await ev(`!!(${LIST})`), 'true');
 // a 346px panel and every label wrapped onto four lines.
 check('its rows fill the panel', await ev(`(()=>{const s=document.querySelector('[data-confirm-scroll]'),b=document.querySelector('[data-confirm-list] button');return !!s&&!!b&&Math.abs(s.getBoundingClientRect().width-b.getBoundingClientRect().width)<2})()`), 'true');
 
+// --- FULL asks about every adjustment, in every state -------------------
+// Half asks once per timer state and only while there's a run to lose, so
+// the idle and ringing rows in the list are unreachable there. Full asks
+// every time, which is what makes them mean anything.
+// Stopped, so the state is 'unstarted' — the one half mode never asks in
+// at all, since there is no run to lose.
+await ev(`localStorage.setItem('timerConfirmMode','"full"'),
+  localStorage.setItem('timerDontAskAgain','[]'),
+  localStorage.setItem('timerAppState', JSON.stringify({seconds:600,isPaused:false,isRunning:false,hours:0,minutes:10,timerSeconds:0})), 'ok'`);
+await send('Page.reload', {});
+await sleep(3500);
+await ev(`document.activeElement?.blur?.(), 'ok'`);
+check('back in full', await mode(), 'full');
+check('and idle', await status(), 'READY');
+const ARROW = `document.querySelector('[aria-label*="Increase"], [aria-label*="increase"]')`;
+// Three digits, read off the time boxes rather than every input on the
+// page: the volume slider moves in DOM order when its popup opens.
+const FIELDS = `[...document.querySelectorAll('.time-fields-box input')].map(i=>i.value).join(':')`;
+// One throwaway press first. The claim under test is that the NEXT one
+// asks too, and a first click right after a reload sometimes lands where
+// the arrow was a frame ago rather than where it is.
+await sleep(900);
+await clickEl(ARROW, 'warm-up step');
+await press('Escape', 'Escape', 27);
+const before = await ev(FIELDS);
+check('the fields read back', /^\d\d:\d\d:\d\d$/.test(before || ''), true);
+
+await clickEl(ARROW, 'first step');
+check('an idle adjustment asks', await dialogTitle(), 'ADJUST TIME');
+await press('Escape', 'Escape', 27);
+check('cancelling changes nothing', await ev(FIELDS), before);
+
+await clickEl(ARROW, 'second step');
+check('and asks again the very next time', await dialogTitle(), 'ADJUST TIME');
+await enter();
+await sleep(400);
+check('confirming applies it', (await ev(FIELDS)) !== before, true);
+
 const width = Math.max(...out.map((r) => r.name.length));
 out.forEach((r) => console.log(`${r.pass ? 'ok  ' : 'FAIL'}  ${r.name.padEnd(width)}  got=${r.got.padEnd(24)} want=${r.want}`));
 console.log(`${out.filter((r) => r.pass).length}/${out.length} passed`);
