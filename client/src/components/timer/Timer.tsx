@@ -393,11 +393,18 @@ export default function Timer() {
   const isFsTotalTight = useTightFit(() => (isFsBarTight ? fsRoom() : null), windowRef, 24, `${isWordCounterFullscreen}${isFsBarTight}`);
   const isClockDateCrowded = useTightFit(() => (isFsTotalTight ? fsRoom() : null), windowRef, 24, `${isWordCounterFullscreen}${isFsTotalTight}`);
   const isClockTimeCrowded = useTightFit(() => (isClockDateCrowded ? fsRoom() : null), windowRef, 24, `${isWordCounterFullscreen}${isClockDateCrowded}`);
-  // States an adjustment has already been asked about, so the three fields
-  // share one prompt per state. In memory on purpose: it means "you
-  // answered a moment ago", which shouldn't outlive the session. The
-  // dialog's "don't ask again" is what makes an answer permanent.
-  const askedAdjustInStatesRef = useRef(new Set<TimerStateKind>());
+  // Whether an adjustment has already been answered on this stretch of
+  // the run, so the three fields share one prompt rather than asking three
+  // times for one intent. In memory on purpose: it means "you answered a
+  // moment ago", which shouldn't outlive the session. The dialog's "don't
+  // ask again" is what makes an answer permanent.
+  //
+  // Re-armed by every pause and every resume, since that's what makes it a
+  // different question: the run you're editing is not the one you okayed.
+  // Keyed by state kind instead, pausing after having answered while
+  // paused earlier was silently waved through.
+  const askedAdjustRef = useRef(false);
+  useEffect(() => { askedAdjustRef.current = false; }, [isRunning, isPaused]);
   // Radix fires onClick and onOpenChange for the same click, so the
   // dismiss handler needs this to tell a confirm from a cancel.
   const justConfirmedRef = useRef(false);
@@ -1095,14 +1102,14 @@ export default function Timer() {
     }
   }, [flashSetterFor]);
 
-  // Asks once per timer state, for all three boxes together, and only
+  // Asks once per pause or resume, for all three boxes together, and only
   // while there's a run to restart. Setting a timer up is what these boxes
   // are for, and a ringing one has nothing left to lose.
   //
-  // By state kind rather than by transition: setting a timer up means
-  // touching two or three boxes in a row, which is one intent, and pausing
-  // to nudge a minute, resuming, then pausing again is still the same
-  // question about the same paused timer.
+  // Once per stretch rather than once per box: setting a time means
+  // touching two or three boxes in a row, which is one intent and deserves
+  // one question. Once the run is paused or resumed it's a different run
+  // being edited, so the question comes back.
   const requestTotalChange = useCallback((total: number, unit: TimeUnit) => {
     const previousTotal = shownTotal();
     const next = clampTotal(total);
@@ -1128,12 +1135,12 @@ export default function Timer() {
 
     const state = timerStateKind();
     // Half asks the way it always has: only where there's a run to lose,
-    // and once per state, since three fields doing the same thing
+    // and once per stretch of it, since three fields doing the same thing
     // shouldn't be three questions. Full asks every time and in every
     // state, which is what makes the idle and ringing rows in the confirm
     // list reachable at all — nothing else ever produces them.
     const askEveryAdjustment = confirmMode === 'full';
-    if (askEveryAdjustment || (hasRunToLose() && !askedAdjustInStatesRef.current.has(state))) {
+    if (askEveryAdjustment || (hasRunToLose() && !askedAdjustRef.current)) {
       // An out-of-range edit comes through here too, so a running timer
       // gets the same question before it's discarded.
       //
@@ -1142,12 +1149,12 @@ export default function Timer() {
       // that closes, so one opened from the confirm handler is shut by the
       // event that opened it.
       const dialog: DialogState = { type: 'adjust', data: { totalSeconds: Math.trunc(next), previousTotal, unit, state, corrected } };
-      // Marked before asking, not after confirming: a cancelled question
-      // was still asked. The dismiss handler clears it again so cancelling
-      // doesn't hand the next adjustment a free pass.
-      askedAdjustInStatesRef.current.add(state);
+      // Marked before asking, and the dismiss handler clears it again, so
+      // only an answered question counts: cancelling doesn't hand the next
+      // adjustment a free pass.
+      askedAdjustRef.current = true;
       askThenRun(dialog, () => {
-        askedAdjustInStatesRef.current.delete(state);
+        askedAdjustRef.current = false;
         applyAndReport();
       });
       return;
@@ -1305,11 +1312,11 @@ export default function Timer() {
   };
 
   // Dismissing an 'adjust' has no edit to undo, since nothing was applied,
-  // but the once-per-state prompt has to re-arm or the next adjustment in
-  // that state would apply silently.
+  // but the once-per-stretch prompt has to re-arm or the next adjustment
+  // would apply silently.
   const handleDialogDismiss = (dontAskAgain = false) => {
     if (!justConfirmedRef.current && dialog.type === 'adjust') {
-      askedAdjustInStatesRef.current.delete(dialog.data.state);
+      askedAdjustRef.current = false;
     }
     // An acknowledgement reports what happened, so ESC has to leave the
     // same result as OK, ticked box included. Anything else and the text
@@ -1356,9 +1363,18 @@ export default function Timer() {
   const configuredMs = configuredTotalSeconds * 1000;
   const remainingMs = Math.max(0, seconds * 1000 + milliseconds);
   const timeFraction = configuredMs > 0 ? Math.min(1, remainingMs / configuredMs) : 0;
-  // What the three fields show: the time left while a run is on the clock,
-  // the configured time otherwise.
-  const fieldParts = signedParts(isLiveRun ? liveShownSeconds(time) : configuredTotalSeconds);
+  // What the three fields show: the edit being asked about while that
+  // question is open, then the time left while a run is on the clock, and
+  // the configured time otherwise. Snapping back to the old number the
+  // moment the dialog opened read as the edit having been refused already,
+  // and left the question about a change nothing on screen showed.
+  // Cancelling reverts by itself: the dialog closes and this falls through
+  // to the live value again.
+  const fieldParts = signedParts(
+    dialog.type === 'adjust'
+      ? dialog.data.totalSeconds
+      : isLiveRun ? liveShownSeconds(time) : configuredTotalSeconds
+  );
   // More time left than the bar was drawn for, which an edit to those
   // fields can do since they move the run without moving its total.
   // There's no honest fill for "more than full", so the track waves green

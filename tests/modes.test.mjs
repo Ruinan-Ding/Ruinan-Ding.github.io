@@ -259,6 +259,74 @@ await enter();
 await sleep(400);
 check('confirming applies it', (await ev(FIELDS)) !== before, true);
 
+// --- HALF: one adjustment question per stretch of the run --------------
+// Half's rule is unchanged in shape — the three boxes share one prompt,
+// and only where there's a run to lose — but the stretch it covers is a
+// pause or a resume, not a state kind. Keyed by kind, answering while
+// paused, resuming and pausing again walked straight past the question:
+// 'paused' had already been asked once, so the second pause was silent.
+await ev(`localStorage.setItem('timerConfirmMode','"half"'),
+  localStorage.setItem('timerDontAskAgain','[]'),
+  localStorage.setItem('wordCounterFullscreen','false'),
+  localStorage.setItem('timerAppState', JSON.stringify({seconds:600,isPaused:false,isRunning:false,hours:0,minutes:10,timerSeconds:0})), 'ok'`);
+await send('Page.reload', {});
+await sleep(3500);
+await ev(`document.activeElement?.blur?.(), 'ok'`);
+check('back in half', await mode(), 'half');
+// The seconds box, so one step is one second and the digits stay readable.
+const SEC_ARROW = `document.querySelector('[aria-label="Increase seconds"]')`;
+
+await clickEl(CONTROL('START'), 'START');
+await press('Tab', 'Tab', 9);
+check('paused with a run to lose', await status(), 'PAUSED');
+await sleep(600);
+const paused = await ev(FIELDS);
+check('the fields hold still', /^\d\d:\d\d:\d\d$/.test(paused || ''), true);
+
+await clickEl(SEC_ARROW, 'seconds step');
+check('half asks about the first adjustment', await dialogTitle(), 'ADJUST TIME');
+// The boxes show what the question is about while it's still open. They
+// used to snap back to the old number the moment the dialog appeared,
+// which reads as the edit having already been refused.
+check('and the boxes show the pending time', (await ev(FIELDS)) !== paused, true);
+await press('Escape', 'Escape', 27);
+check('cancelling puts them back', await ev(FIELDS), paused);
+
+await clickEl(SEC_ARROW, 'seconds step');
+check('a cancelled question is asked again', await dialogTitle(), 'ADJUST TIME');
+await enter();
+await sleep(400);
+const answered = await ev(FIELDS);
+check('confirming applies it', answered !== paused, true);
+
+await clickEl(SEC_ARROW, 'seconds step');
+check('and the next one in the same pause is silent', await dialogTitle(), 'null');
+check('but still applied', (await ev(FIELDS)) !== answered, true);
+
+await press('Tab', 'Tab', 9);
+check('resumed', await status(), 'RUNNING');
+await clickEl(SEC_ARROW, 'seconds step');
+check('a resume re-arms the question', await dialogTitle(), 'ADJUST TIME');
+await enter();
+await sleep(400);
+
+await press('Tab', 'Tab', 9);
+check('paused again', await status(), 'PAUSED');
+await clickEl(SEC_ARROW, 'seconds step');
+check('and so does the next pause', await dialogTitle(), 'ADJUST TIME');
+await press('Escape', 'Escape', 27);
+
+// --- HALF: a ringing timer has nothing left to lose --------------------
+await ev(`localStorage.setItem('timerAppState', JSON.stringify({seconds:3,isPaused:false,isRunning:false,hours:0,minutes:0,timerSeconds:3})), 'ok'`);
+await send('Page.reload', {});
+await sleep(3500);
+await ev(`document.activeElement?.blur?.(), 'ok'`);
+await clickEl(CONTROL('START'), 'START');
+await sleep(4500);
+check('past zero and ringing', await status(), 'FINISHED');
+await clickEl(SEC_ARROW, 'seconds step');
+check('half never asks while it rings', await dialogTitle(), 'null');
+
 const width = Math.max(...out.map((r) => r.name.length));
 out.forEach((r) => console.log(`${r.pass ? 'ok  ' : 'FAIL'}  ${r.name.padEnd(width)}  got=${r.got.padEnd(24)} want=${r.want}`));
 console.log(`${out.filter((r) => r.pass).length}/${out.length} passed`);
