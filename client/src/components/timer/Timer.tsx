@@ -1629,11 +1629,18 @@ export default function Timer() {
   // the four percent that keeps it off its own border. 8px is the border
   // either side, which box-sizing puts inside the width.
   //
+  // The side padding is not taken off, and the label pulls out over it to
+  // match — see the negative margin where it's drawn. That padding is
+  // there to hold "Press TAB to" off the borders, and with the hint gone
+  // there is nothing in the box to hold off anything: at 1024 it was 16px
+  // of the 94px button reserved for a row that isn't drawn, and the word
+  // came out a fifth smaller than the space it had.
+  //
   // Worth having as a figure rather than an em multiple: 1.35em was over
   // the width at 1600, where RESUME wanted 124px of a 115px box. Only
   // START, RESET and STOP are ever on screen at once, so it took a
   // running timer to see it.
-  const CONTROL_FILL = `min(calc((${CONTROL_WIDTH} - 2 * ${CONTROL_PAD_X} - 8px) / 3.75), calc((${CONTROL_HEIGHT} - 2 * ${CONTROL_PAD_Y} - 8px) / 1.15))`;
+  const CONTROL_FILL = `min(calc((${CONTROL_WIDTH} - 8px) / 3.75), calc((${CONTROL_HEIGHT} - 2 * ${CONTROL_PAD_Y} - 8px) / 1.15))`;
 
   // Everything the countdown has to leave room for below itself: the
   // control row, the status word under it, and the column's two gaps.
@@ -2186,7 +2193,14 @@ export default function Timer() {
               it whatever the rows either side of it are doing. */}
           <span
             className="flex flex-1 items-center justify-center"
-            style={{ fontSize: shown ? '1em' : CONTROL_FILL, lineHeight: 1.1 }}
+            style={{
+              fontSize: shown ? '1em' : CONTROL_FILL,
+              lineHeight: 1.1,
+              // Out over the side padding once it has the box to itself,
+              // which is what CONTROL_FILL is solved against. The padding
+              // is the hint's, and the hint isn't there.
+              marginInline: shown ? undefined : `calc(-1 * ${CONTROL_PAD_X})`,
+            }}
           >
             {label}
           </span>

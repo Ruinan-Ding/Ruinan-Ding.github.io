@@ -142,13 +142,31 @@ await press('Tab', 'Tab', 9);
 await clickEl(btn('STOP'), 'STOP');
 check('dialog open', await dialogTitle(), 'CONFIRM STOP');
 check('focus starts on the action', await ev(`/CONFIRM/.test(document.activeElement?.textContent ?? '')`), 'true');
+// One TAB lands on the "don't ask" checkbox, which is not an answer to
+// anything: ENTER goes to the action from there, as it does from anywhere
+// that isn't CANCEL. It used to press the checkbox again and leave the
+// question standing, which is the whole complaint about ENTER not working.
 await press('Tab', 'Tab', 9);
 const moved = await ev(`document.activeElement?.textContent?.trim().slice(0,10) ?? ''`);
 await press('Enter', 'Enter', 13, String.fromCharCode(13));
-check(`ENTER on tabbed focus (${moved}) did not confirm`, await status(), 'RUNNING');
+check(`ENTER off the action (${moved}) still confirms`, await status(), 'READY');
+
+// CANCEL is the exception, and the reason ENTER isn't simply bound to the
+// action for the whole dialog: it is the one way a keyboard says no, and
+// the key printed on it has to do what it says.
+await ev(`document.activeElement?.blur?.(), 'ok'`);
+await clickEl(btn('START'), 'START');
+await clickEl(btn('STOP'), 'STOP again');
+check('dialog open again', await dialogTitle(), 'CONFIRM STOP');
+await press('Tab', 'Tab', 9);
+await press('Tab', 'Tab', 9);
+const onCancel = await ev(`document.activeElement?.textContent?.trim().slice(0,6) ?? ''`);
+check('two TABs reach CANCEL', onCancel, 'CANCEL');
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('ENTER on CANCEL says no', await status(), 'RUNNING');
 await press('Escape', 'Escape', 27);
 await sleep(400);
-await clickEl(btn('STOP'), 'STOP again');
+await clickEl(btn('STOP'), 'STOP once more');
 await press('Enter', 'Enter', 13, String.fromCharCode(13));
 check('untouched ENTER confirms', await status(), 'READY');
 

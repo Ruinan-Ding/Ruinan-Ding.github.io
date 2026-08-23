@@ -126,6 +126,35 @@ else {
   console.log(`  tip: ${tip.lines} lines at ${tip.fontPx}px in ${tip.tipR - tip.tipL}px`);
 }
 
+// --- ENTER still answers after the mouse has been somewhere else -------
+// The dialog opens pointed at its action button, but a click anywhere
+// inside moves focus, and ENTER presses whatever holds it. Ticking "don't
+// ask this again" and then reaching for ENTER is the ordinary way to
+// answer one of these, and it was pressing the checkbox again.
+const dialogOpen = () => ev(`!!document.querySelector('[role="alertdialog"][data-state="open"]')`);
+const DONT_ASK = `document.querySelector('[role="alertdialog"] [data-dont-ask]')`;
+const TICKED = `${DONT_ASK}?.getAttribute('aria-pressed')`;
+
+await clickEl(CONTROL('STOP'), 'STOP');
+check('STOP asks first', await dialogOpen(), 'true');
+await clickEl(DONT_ASK, "don't ask again");
+check('the box is ticked', await ev(TICKED), 'true');
+check('and it holds focus', await ev(`document.activeElement?.hasAttribute?.('data-dont-ask') === true`), 'true');
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('ENTER confirms rather than re-ticking', await dialogOpen(), 'false');
+check('and the timer stopped', await status(), 'READY');
+
+// The other half of the same rule: ENTER on CANCEL is how a keyboard says
+// no, and must stay that way.
+await clickEl(CONTROL('START'), 'START');
+await clickEl(CONTROL('RESET'), 'RESET');
+check('RESET asks', await dialogOpen(), 'true');
+const CANCEL = `[...document.querySelectorAll('[role="alertdialog"] button')].find(b=>b.textContent.trim().startsWith('CANCEL'))`;
+await ev(`(${CANCEL})?.focus(), 'ok'`);
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('ENTER on CANCEL still cancels', await dialogOpen(), 'false');
+check('and the run carried on', await status(), 'RUNNING');
+
 const width = Math.max(...out.map((r) => r.name.length));
 out.forEach((r) => console.log(`${r.pass ? 'ok  ' : 'FAIL'}  ${r.name.padEnd(width)}  got=${r.got.padEnd(10)} want=${r.want}`));
 console.log(`${out.filter((r) => r.pass).length}/${out.length} passed`);
