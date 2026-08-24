@@ -33,6 +33,7 @@ const KEYS = {
   Space: { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: ' ' },
   Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 },
   Tab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 },
+  r: { key: 'r', code: 'KeyR', windowsVirtualKeyCode: 82, text: 'r' },
 };
 const press = async (name) => {
   const k = KEYS[name];
@@ -133,6 +134,38 @@ check('ESC leaves the textarea', await focusTag(), 'BODY');
 check('hints back after ESC', await hintShown(), 'true');
 await press('Tab');
 check('TAB starts again after ESC', await status(), 'RUNNING');
+
+// --- the key lights the button it worked --------------------------------
+// A click shows itself; a key press has nothing to point at, so the button
+// fills white the way the app's white boxes are for a moment. Read off the
+// inline style rather than the painted colour: the buttons carry a 200ms
+// transition, so what is on screen mid-flash is somewhere between the two.
+const CTRL = (label) => `[...document.querySelectorAll('button')].find(b=>{const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='${label}';})`;
+const fillOf = (label) => evaluate(`(()=>{const b=${CTRL(label)};return b?b.style.backgroundColor:null})()`);
+const tap = async (name) => {
+  const k = KEYS[name];
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...k });
+  if (k.text) await send('Input.dispatchKeyEvent', { type: 'char', ...k });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', ...k });
+};
+
+check('running before the press check', await status(), 'RUNNING');
+const restingFill = await fillOf('PAUSE');
+await tap('Tab');
+await sleep(120);
+check('TAB fills the button it worked', await fillOf('RESUME'), 'rgb(255, 255, 255)');
+await sleep(700);
+check('and it lets go again', await fillOf('RESUME'), restingFill);
+check('the press still paused it', await status(), 'PAUSED');
+
+// R and S are the other two, and each lights its own button rather than
+// whichever one the last key touched.
+await tap('r');
+await sleep(120);
+const lit = await evaluate(`(()=>{const on=[...document.querySelectorAll('button')].filter(b=>b.style.backgroundColor==='rgb(255, 255, 255)'&&b.querySelector('.control-hint'));return on.map(b=>[...b.children].find(c=>!c.classList.contains('control-hint'))?.textContent.trim()).join(',')})()`);
+check('R lights RESET alone', lit, 'RESET');
+await sleep(700);
+if (await dialogOpen()) await press('Escape');
 
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(34)} got=${r.got.padEnd(30)} want=${r.want}`);
 console.log(`\n${out.filter((r) => r.pass).length}/${out.length} passed`);

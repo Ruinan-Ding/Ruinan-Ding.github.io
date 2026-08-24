@@ -12,7 +12,10 @@ export const FLASH_DURATION_MS = 1200;
 // in a background tab. The class is dropped again afterwards, or
 // animation-fill-mode: forwards pins the property at its end value and
 // blocks any later change to it.
-export function useFlashOnToken(token: number): boolean {
+// `hold` for a flash that isn't one of the CSS animations: a key press
+// wants a blip, not the 1.2s a row's fizz takes, and TAB comes round often
+// enough that the last one would still be lit when the next arrives.
+export function useFlashOnToken(token: number, hold: number = FLASH_DURATION_MS): boolean {
   const [isFlashing, setIsFlashing] = useState(false);
   const prevTokenRef = useRef(token);
 
@@ -26,9 +29,9 @@ export function useFlashOnToken(token: number): boolean {
 
   useEffect(() => {
     if (!isFlashing) return;
-    const id = setTimeout(() => setIsFlashing(false), FLASH_DURATION_MS);
+    const id = setTimeout(() => setIsFlashing(false), hold);
     return () => clearTimeout(id);
-  }, [isFlashing]);
+  }, [isFlashing, hold]);
 
   return isFlashing;
 }

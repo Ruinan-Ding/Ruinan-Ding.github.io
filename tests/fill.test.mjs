@@ -35,6 +35,20 @@ const expr = `(() => {
         shown: getComputedStyle(hint).display !== 'none',
         base: Math.round(parseFloat(cs.fontSize) * 10) / 10,
         hintFs: Math.round(parseFloat(getComputedStyle(hint).fontSize) * 10) / 10,
+        // The key inside "Press TAB to", which is drawn larger than the
+        // words around it.
+        keyFs: (() => { const k = hint.querySelector('span'); return k ? Math.round(parseFloat(getComputedStyle(k).fontSize) * 10) / 10 : null; })(),
+        // Its ink against the button's inner edge. A glyph runs past the
+        // line box that holds it, so a key big enough to be worth reading
+        // can reach the border above it while every box involved still
+        // reports as fitting.
+        keyOverT: (() => {
+          const k = hint.querySelector('span');
+          if (!k || getComputedStyle(hint).display === 'none') return null;
+          const g = document.createRange();
+          g.selectNodeContents(k);
+          return Math.round(r.top + 4 - g.getBoundingClientRect().top);
+        })(),
         // What isControlHintClipped watches: the line against the box less
         // its borders. It drops the hint once this falls under 24.
         hintSlack: Math.round(b.clientWidth - hintW),
@@ -105,11 +119,15 @@ for (const r of rows) {
   // of them show. "Press R to" beside it is two characters shorter and
   // would report slack that isn't the app's to use.
   const on = r.btns.slice(0, 1).filter((b) => b.shown);
-  const hintClaims = on.every((b) => b.hintSlack <= 32 || b.hintFs >= b.base * 0.85);
-  const ok = fits && claims && hintClaims;
+  const hintClaims = on.every((b) => b.hintSlack <= 32 || b.hintFs >= b.base * 0.8);
+  // The key is the part worth finding at a glance, so it is drawn bigger
+  // than the words around it — and has to stay off the border it sits
+  // under, which at the padding this used to carry it did not.
+  const keyOk = on.every((b) => b.keyFs > b.hintFs * 1.1 && b.keyOverT <= -2);
+  const ok = fits && claims && hintClaims && keyOk;
   if (!ok) bad++;
   const b0 = r.btns[0];
-  console.log(`${String(r.w).padStart(5)}x${String(r.h).padEnd(5)} hint=${b0.shown ? 'shown ' : 'hidden'} base=${String(b0.base).padEnd(5)} label=${String(b0.fs).padEnd(5)} over=${[b0.overL, b0.overR, b0.overT, b0.overB].join('/')} fits=${String(fits).padEnd(5)} claims=${String(claims).padEnd(5)} hint=${on.length ? `${b0.hintFs}px slack=${b0.hintSlack}` : '-'.padEnd(14)} hintClaims=${String(hintClaims).padEnd(5)} ${ok ? '' : '<== FAIL'}`);
+  console.log(`${String(r.w).padStart(5)}x${String(r.h).padEnd(5)} hint=${b0.shown ? 'shown ' : 'hidden'} base=${String(b0.base).padEnd(5)} label=${String(b0.fs).padEnd(5)} over=${[b0.overL, b0.overR, b0.overT, b0.overB].join('/')} fits=${String(fits).padEnd(5)} claims=${String(claims).padEnd(5)} hint=${on.length ? `${b0.hintFs}px slack=${b0.hintSlack}` : '-'.padEnd(14)} hintClaims=${String(hintClaims).padEnd(5)} key=${on.length ? `${b0.keyFs}px in=${-b0.keyOverT}` : '-'.padEnd(11)} keyOk=${String(keyOk).padEnd(5)} ${ok ? '' : '<== FAIL'}`);
 }
 if (!rows.some((r) => r.btns?.some((b) => b.shown))) { console.log('no viewport showed the hint — its ask was never exercised'); bad++; }
 if (!hidden) { console.log('\nno viewport hid the hint — the second ask was never exercised'); bad++; }

@@ -52,6 +52,20 @@ const CONFIRM_LIST_FONT_SIZE = shrinkClamp(0.6, 1, 1.1, 0.72);
 // under; ten is "no clamp".
 const TIP_MAX_LINES = 10;
 
+// How long a control button stays lit after its key. Short on purpose:
+// TAB is the start/pause key and comes round often enough that a flash of
+// the length the list rows use would still be on when the next one lands.
+// Longer than the 200ms transition the buttons carry, or the fill turns
+// round before it ever arrives and the press reads as a shimmer.
+const KEY_PRESS_MS = 320;
+
+// The key inside "Press TAB to", against the words either side of it. The
+// key is the only part worth finding at a glance; the rest is grammar.
+// 1.28 of the prose, on a line whose height is held at the prose's own so
+// the bigger glyphs don't make the button taller.
+const KEY_SCALE = 1.28;
+const KEY_LINE_HEIGHT = 1 / KEY_SCALE;
+
 // Clears the header buttons in the same corner. Derived from the button so
 // it shrinks with them on a short window.
 const TIME_FIELDS_TOP_MARGIN = { marginTop: `calc(${HEADER_BUTTON_SIZE.height} + 0.5rem)` };
@@ -138,6 +152,9 @@ export default function Timer() {
   const [loadedEntry, setLoadedEntry] = useState<FlashTarget>(null);
   // Bumped with a direction when a field's adjustment applies, so each
   // countdown digit flashes green or red on its own.
+  const [keyPress, setKeyPress] = useState({ Tab: 0, KeyR: 0, KeyS: 0 });
+  const bumpKeyPress = (code: 'Tab' | 'KeyR' | 'KeyS') =>
+    setKeyPress((prev) => ({ ...prev, [code]: prev[code] + 1 }));
   const [hoursFlash, setHoursFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [minutesFlash, setMinutesFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [secondsFlash, setSecondsFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
@@ -682,6 +699,7 @@ export default function Timer() {
     // The dialog owns the keyboard while it's open.
     if (dialog.type !== null) return false;
     if (code === 'Tab') {
+      bumpKeyPress('Tab');
       if (isRunning) {
         togglePause();
       } else {
@@ -691,11 +709,13 @@ export default function Timer() {
     }
     if (code === 'KeyS') {
       if (isIdleAtConfigured) return false;
+      bumpKeyPress('KeyS');
       handleStopClick();
       return true;
     }
     if (code === 'KeyR') {
       if (isIdleAtConfigured) return false;
+      bumpKeyPress('KeyR');
       handleResetClick();
       return true;
     }
@@ -1375,6 +1395,13 @@ export default function Timer() {
   // One-shot flash on a countdown segment, green for an increase and red
   // for a decrease. Tied to the tokens applyAdjustment bumps, so it fires
   // only when that field's edit applies rather than on every render.
+  // A key press has no click to point at, so the button it worked says so
+  // for a moment. Bumped where the action is taken rather than in the
+  // listener, so a key that is refused — S or R on an untouched timer —
+  // lights nothing.
+  const isTabPressed = useFlashOnToken(keyPress.Tab, KEY_PRESS_MS);
+  const isResetPressed = useFlashOnToken(keyPress.KeyR, KEY_PRESS_MS);
+  const isStopPressed = useFlashOnToken(keyPress.KeyS, KEY_PRESS_MS);
   const isHoursFlashing = useFlashOnToken(hoursFlash.token);
   const isMinutesFlashing = useFlashOnToken(minutesFlash.token);
   const isSecondsFlashing = useFlashOnToken(secondsFlash.token);
@@ -1543,9 +1570,9 @@ export default function Timer() {
   // Gone entirely while the word counter has focus. It used to say
   // "disabled while typing" three times, which is three lines of a screen
   // explaining why a button you were not looking at does nothing.
-  const buttonHints: Record<string, string> = {
-    START: 'Press TAB to', PAUSE: 'Press TAB to', RESUME: 'Press TAB to',
-    RESET: 'Press R to', STOP: 'Press S to',
+  const buttonKeys: Record<string, string> = {
+    START: 'TAB', PAUSE: 'TAB', RESUME: 'TAB',
+    RESET: 'R', STOP: 'S',
   };
 
   // Which digit colour applies. Pausing in overtime shows the red wave at
@@ -1659,25 +1686,35 @@ export default function Timer() {
   // line's own width in space it wasn't allowed to use, at a size that is
   // hard to read, which is the whole reason it is there.
   //
-  // 7.4 is what the button will show: twelve characters of "Press TAB to"
-  // at 0.6em each is 7.2em, and the hint is dropped once it comes within
-  // 24px of both sides (see isControlHintClipped), so the line has to fit
-  // the box less that clearance. The extra 0.2 keeps it off the edge of
-  // its own hide rule rather than sitting exactly on it and flickering.
+  // 7.9 is what the button will show, in units of the prose size. "Press
+  // TAB to" is nine characters of prose and three of key, and this
+  // monospace advances 0.6em a character, so the line comes to
+  // 9 * 0.6 + 3 * 0.6 * KEY_SCALE = 7.7 of it. The hint is dropped once
+  // it comes within 24px of both sides (see isControlHintClipped), so the
+  // line has to fit the box less that clearance, and the rest keeps it off
+  // the edge of its own hide rule rather than sitting exactly on it and
+  // flickering.
   //
   // Capped by the label as well, which is what stops this growing the
   // button on a short window: the label carries a cqh term and the width
   // doesn't, so on its own the width term would hold a full-size note
   // over a shrinking word and make the box taller exactly where height is
-  // scarcest. 0.9 rather than 1 so the note stays smaller than the word
+  // scarcest, and it is what keeps the note under the word on a short
+  // window: at 1600x520 an absolute floor of 0.66rem held the hint at
+  // 10.6px against a 9.4px label, and a key drawn larger than that was
+  // touching the border above it. 0.82 rather than 1 so the note stays
+  // smaller than the word
   // it is a note on, which at the short end they had come level with.
   // The floor is a real floor, above what the narrow end can
   // fit, so down there the line stops fitting and goes rather than
   // shrinking to nothing — the label takes the whole box then.
-  const CONTROL_HINT = `max(0.72rem, min(calc((${CONTROL_WIDTH} - 32px) / 7.4), calc(${CONTROL_LABEL} * 0.9)))`;
-  // Small on purpose: with the rows spread edge to edge this is the whole
-  // distance from the key to the top of the box.
-  const CONTROL_PAD_Y = boxClamp(0.12, 0.6, 1.5, 0.32);
+  const CONTROL_HINT = `max(0.58rem, min(calc((${CONTROL_WIDTH} - 32px) / 7.9), calc(${CONTROL_LABEL} * 0.82)))`;
+  // The whole distance from the key to the top of the box, with the rows
+  // spread edge to edge. Raised from 0.12/0.6/1.5/0.32 once the key was
+  // drawn larger than the words beside it: a glyph's ink runs past the
+  // line box that holds it, and at the old padding the top of a TAB was
+  // touching the border it sits under.
+  const CONTROL_PAD_Y = boxClamp(0.22, 0.9, 2.6, 0.45);
   // 1.35 and 2.3, where it was 2.1 and 2.6: the three rows were spread
   // across a box drawn taller than they needed and read as three separate
   // things rather than one instruction with the button in the middle of it.
@@ -2242,7 +2279,11 @@ export default function Timer() {
       return (
         <>
           <span ref={first ? controlHintRef : undefined} className="control-hint block whitespace-nowrap leading-none" style={style}>
-            {buttonHints[label]}
+            {/* The key bigger than the words around it: it is the only part
+                anyone is looking for, and "Press" and "to" are there to
+                make it a sentence. lineHeight holds the row at the prose's
+                own height, so the larger glyphs cost the button nothing. */}
+            Press <span style={{ fontSize: `${KEY_SCALE}em`, lineHeight: KEY_LINE_HEIGHT }}>{buttonKeys[label]}</span> to
           </span>
           {/* A third bigger with the hint gone, on the room it leaves. The
               box does not move, so this is the only thing that can use it. */}
@@ -2284,6 +2325,11 @@ export default function Timer() {
       e.currentTarget.blur();
       run();
     };
+    // Filled the way the app's white boxes are, so a key press shows on
+    // the button it worked. Same shape as hovering one, which is what a
+    // press of it would have looked like.
+    const lit = (color: string, pressed: boolean) =>
+      (pressed ? { ...buttonStyle(color), backgroundColor: '#ffffff', color: '#000000' } : buttonStyle(color));
     const runLabel = isPaused ? 'RESUME' : 'PAUSE';
     return (
       <>
@@ -2292,7 +2338,7 @@ export default function Timer() {
             ref={withHints ? firstControlRef : undefined}
             onClick={press(handleStart)}
             className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-            style={buttonStyle('#22c55e')}
+            style={lit('#22c55e', isTabPressed)}
           >
             {rows('START')}
           </button>
@@ -2303,7 +2349,7 @@ export default function Timer() {
             ref={withHints ? firstControlRef : undefined}
             onClick={press(togglePause)}
             className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200`}
-            style={buttonStyle(isPaused ? '#22c55e' : '#eab308')}
+            style={lit(isPaused ? '#22c55e' : '#eab308', isTabPressed)}
           >
             {rows(runLabel)}
           </button>
@@ -2313,7 +2359,7 @@ export default function Timer() {
           onClick={press(handleResetClick)}
           disabled={isIdleAtConfigured}
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-          style={buttonStyle('#eab308')}
+          style={lit('#eab308', isResetPressed)}
         >
           {rows('RESET')}
         </button>
@@ -2322,7 +2368,7 @@ export default function Timer() {
           onClick={press(handleStopClick)}
           disabled={isIdleAtConfigured}
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-          style={buttonStyle('#ef4444')}
+          style={lit('#ef4444', isStopPressed)}
         >
           {rows('STOP')}
         </button>
