@@ -262,20 +262,41 @@ export default function Timer() {
   useEffect(() => {
     const check = () => {
       const tip = tipRef.current;
+      const buttons = headerButtonsRef.current;
       const digits = digitsRef.current;
-      if (!tip || !digits) return;
-      const t = tip.getBoundingClientRect();
-      const d = digits.getBoundingClientRect();
+      if (!tip || !buttons || !digits) return;
+      // The tip's box read off the two buttons above it rather than off
+      // itself. It is as wide as they are by construction (width 0 +
+      // minWidth 100%) and sits one column gap under them, and unlike its
+      // own rect this survives the tip being clamped to nothing: measured
+      // on itself, a hidden tip reports an empty rect, which reads as
+      // clear of everything, which brings it back to full height, which
+      // hides it again.
+      const b = buttons.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(buttons.parentElement as HTMLElement).rowGap) || 0;
+      const top = b.bottom + gap;
+      // The countdown's ink, not the box around it. The digits are drawn
+      // with leading-none, so their line box is one em while the glyphs
+      // are half again as tall: at 1280x960 the row's rect started at
+      // 112px and the numbers themselves at 87px. Measured on the box, the
+      // tip was handed the 25px the digits were already standing in, and
+      // ran through them at 387 window sizes in a sweep of 1888.
+      const range = document.createRange();
+      range.selectNodeContents(digits);
+      const d = range.getBoundingClientRect();
       // Clear of each other across the page, so height is no constraint.
-      if (t.right <= d.left || t.left >= d.right) {
+      if (b.right <= d.left || b.left >= d.right) {
         setTipLines(TIP_MAX_LINES);
         return;
       }
       const lineHeight = parseFloat(getComputedStyle(tip).lineHeight);
       if (!lineHeight) return;
-      // The gap is measured from the tip's own top, so clamping it can't
-      // move the number that decided the clamp.
-      setTipLines(Math.max(0, Math.min(TIP_MAX_LINES, Math.floor((d.top - t.top - 4) / lineHeight))));
+      // Measured from where the tip starts rather than where it ends, so
+      // clamping it cannot move the number that decided the clamp. Under
+      // one line's worth of room this floors to zero and the tip goes
+      // entirely, which is the point: it is the most expendable thing on
+      // the screen and better gone than read through the countdown.
+      setTipLines(Math.max(0, Math.min(TIP_MAX_LINES, Math.floor((d.top - top - 4) / lineHeight))));
     };
     check();
     // The same three-pass settle useTightFit needs, and for the same

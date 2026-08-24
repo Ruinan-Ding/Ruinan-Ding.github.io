@@ -52,7 +52,13 @@ const PROBE = `(()=>{
   // the clock has its own rule for keeping out of the tip's way.
   const block=inner?inner.children[0]:null;
   const digits=block?[...block.querySelectorAll(':scope > div')].find(e=>e.className.includes('items-baseline')):null;
-  const d=digits?digits.getBoundingClientRect():null;
+  // The ink, not the box. The digits are drawn with leading-none, so
+  // their row's rect starts well below the top of the numbers in it —
+  // 25px at a large size — and an overlap check against the box scores a
+  // tip standing squarely in the countdown as clear of it.
+  const g=digits?document.createRange():null;
+  if(g) g.selectNodeContents(digits);
+  const d=g?g.getBoundingClientRect():null;
   if(!p) return {shown:false};
   const cs=getComputedStyle(p);
   if(cs.display==='none') return {shown:false};
@@ -81,7 +87,10 @@ for (const sidebar of ['false', 'true']) {
     localStorage.setItem('wordCounterFullscreen','false'), 'ok'`);
   await send('Page.reload', {});
   await sleep(2200);
-  for (const h of [400, 460, 560, 660, 800, 950]) {
+  // 1000 as well as 950: the tip only reached into the digits on a tall
+  // window, where the readout has room to grow left into the corner, and
+  // the sweep that found it stepped in 40s.
+  for (const h of [400, 460, 560, 660, 800, 950, 1000]) {
     for (const w of [700, 820, 1000, 1200, 1500, 1800]) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
       await sleep(450);
