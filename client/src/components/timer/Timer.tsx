@@ -61,9 +61,9 @@ const KEY_PRESS_MS = 320;
 
 // The key inside "Press TAB to", against the words either side of it. The
 // key is the only part worth finding at a glance; the rest is grammar.
-// 1.28 of the prose, on a line whose height is held at the prose's own so
+// 1.2 of the prose, on a line whose height is held at the prose's own so
 // the bigger glyphs don't make the button taller.
-const KEY_SCALE = 1.28;
+const KEY_SCALE = 1.2;
 const KEY_LINE_HEIGHT = 1 / KEY_SCALE;
 
 // Clears the header buttons in the same corner. Derived from the button so
@@ -406,11 +406,13 @@ export default function Timer() {
       return button.clientWidth - hint.scrollWidth;
     },
     timerRowRef,
-    // 24, not 2. Measured to the last pixel the hint held on until it was
-    // touching both sides of the button, which reads as a full box rather
-    // than a note on one. This lets it go while the button still looks
-    // like a button.
-    24,
+    // 10, where this was 24. It was measured back when the hint was
+    // solved off the label and could never reach the sides anyway; once
+    // the line was sized against the box instead, this reserve became the
+    // empty margin down both sides of every button, since a line that
+    // came closer than this would be dropped rather than drawn. What it
+    // is for is deciding there is no longer room, and 10 says that.
+    10,
     `${isRunning}${isPaused}${seconds < 0}${areShortcutsLive}`
   );
 
@@ -1691,7 +1693,10 @@ export default function Timer() {
   // monospace advances 0.6em a character, so the line comes to
   // 9 * 0.6 + 3 * 0.6 * KEY_SCALE = 7.7 of it. The hint is dropped once
   // it comes within 24px of both sides (see isControlHintClipped), so the
-  // line has to fit the box less that clearance, and the rest keeps it off
+  // line has to fit the box less that clearance — 18px of the box, being
+  // 8 of border and the 10 that rule now allows, where this took 32 and
+  // left the difference standing as margin down both sides of every
+  // button. The rest keeps it off
   // the edge of its own hide rule rather than sitting exactly on it and
   // flickering.
   //
@@ -1708,7 +1713,7 @@ export default function Timer() {
   // The floor is a real floor, above what the narrow end can
   // fit, so down there the line stops fitting and goes rather than
   // shrinking to nothing — the label takes the whole box then.
-  const CONTROL_HINT = `max(0.58rem, min(calc((${CONTROL_WIDTH} - 32px) / 7.9), calc(${CONTROL_LABEL} * 0.82)))`;
+  const CONTROL_HINT = `max(0.62rem, min(calc((${CONTROL_WIDTH} - 18px) / 7.9), calc(${CONTROL_LABEL} * 1.02)))`;
   // The whole distance from the key to the top of the box, with the rows
   // spread edge to edge. Raised from 0.12/0.6/1.5/0.32 once the key was
   // drawn larger than the words beside it: a glyph's ink runs past the
@@ -2329,6 +2334,11 @@ export default function Timer() {
     // the button it worked. Same shape as hovering one, which is what a
     // press of it would have looked like.
     //
+    // The ink, not a literal white. Those boxes are not white either —
+    // index.css maps Tailwind's --color-white onto --app-ink — and on the
+    // light theme the button's own surface is #f4f4f4, so filling it
+    // #ffffff was a four percent change nobody could see.
+    //
     // transition none on the way in, and only on the way in. These buttons
     // carry transition-all 200ms for their state colours, and left to it
     // the fill crawled up from the surface colour over 223ms, held white
@@ -2338,7 +2348,7 @@ export default function Timer() {
     // fades it out.
     const lit = (color: string, pressed: boolean) =>
       (pressed
-        ? { ...buttonStyle(color), backgroundColor: '#ffffff', color: '#000000', transition: 'none' }
+        ? { ...buttonStyle(color), backgroundColor: 'var(--app-ink)', color: 'var(--app-surface)', transition: 'none' }
         : buttonStyle(color));
     const runLabel = isPaused ? 'RESUME' : 'PAUSE';
     return (

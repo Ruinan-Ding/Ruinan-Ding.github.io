@@ -167,15 +167,20 @@ const sampleFill = () => evaluate(`(()=>{
   tick();
   return 'ok';
 })()`);
-const whitePaintedAt = () => evaluate(`(()=>{const w=(window.__fill||[]).find(([,c])=>c==='rgb(255, 255, 255)');return w?w[0]:-1})()`);
+// The ink as the browser resolves it, since the fill is that token and
+// not a literal white: on the light theme --app-ink is near-black, and a
+// check written against white would pass on dark and be meaningless on
+// light — which is how a fill nobody could see got shipped.
+const INK = `(()=>{const p=document.createElement('span');p.style.color='var(--app-ink)';document.body.appendChild(p);const c=getComputedStyle(p).color;p.remove();return c})()`;
+const litPaintedAt = () => evaluate(`(()=>{const ink=${INK};const w=(window.__fill||[]).find(([,c])=>c===ink);return w?w[0]:-1})()`);
 
 check('running before the press check', await status(), 'RUNNING');
 const restingFill = await fillOf('PAUSE');
 await sampleFill();
 await tap('Tab');
 await sleep(120);
-check('TAB fills the button it worked', await fillOf('RESUME'), 'rgb(255, 255, 255)');
-const paintedAt = await whitePaintedAt();
+check('TAB fills the button it worked', await fillOf('RESUME'), 'var(--app-ink)');
+const paintedAt = await litPaintedAt();
 check(`the fill lands at once (${paintedAt}ms)`, paintedAt >= 0 && paintedAt <= 100, 'true');
 await sleep(500);
 check('and it lets go again', await fillOf('RESUME'), restingFill);
@@ -185,7 +190,7 @@ check('the press still paused it', await status(), 'PAUSED');
 // whichever one the last key touched.
 await tap('r');
 await sleep(120);
-const lit = await evaluate(`(()=>{const on=[...document.querySelectorAll('button')].filter(b=>b.style.backgroundColor==='rgb(255, 255, 255)'&&b.querySelector('.control-hint'));return on.map(b=>[...b.children].find(c=>!c.classList.contains('control-hint'))?.textContent.trim()).join(',')})()`);
+const lit = await evaluate(`(()=>{const on=[...document.querySelectorAll('button')].filter(b=>b.style.backgroundColor==='var(--app-ink)'&&b.querySelector('.control-hint'));return on.map(b=>[...b.children].find(c=>!c.classList.contains('control-hint'))?.textContent.trim()).join(',')})()`);
 check('R lights RESET alone', lit, 'RESET');
 await sleep(700);
 if (await dialogOpen()) await press('Escape');
