@@ -149,12 +149,35 @@ const tap = async (name) => {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', ...k });
 };
 
+// Painted, not merely set. These buttons carry transition-all 200ms for
+// their state colours, and left to it the fill crawled up from the surface
+// colour over 223ms, held white for 130 and sank back: a bloom rather than
+// a press, and easy to miss beside the label changing in the same instant.
+// Sampled in the page, since a round trip per sample is slower than the
+// flash, and the button is looked up each frame because the first one is
+// replaced — START unmounts and PAUSE mounts in its place.
+const sampleFill = () => evaluate(`(()=>{
+  window.__fill=[];
+  const t0=performance.now();
+  const tick=()=>{
+    const b=[...document.querySelectorAll('button')].find(x=>x.querySelector('span.control-hint'));
+    if(b) window.__fill.push([Math.round(performance.now()-t0), getComputedStyle(b).backgroundColor]);
+    if(performance.now()-t0<300) requestAnimationFrame(tick);
+  };
+  tick();
+  return 'ok';
+})()`);
+const whitePaintedAt = () => evaluate(`(()=>{const w=(window.__fill||[]).find(([,c])=>c==='rgb(255, 255, 255)');return w?w[0]:-1})()`);
+
 check('running before the press check', await status(), 'RUNNING');
 const restingFill = await fillOf('PAUSE');
+await sampleFill();
 await tap('Tab');
 await sleep(120);
 check('TAB fills the button it worked', await fillOf('RESUME'), 'rgb(255, 255, 255)');
-await sleep(700);
+const paintedAt = await whitePaintedAt();
+check(`the fill lands at once (${paintedAt}ms)`, paintedAt >= 0 && paintedAt <= 100, 'true');
+await sleep(500);
 check('and it lets go again', await fillOf('RESUME'), restingFill);
 check('the press still paused it', await status(), 'PAUSED');
 

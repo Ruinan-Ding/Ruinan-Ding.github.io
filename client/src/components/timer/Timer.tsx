@@ -55,8 +55,8 @@ const TIP_MAX_LINES = 10;
 // How long a control button stays lit after its key. Short on purpose:
 // TAB is the start/pause key and comes round often enough that a flash of
 // the length the list rows use would still be on when the next one lands.
-// Longer than the 200ms transition the buttons carry, or the fill turns
-// round before it ever arrives and the press reads as a shimmer.
+// It lands at once and fades out over the 200ms the buttons carry, so
+// this is how long it holds at full white before that starts.
 const KEY_PRESS_MS = 320;
 
 // The key inside "Press TAB to", against the words either side of it. The
@@ -2328,8 +2328,18 @@ export default function Timer() {
     // Filled the way the app's white boxes are, so a key press shows on
     // the button it worked. Same shape as hovering one, which is what a
     // press of it would have looked like.
+    //
+    // transition none on the way in, and only on the way in. These buttons
+    // carry transition-all 200ms for their state colours, and left to it
+    // the fill crawled up from the surface colour over 223ms, held white
+    // for 130 and sank back — a bloom, not a press, and easy to miss
+    // beside the label changing and the window flashing green in the same
+    // instant. Dropped on release, so the class's own transition is what
+    // fades it out.
     const lit = (color: string, pressed: boolean) =>
-      (pressed ? { ...buttonStyle(color), backgroundColor: '#ffffff', color: '#000000' } : buttonStyle(color));
+      (pressed
+        ? { ...buttonStyle(color), backgroundColor: '#ffffff', color: '#000000', transition: 'none' }
+        : buttonStyle(color));
     const runLabel = isPaused ? 'RESUME' : 'PAUSE';
     return (
       <>
