@@ -143,6 +143,7 @@ export const STORAGE_KEYS = {
   wordCounterCollapsed: 'wordCounterCollapsed',
   wordCounterCollapsedAt: 'wordCounterCollapsedAt',
   wordCounterFullscreen: 'wordCounterFullscreen',
+  wordCounterFullscreenBefore: 'wordCounterFullscreenBefore',
   lightTheme: 'timerLightTheme',
   dontAskAgain: 'timerDontAskAgain',
   clockTimeZone: 'timerClockTimeZone',

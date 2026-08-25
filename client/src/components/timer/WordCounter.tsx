@@ -160,21 +160,34 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
       },
     });
   };
-  // Only on the way in. Coming back out of a tuck or out of full screen
-  // gives something back rather than taking it away, and the auto-collapse
-  // on a shrinking window never reaches either of these.
+  // Both ways round, on their own questions: coming back out gives the
+  // column back to the timer, which is as much a change to the screen as
+  // taking it away. The auto-collapse on a shrinking window goes straight
+  // to collapse() and reaches neither of these.
   const handleToggleCollapsed = () =>
-    isCollapsed ? toggleCollapsed() : askFull('tuckWordCounter', toggleCollapsed);
+    isCollapsed
+      ? askFull('untuckWordCounter', toggleCollapsed)
+      : askFull('tuckWordCounter', toggleCollapsed);
   const handleToggleFullscreen = () =>
-    isFullscreen ? setIsFullscreen(false) : askFull('fullscreen', () => setIsFullscreen(true));
+    isFullscreen
+      ? askFull('exitFullscreen', () => setIsFullscreen(false))
+      : askFull('fullscreen', () => setIsFullscreen(true));
 
   const rowsRef = useRef<HTMLDivElement | null>(null);
 
   // Fullscreen has nothing else to type into, so entering it focuses the
   // textarea rather than waiting for a click. Otherwise the first
   // keystroke would hit the global ENTER/R/S shortcuts instead.
+  //
+  // Counted as already asked. This focus is a consequence of the full
+  // screen question, not a separate choice to start typing, and asking
+  // again put a second dialog over a view that had just opened — one that
+  // swallowed the click on any button behind it, the hide arrow included.
   useEffect(() => {
-    if (isFullscreen) textareaRef.current?.focus();
+    if (isFullscreen) {
+      typingAskedRef.current = true;
+      textareaRef.current?.focus();
+    }
   }, [isFullscreen]);
   // Anything that types goes to the textarea whatever was last clicked.
   // Listening on document keydown rather than the textarea's onBlur is

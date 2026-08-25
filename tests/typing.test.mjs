@@ -24,7 +24,17 @@ for (let i = 0; i < 100 && !wsUrl; i++) {
 const ws = new WebSocket(wsUrl);
 await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
 let id = 1; const pending = new Map();
-ws.onmessage = (m) => { const x = JSON.parse(m.data); if (pending.has(x.id)) { pending.get(x.id)(x.result); pending.delete(x.id); } };
+// The leave guard arms whenever a timer is running, so a reload below
+// raises a native beforeunload. Unanswered it blocks the whole CDP
+// session, so it gets accepted the moment it opens.
+ws.onmessage = (m) => {
+  const x = JSON.parse(m.data);
+  if (x.method === 'Page.javascriptDialogOpening') {
+    ws.send(JSON.stringify({ id: id++, method: 'Page.handleJavaScriptDialog', params: { accept: true } }));
+    return;
+  }
+  if (pending.has(x.id)) { pending.get(x.id)(x.result); pending.delete(x.id); }
+};
 const send = (method, params = {}) => new Promise((res) => { const i = id++; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
 const evaluate = async (e) => (await send('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.value;
 const pressEnter = async () => {
@@ -103,6 +113,64 @@ if (mins) {
   await sleep(400);
   check('TAB after the commit starts the timer', await status(), 'RUNNING');
 }
+
+// --- full screen survives being hidden and reloaded ---------------------
+// Hiding leaves full screen, since there is no hidden-but-fullscreen
+// view, so which one to come back to has to be remembered. As a ref that
+// lasted only as long as the page: hide a fullscreen counter, reload,
+// un-hide, and it came back a plain expanded box.
+const clickLabel = async (label) => {
+  const p = await evaluate(`(()=>{const e=document.querySelector('[aria-label=${JSON.stringify(label)}]');if(!e)return null;const r=e.getBoundingClientRect();return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)}})()`);
+  if (!p) { check(`${label} (not found)`, 'missing', 'found'); return false; }
+  await clickAt(p.x, p.y);
+  return true;
+};
+const isFullscreen = () => evaluate(`!!document.querySelector('.fs-header-row')`);
+
+await evaluate(`localStorage.setItem('timerConfirmMode','"none"'),
+  localStorage.setItem('wordCounterCollapsed','false'),
+  localStorage.setItem('wordCounterCollapsedAt','null'), 'ok'`);
+await send('Page.reload', {});
+await sleep(2600);
+
+await clickLabel('Full screen');
+check('full screen is on', await isFullscreen(), true);
+await clickLabel('Hide word counter');
+check('hiding leaves it', await isFullscreen(), false);
+await send('Page.reload', {});
+await sleep(2600);
+check('still hidden after a reload', await evaluate(`localStorage.getItem('wordCounterCollapsed')`), 'true');
+await clickLabel('Show word counter');
+check('and un-hiding comes back to full screen', await isFullscreen(), true);
+
+// The same round trip with every question on. Entering full screen
+// focuses the textarea, and asking about that too put a second dialog
+// over a view that had just opened — its overlay took the click meant for
+// the hide arrow, so the tuck never happened and the next click was still
+// on a button reading "Hide".
+const dialogTitle = () => evaluate(`document.querySelector('[role="alertdialog"][data-state="open"] h2')?.textContent ?? 'none'`);
+await evaluate(`localStorage.setItem('timerConfirmMode','"full"'),
+  localStorage.setItem('timerDontAskAgain','[]'),
+  localStorage.setItem('wordCounterFullscreen','false'),
+  localStorage.setItem('wordCounterCollapsed','false'), 'ok'`);
+await send('Page.reload', {});
+await sleep(2600);
+await clickLabel('Full screen');
+check('full screen asks', await dialogTitle(), 'FULL SCREEN');
+await pressEnter();
+await sleep(500);
+check('and nothing asks on top of it', await dialogTitle(), 'none');
+await clickLabel('Hide word counter');
+check('so the tuck is reachable', await dialogTitle(), 'HIDE WORD COUNTER');
+await pressEnter();
+await sleep(500);
+await send('Page.reload', {});
+await sleep(2600);
+await clickLabel('Show word counter');
+check('un-hiding asks too', await dialogTitle(), 'SHOW THE WORD COUNTER');
+await pressEnter();
+await sleep(500);
+check('and still lands back in full screen', await isFullscreen(), true);
 
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(36)} got=${String(r.got).padEnd(14)} want=${r.want}`);
 console.log(`\n${out.filter((r) => r.pass).length}/${out.length} passed`);

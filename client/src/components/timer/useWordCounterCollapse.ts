@@ -46,10 +46,22 @@ export function useWordCounterCollapse(textareaRef: React.RefObject<HTMLTextArea
   // Collapsing leaves fullscreen too, there being no such thing as a
   // hidden-but-fullscreen view, and this remembers which view to restore.
   // Both the manual toggle and the auto-collapse go through the one
-  // function, so the ref can't go stale against the path that fired.
-  const wasFullscreenBeforeCollapseRef = useRef(false);
+  // function, so it can't go stale against the path that fired.
+  //
+  // Persisted like the other two. As a ref it lasted only as long as the
+  // page: collapse a fullscreen counter, reload, un-hide, and it came
+  // back as a plain expanded box, because the reload read the flag as
+  // false and isFullscreen had already been written false on the way
+  // down.
+  const [wasFullscreenBeforeCollapse, setWasFullscreenBeforeCollapse] =
+    useState(() => readBoolean(STORAGE_KEYS.wordCounterFullscreenBefore, false));
+  usePersisted(STORAGE_KEYS.wordCounterFullscreenBefore, wasFullscreenBeforeCollapse);
+  // Mirrored for check() below, which reads through refs for the same
+  // reason isCollapsedRef exists.
+  const wasFullscreenBeforeCollapseRef = useRef(wasFullscreenBeforeCollapse);
+  wasFullscreenBeforeCollapseRef.current = wasFullscreenBeforeCollapse;
   const collapse = () => {
-    wasFullscreenBeforeCollapseRef.current = isFullscreen;
+    setWasFullscreenBeforeCollapse(isFullscreen);
     setIsFullscreen(false);
     setIsCollapsed(true);
   };
@@ -59,7 +71,8 @@ export function useWordCounterCollapse(textareaRef: React.RefObject<HTMLTextArea
     collapsedAtSizeRef.current = null;
     setIsAutoCollapsed(false);
     if (isCollapsed) {
-      setIsFullscreen(wasFullscreenBeforeCollapseRef.current);
+      setIsFullscreen(wasFullscreenBeforeCollapse);
+      setWasFullscreenBeforeCollapse(false);
       setIsCollapsed(false);
     } else {
       collapse();
@@ -89,6 +102,7 @@ export function useWordCounterCollapse(textareaRef: React.RefObject<HTMLTextArea
           collapsedAtSizeRef.current = null;
           setIsAutoCollapsed(false);
           setIsFullscreen(wasFullscreenBeforeCollapseRef.current);
+          setWasFullscreenBeforeCollapse(false);
           setIsCollapsed(false);
         }
         return;

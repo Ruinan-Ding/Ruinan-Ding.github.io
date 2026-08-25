@@ -135,6 +135,30 @@ export const FULL_ACTS: Record<FullAct, { label: string; title: string; descript
     description: 'Hide the word counter? What you typed is kept, and the arrow brings it back.',
     action: 'HIDE',
   },
+  untuckSidebar: {
+    label: 'Bring presets & history back',
+    title: 'SHOW PRESETS & HISTORY',
+    description: 'Bring the presets and history panel back? It takes its share of the width from the countdown beside it.',
+    action: 'SHOW',
+  },
+  untuckTimeFields: {
+    label: 'Bring the HOURS / MINUTES / SECONDS box back',
+    title: 'SHOW THE TIME BOXES',
+    description: 'Bring the HOURS, MINUTES and SECONDS boxes back? They take their share of the column from the countdown above them.',
+    action: 'SHOW',
+  },
+  untuckWordCounter: {
+    label: 'Bring the word counter back',
+    title: 'SHOW THE WORD COUNTER',
+    description: 'Bring the word counter back? It takes its share of the column from the timer above it.',
+    action: 'SHOW',
+  },
+  exitFullscreen: {
+    label: 'Leave the word counter full screen',
+    title: 'LEAVE FULL SCREEN',
+    description: 'Come back out of full screen? The timer and its panels return, and the word counter goes back to its share of the column.',
+    action: 'CONFIRM',
+  },
   fullscreen: {
     label: 'Open the word counter full screen',
     title: 'FULL SCREEN',

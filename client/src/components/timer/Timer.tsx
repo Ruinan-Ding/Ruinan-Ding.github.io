@@ -62,6 +62,10 @@ const CONFIRM_LIST_SECTION: Record<'half' | 'full', string> = {
 };
 
 const CONFIRM_LIST_FONT_SIZE = shrinkClamp(0.6, 1, 1.1, 0.72);
+// The section headings, a little over the rows they head. Not much over:
+// "ONLY ACTIVE WHEN EVERYTHING IS CONFIRMED" is forty characters, and the
+// panel is 22rem less its padding, its border and the heading's own box.
+const CONFIRM_SECTION_FONT_SIZE = `calc(${CONFIRM_LIST_FONT_SIZE} * 1.15)`;
 
 // The whole tip is nine lines in the width of the two buttons it sits
 // under; ten is "no clamp".
@@ -2077,7 +2081,7 @@ export default function Timer() {
                             // beside it is 6px of border.
                             className={`w-full flex items-center gap-2 px-2 py-1 font-bold text-left border-b-3 hover:opacity-70 transition-opacity ${i > 0 ? 'border-t-3' : ''}`}
                             style={{
-                              fontSize: CONFIRM_LIST_FONT_SIZE,
+                              fontSize: CONFIRM_SECTION_FONT_SIZE,
                               borderColor: 'var(--app-ink)',
                               // Green while the section is asking, grey
                               // while it isn't — the same green this app
@@ -2097,7 +2101,7 @@ export default function Timer() {
                                 const ticked = sectionTicked(question.tier);
                                 return ticked === 0 ? false : ticked === total ? true : 'half';
                               })()}
-                              fontSize={CONFIRM_LIST_FONT_SIZE}
+                              fontSize={CONFIRM_SECTION_FONT_SIZE}
                             />
                             <span className="flex-1">{CONFIRM_LIST_SECTION[question.tier]}</span>
                           </button>
@@ -2218,7 +2222,7 @@ export default function Timer() {
     // It returns on its own when the panel does.
     !isTimeFieldsAutoTucked && (
       <HeaderToggleButton
-        onClick={() => setTimeFieldsHidden(false)}
+        onClick={() => askFull('untuckTimeFields', () => setTimeFieldsHidden(false))}
         className="sm:self-start"
         style={isRowLayout ? TIME_FIELDS_TOP_MARGIN : undefined}
         icon={<ChevronsLeft style={HEADER_ICON_SIZE} />}
@@ -2502,7 +2506,9 @@ export default function Timer() {
               says, so this toggle matches its breakpoint and only appears
               when there's a panel for it to control. */}
           <HeaderToggleButton
-            onClick={() => (isSidebarHidden ? setIsSidebarHidden(false) : askFull('tuckSidebar', () => setIsSidebarHidden(true)))}
+            onClick={() => (isSidebarHidden
+              ? askFull('untuckSidebar', () => setIsSidebarHidden(false))
+              : askFull('tuckSidebar', () => setIsSidebarHidden(true)))}
             icon={isSidebarHidden ? <ChevronsRight style={HEADER_ICON_SIZE} /> : <ChevronsLeft style={HEADER_ICON_SIZE} />}
             label={isSidebarHidden ? 'Show presets & history' : 'Hide presets & history'}
             className="hidden sm:flex"
