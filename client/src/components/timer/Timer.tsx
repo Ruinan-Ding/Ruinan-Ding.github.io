@@ -20,7 +20,7 @@ import { readSavedHistory, readSavedPresets } from './entries';
 import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
 import { BELOW_DIGITS, compactControlButtonStyle, CONTROL_FILL, CONTROL_HINT, CONTROL_PAD_X, controlButtonStyle, HINT_CLEARANCE, KEY_LINE_HEIGHT, KEY_SCALE, STATUS_FONT_SIZE } from './controlSizes';
 import { boxCap, fitClamp, shrinkClamp } from './responsive';
-import { isQuestionLive, isAcknowledgement, nextConfirmMode, QUESTIONS, readConfirmMode, readSuppressedKeys, setSuppressedKey, shouldAsk, suppressDialog } from './suppressions';
+import { isQuestionLive, isAcknowledgement, nextConfirmMode, QUESTIONS, readConfirmMode, readSuppressedKeys, setSuppressedKey, setSuppressedKeys as writeSuppressedKeys, shouldAsk, suppressDialog } from './suppressions';
 import type { ConfirmMode, DialogState, FlashTarget, FullAct, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 import { useAlarm } from './useAlarm';
@@ -513,6 +513,22 @@ export default function Timer() {
   // localStorage hasn't taken yet.
   const toggleSuppressedKey = (key: string) =>
     setSuppressedKeys(setSuppressedKey(key, !suppressedKeys.includes(key)));
+
+  // A whole section from its own heading. Standard select-all: with any
+  // of them ticked the box clears the section, and with none ticked it
+  // silences it. Behind a question of its own, since it answers up to
+  // twenty-two of them in one click — and that question carries a tick
+  // like every other, so anyone who does this often can stop being asked.
+  const sectionKeys = (tier: 'half' | 'full') => QUESTIONS.filter((q) => q.tier === tier).map((q) => q.key);
+  const sectionTicked = (tier: 'half' | 'full') => sectionKeys(tier).filter((k) => suppressedKeys.includes(k)).length;
+  const toggleSection = (tier: 'half' | 'full') => {
+    const keys = sectionKeys(tier);
+    const silence = sectionTicked(tier) === 0;
+    askThenRun(
+      { type: 'bulkSuppress', data: { tier, silence, count: keys.length } },
+      () => setSuppressedKeys(writeSuppressedKeys(keys, silence)),
+    );
+  };
 
   // Every "are you sure?" goes through here, so both ways a question can
   // already be answered are checked in one place: confirmations off
@@ -1446,6 +1462,13 @@ export default function Timer() {
         setDuplicatePreset((prev) => bumpFlash(prev, dialog.data.id));
         closeDialog();
         break;
+      // The section's own box. The keys come from the tier rather than
+      // riding in the dialog: the list is what they are, and a copy taken
+      // when the question opened could be a list that has since changed.
+      case 'bulkSuppress':
+        setSuppressedKeys(writeSuppressedKeys(sectionKeys(dialog.data.tier), dialog.data.silence));
+        closeDialog();
+        break;
       case 'fullConfirmations':
         setConfirmMode('full');
         closeDialog();
@@ -2054,26 +2077,44 @@ export default function Timer() {
                       return (
                         <Fragment key={question.key}>
                         {opensTier && (
-                          <div
+                          <button
+                            type="button"
                             data-confirm-section={question.tier}
+                            onClick={() => toggleSection(question.tier)}
+                            aria-pressed={sectionTicked(question.tier) === QUESTIONS.filter((q) => q.tier === question.tier).length}
+                            title={sectionTicked(question.tier) === 0
+                              ? 'Stop every question in this section asking'
+                              : 'Let every question in this section ask again'}
                             // Ruled off the group above as well, except at
                             // the top, where the panel's own heading has
                             // already drawn that line and a second one
                             // beside it is 6px of border.
-                            className={`px-2 py-1 font-bold border-b-3 ${i > 0 ? 'border-t-3' : ''}`}
+                            className={`w-full flex items-center gap-2 px-2 py-1 font-bold text-left border-b-3 hover:opacity-70 transition-opacity ${i > 0 ? 'border-t-3' : ''}`}
                             style={{
                               fontSize: CONFIRM_LIST_FONT_SIZE,
                               borderColor: 'var(--app-ink)',
-                              // The colour of the rows it heads: it says
-                              // where the greying starts and stops, and
-                              // saying that in a colour those rows don't
-                              // use would make it a third thing to work
-                              // out.
-                              color: live ? 'var(--app-ink)' : '#6b7280',
+                              // Green while the section is asking, grey
+                              // while it isn't — the same green this app
+                              // gives a live control everywhere else,
+                              // against the grey its own rows go. The
+                              // heading is the one line that says which of
+                              // the two a reader is looking at.
+                              color: live ? '#22c55e' : '#6b7280',
                             }}
                           >
-                            {CONFIRM_LIST_SECTION[question.tier]}
-                          </div>
+                            {/* Full when every question below is silenced,
+                                the diagonal when some are: the same three
+                                positions the confirm button itself uses. */}
+                            <DotCheckbox
+                              checked={(() => {
+                                const total = QUESTIONS.filter((q) => q.tier === question.tier).length;
+                                const ticked = sectionTicked(question.tier);
+                                return ticked === 0 ? false : ticked === total ? true : 'half';
+                              })()}
+                              fontSize={CONFIRM_LIST_FONT_SIZE}
+                            />
+                            <span className="flex-1">{CONFIRM_LIST_SECTION[question.tier]}</span>
+                          </button>
                         )}
                         <button
                           type="button"

@@ -25,6 +25,16 @@ export const setSuppressedKey = (key: string, silenced: boolean): string[] => {
   return next;
 };
 
+// A whole section at once, from its heading's own box. One write rather
+// than a loop of setSuppressedKey, which would read back the list it had
+// just written thirty-nine times.
+export const setSuppressedKeys = (keys: string[], silenced: boolean): string[] => {
+  const kept = readSuppressedKeys().filter((k) => !keys.includes(k));
+  const next = silenced ? [...kept, ...keys] : kept;
+  writeJSON(STORAGE_KEYS.dontAskAgain, next);
+  return next;
+};
+
 // Which question a dialog is asking, which is not the same as its type:
 // several types ask different things depending on their mode, and
 // silencing one must not silence its siblings. "Load this preset onto an
@@ -44,6 +54,10 @@ export const dialogKey = (dialog: DialogState): string | null => {
     // three, but only in the state it was answered in.
     case 'adjust':
       return `adjust:${dialog.data.state}`;
+    // One key for both headings: the question is the same whichever
+    // section it is asked from.
+    case 'bulkSuppress':
+      return 'bulkSuppress';
     case 'switch':
       return `switch:${dialog.mode}`;
     case 'seek':
@@ -186,6 +200,7 @@ const HALF_QUESTIONS: [string, string][] = [
   ['correctPreset', 'Report a preset corrected to fit'],
   ['correctTime', 'Report a time corrected to fit'],
   ['duplicatePreset', 'Report a preset you already have'],
+  ['bulkSuppress', 'Tick or clear a whole section at once'],
   ['fullConfirmations', 'Warn before confirming everything'],
   ['skipConfirmations', 'Warn before turning confirmations off'],
 ];

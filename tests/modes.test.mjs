@@ -74,17 +74,17 @@ const clickEl = async (expr, name) => {
 // lands on the page behind. Scrolled into view first, the way a person
 // reaching it would.
 const clickRow = async (label) => {
-  const found = await ev(`(()=>{const b=[...document.querySelectorAll('[data-confirm-list] button')].find(b=>b.textContent.trim()===${JSON.stringify(label)});if(!b)return false;b.scrollIntoView({block:'center'});return true})()`);
+  const found = await ev(`(()=>{const b=[...document.querySelectorAll('[data-confirm-list] button:not([data-confirm-section])')].find(b=>b.textContent.trim()===${JSON.stringify(label)});if(!b)return false;b.scrollIntoView({block:'center'});return true})()`);
   if (!found) { check(`${label} row (not found)`, 'missing', 'found'); return false; }
   await sleep(200);
-  return clickEl(`[...document.querySelectorAll('[data-confirm-list] button')].find(b=>b.textContent.trim()===${JSON.stringify(label)})`, `${label} row`);
+  return clickEl(`[...document.querySelectorAll('[data-confirm-list] button:not([data-confirm-section])')].find(b=>b.textContent.trim()===${JSON.stringify(label)})`, `${label} row`);
 };
 
 // The button carries its mode as an attribute, so nothing here has to
 // match on the prose in its tooltip.
 const CONFIRM_BTN = `document.querySelector('[data-confirm-mode]')`;
 const LIST = `document.querySelector('[data-confirm-list]')`;
-const CONTROL = (label) => `[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='${label}')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='${label}';})`;
+const CONTROL = (label) => `[...document.querySelectorAll('button:not([data-confirm-section])')].find(b=>{const t=b.textContent.trim();if(t==='${label}')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='${label}';})`;
 
 const mode = () => ev(`(${CONFIRM_BTN})?.dataset.confirmMode ?? null`);
 const dialogTitle = () => ev(`document.querySelector('[role="alertdialog"][data-state="open"] h2')?.textContent ?? null`);
@@ -149,10 +149,10 @@ const hoverConfirm = async () => {
 };
 await hoverConfirm();
 check('hovering opens the list', await ev(`!!(${LIST})`), 'true');
-check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button').length ?? 0`), 39);
+check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button:not([data-confirm-section])').length ?? 0`), 40);
 check('the list scrolls', await ev(`(()=>{const l=document.querySelector('[data-confirm-scroll]');return !!l && l.scrollHeight > l.clientHeight})()`), 'true');
 // In full mode nothing is greyed: every row is a question being asked.
-check('full greys nothing', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 0);
+check('full greys nothing', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 0);
 // A heading over each group: the questions half mode asks, then the ones
 // only full does. Without them the greying is the only thing marking that
 // turn, and in the two modes that grey those rows there is nothing to
@@ -160,14 +160,54 @@ check('full greys nothing', await ev(`[...(${LIST}).querySelectorAll('button')].
 const SECTION = (tier) => `document.querySelector('[data-confirm-section="${tier}"]')`;
 // Rows before a heading, counted through the DOM rather than by index, so
 // reordering the list moves the check with it.
-const rowsAbove = (tier) => ev(`(()=>{const d=${SECTION(tier)};if(!d)return -1;return [...document.querySelectorAll('[data-confirm-list] button')].filter(b=>d.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_PRECEDING).length})()`);
+const rowsAbove = (tier) => ev(`(()=>{const d=${SECTION(tier)};if(!d)return -1;return [...document.querySelectorAll('[data-confirm-list] button:not([data-confirm-section])')].filter(b=>d.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_PRECEDING).length})()`);
 check('the half group is headed', await ev(`${SECTION('half')}?.textContent ?? null`), 'ACTIVE WHENEVER CONFIRMATIONS ARE ON');
 check('and it opens the list', await rowsAbove('half'), 0);
 check('the full group is headed', await ev(`${SECTION('full')}?.textContent ?? null`), 'ONLY ACTIVE WHEN EVERYTHING IS CONFIRMED');
-check('and it sits on the turn', await rowsAbove('full'), 22);
-check('both lit in full', await ev(`[...document.querySelectorAll('[data-confirm-section]')].map(d=>getComputedStyle(d).color).join('|')`), 'rgb(244, 244, 244)|rgb(244, 244, 244)');
+check('and it sits on the turn', await rowsAbove('full'), 23);
+check('both lit in full', await ev(`[...document.querySelectorAll('[data-confirm-section]')].map(d=>getComputedStyle(d).color).join('|')`), 'rgb(34, 197, 94)|rgb(34, 197, 94)');
 // One line, not two, where the panel's own heading already drew one.
 check('the top heading is not double-ruled', await ev(`getComputedStyle(${SECTION('half')}).borderTopWidth`), '0px');
+// Green while its section is asking, and the same grey its rows go when
+// it isn't. The heading is the one line saying which of the two a reader
+// is looking at, so it must not be the colour of either on its own.
+check('a live heading is green', await ev(`getComputedStyle(${SECTION('half')}).color`), 'rgb(34, 197, 94)');
+
+// --- the heading's own box, over its whole section ----------------------
+// Standard select-all: none ticked and it silences the section, any
+// ticked and it clears it. Behind a question, since one click answers
+// twenty-three of them.
+const ticks = () => ev(`JSON.parse(localStorage.getItem('timerDontAskAgain')||'[]').length`);
+// Scrolled into view first: the full heading sits below the fold, and
+// clicking its centre otherwise lands on the page behind the list.
+const clickSection = async (tier, name) => {
+  await ev(`${SECTION(tier)}?.scrollIntoView({block:'center'}), 'ok'`);
+  await sleep(200);
+  return clickEl(SECTION(tier), name);
+};
+
+check('nothing ticked yet', await ticks(), 0);
+await clickSection('full', 'full heading');
+check('the heading asks first', await dialogTitle(), 'SILENCE THE SECTION');
+await press('Escape', 'Escape', 27);
+check('cancelling ticks nothing', await ticks(), 0);
+
+await hoverConfirm();
+await clickSection('full', 'full heading again');
+await enter();
+await sleep(400);
+check('confirming silences the whole section', await ticks(), 17);
+await hoverConfirm();
+check('and the heading fills', await ev(`${SECTION('full')}?.getAttribute('aria-pressed')`), 'true');
+
+// Any ticked, so the same box clears them.
+await clickSection('full', 'full heading a third time');
+check('the other way asks too', await dialogTitle(), 'BRING THE SECTION BACK');
+await enter();
+await sleep(400);
+check('and clears the section', await ticks(), 0);
+// Left open, since the checks below carry on with the list up.
+await hoverConfirm();
 
 // Ticking a row silences that one question and nothing else.
 await clickRow('Start the timer');
@@ -195,7 +235,7 @@ check('none asks nothing', await dialogTitle(), 'null');
 check('and the stop went through', await status(), 'READY');
 
 await hoverConfirm();
-check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 39);
+check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 40);
 check('and greys both headings with them', await ev(`[...document.querySelectorAll('[data-confirm-section]')].map(d=>getComputedStyle(d).color).join('|')`), 'rgb(107, 114, 128)|rgb(107, 114, 128)');
 // Greyed is not disabled: the answer still lands, it just changes nothing
 // until the mode comes back round to asking that question.
@@ -207,10 +247,10 @@ await moveTo(700, 500);
 await clickEl(CONFIRM_BTN, 'confirm toggle');
 check('three clicks come back to half', await mode(), 'half');
 await hoverConfirm();
-check('half greys only the full rows', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 17);
-check('the half heading stays lit', await ev(`getComputedStyle(${SECTION('half')}).color`), 'rgb(244, 244, 244)');
+check('half greys only the full rows', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 17);
+check('the half heading stays lit', await ev(`getComputedStyle(${SECTION('half')}).color`), 'rgb(34, 197, 94)');
 check('and the full one greys with its rows', await ev(`getComputedStyle(${SECTION('full')}).color`), 'rgb(107, 114, 128)');
-check('the twelve greyed are the twelve under it', await ev(`(()=>{const d=${SECTION('full')};return [...document.querySelectorAll('[data-confirm-list] button')].filter(b=>b.style.color==='rgb(107, 114, 128)').every(b=>d.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING)})()`), 'true');
+check('the twelve greyed are the twelve under it', await ev(`(()=>{const d=${SECTION('full')};return [...document.querySelectorAll('[data-confirm-list] button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').every(b=>d.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING)})()`), 'true');
 await moveTo(700, 500);
 check('leaving closes the list', await ev(`!!(${LIST})`), 'false');
 

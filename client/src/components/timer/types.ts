@@ -94,6 +94,7 @@ export type DialogState =
   // Both steps of the cycle that change what every other click does.
   // Turning confirmations off asks, and so does turning the full set on;
   // the step from off back to half can't ask, since nothing asks there.
+  | { type: 'bulkSuppress'; data: { tier: 'half' | 'full'; silence: boolean; count: number } }
   | { type: 'fullConfirmations' }
   | { type: 'skipConfirmations' }
   | { type: 'clearWordCounter' };

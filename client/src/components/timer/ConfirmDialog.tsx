@@ -158,6 +158,20 @@ const getCopy = (dialog: DialogState) => {
         description: `${dialog.data.label} is already one of your presets, so nothing was added. The one you have will flash red.`,
         action: 'OK',
       };
+    // Named from the section's own heading, and spelled out both ways:
+    // the box says what it is about to do rather than leaving it to be
+    // read off a partly-ticked list.
+    case 'bulkSuppress': {
+      const { tier, silence, count } = dialog.data;
+      const section = tier === 'half' ? 'that ask whenever confirmations are on' : 'that only ask when everything is confirmed';
+      return {
+        title: silence ? 'SILENCE THE SECTION' : 'BRING THE SECTION BACK',
+        description: silence
+          ? `Stop all ${count} questions ${section} from asking? Each one keeps its own tick, so you can bring any of them back on its own row afterwards.`
+          : `Let all ${count} questions ${section} ask again? This clears every tick in that section, including ones you set one at a time.`,
+        action: silence ? 'SILENCE ALL' : 'BRING BACK',
+      };
+    }
     // The other half of the same switch. Asked in half mode, so it is a
     // half-tier question and carries its own tick like the rest.
     case 'fullConfirmations':
