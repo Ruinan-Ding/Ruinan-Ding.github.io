@@ -149,7 +149,7 @@ const hoverConfirm = async () => {
 };
 await hoverConfirm();
 check('hovering opens the list', await ev(`!!(${LIST})`), 'true');
-check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button:not([data-confirm-section])').length ?? 0`), 40);
+check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button:not([data-confirm-section])').length ?? 0`), 41);
 check('the list scrolls', await ev(`(()=>{const l=document.querySelector('[data-confirm-scroll]');return !!l && l.scrollHeight > l.clientHeight})()`), 'true');
 // In full mode nothing is greyed: every row is a question being asked.
 check('full greys nothing', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 0);
@@ -164,7 +164,7 @@ const rowsAbove = (tier) => ev(`(()=>{const d=${SECTION(tier)};if(!d)return -1;r
 check('the half group is headed', await ev(`${SECTION('half')}?.textContent ?? null`), 'ACTIVE WHENEVER CONFIRMATIONS ARE ON');
 check('and it opens the list', await rowsAbove('half'), 0);
 check('the full group is headed', await ev(`${SECTION('full')}?.textContent ?? null`), 'ONLY ACTIVE WHEN EVERYTHING IS CONFIRMED');
-check('and it sits on the turn', await rowsAbove('full'), 23);
+check('and it sits on the turn', await rowsAbove('full'), 24);
 check('both lit in full', await ev(`[...document.querySelectorAll('[data-confirm-section]')].map(d=>getComputedStyle(d).color).join('|')`), 'rgb(34, 197, 94)|rgb(34, 197, 94)');
 // One line, not two, where the panel's own heading already drew one.
 check('the top heading is not double-ruled', await ev(`getComputedStyle(${SECTION('half')}).borderTopWidth`), '0px');
@@ -206,6 +206,24 @@ check('the other way asks too', await dialogTitle(), 'BRING THE SECTION BACK');
 await enter();
 await sleep(400);
 check('and clears the section', await ticks(), 0);
+
+// The half section is the one that catches it: the two rows about this
+// box live there, and a box that ticks its own confirmation asks once and
+// never again. Silencing the half section used to tick both, and the
+// click that brought it back was silent.
+await hoverConfirm();
+await clickSection('half', 'half heading');
+check('the half section asks going out', await dialogTitle(), 'SILENCE THE SECTION');
+await enter();
+await sleep(400);
+check('and leaves its own two rows alone', await ticks(), 22);
+await hoverConfirm();
+await clickSection('half', 'half heading again');
+check('so the way back still asks', await dialogTitle(), 'BRING THE SECTION BACK');
+await enter();
+await sleep(400);
+check('and clears it', await ticks(), 0);
+
 // Left open, since the checks below carry on with the list up.
 await hoverConfirm();
 
@@ -235,7 +253,7 @@ check('none asks nothing', await dialogTitle(), 'null');
 check('and the stop went through', await status(), 'READY');
 
 await hoverConfirm();
-check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 40);
+check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 41);
 check('and greys both headings with them', await ev(`[...document.querySelectorAll('[data-confirm-section]')].map(d=>getComputedStyle(d).color).join('|')`), 'rgb(107, 114, 128)|rgb(107, 114, 128)');
 // Greyed is not disabled: the answer still lands, it just changes nothing
 // until the mode comes back round to asking that question.

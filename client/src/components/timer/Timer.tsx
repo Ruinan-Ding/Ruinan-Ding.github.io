@@ -20,7 +20,7 @@ import { readSavedHistory, readSavedPresets } from './entries';
 import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
 import { BELOW_DIGITS, compactControlButtonStyle, CONTROL_FILL, CONTROL_HINT, CONTROL_PAD_X, controlButtonStyle, HINT_CLEARANCE, KEY_LINE_HEIGHT, KEY_SCALE, STATUS_FONT_SIZE } from './controlSizes';
 import { boxCap, fitClamp, shrinkClamp } from './responsive';
-import { isQuestionLive, isAcknowledgement, nextConfirmMode, QUESTIONS, readConfirmMode, readSuppressedKeys, setSuppressedKey, setSuppressedKeys as writeSuppressedKeys, shouldAsk, suppressDialog } from './suppressions';
+import { BULK_KEYS, isQuestionLive, isAcknowledgement, nextConfirmMode, QUESTIONS, readConfirmMode, readSuppressedKeys, setSuppressedKey, setSuppressedKeys as writeSuppressedKeys, shouldAsk, suppressDialog } from './suppressions';
 import type { ConfirmMode, DialogState, FlashTarget, FullAct, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
 import { useAlarm } from './useAlarm';
@@ -519,7 +519,12 @@ export default function Timer() {
   // silences it. Behind a question of its own, since it answers up to
   // twenty-two of them in one click — and that question carries a tick
   // like every other, so anyone who does this often can stop being asked.
-  const sectionKeys = (tier: 'half' | 'full') => QUESTIONS.filter((q) => q.tier === tier).map((q) => q.key);
+  // Every row in the section except the two about this box. Both the
+  // count the box shows and the write it makes read this, so they agree:
+  // those two rows are not what the heading governs, and they are ticked
+  // one at a time or from their own dialog like anything else.
+  const sectionKeys = (tier: 'half' | 'full') =>
+    QUESTIONS.filter((q) => q.tier === tier && !BULK_KEYS.includes(q.key)).map((q) => q.key);
   const sectionTicked = (tier: 'half' | 'full') => sectionKeys(tier).filter((k) => suppressedKeys.includes(k)).length;
   const toggleSection = (tier: 'half' | 'full') => {
     const keys = sectionKeys(tier);
@@ -2081,7 +2086,7 @@ export default function Timer() {
                             type="button"
                             data-confirm-section={question.tier}
                             onClick={() => toggleSection(question.tier)}
-                            aria-pressed={sectionTicked(question.tier) === QUESTIONS.filter((q) => q.tier === question.tier).length}
+                            aria-pressed={sectionTicked(question.tier) === sectionKeys(question.tier).length}
                             title={sectionTicked(question.tier) === 0
                               ? 'Stop every question in this section asking'
                               : 'Let every question in this section ask again'}
@@ -2107,7 +2112,7 @@ export default function Timer() {
                                 positions the confirm button itself uses. */}
                             <DotCheckbox
                               checked={(() => {
-                                const total = QUESTIONS.filter((q) => q.tier === question.tier).length;
+                                const total = sectionKeys(question.tier).length;
                                 const ticked = sectionTicked(question.tier);
                                 return ticked === 0 ? false : ticked === total ? true : 'half';
                               })()}

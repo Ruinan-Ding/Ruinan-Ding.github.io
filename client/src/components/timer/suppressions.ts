@@ -54,10 +54,13 @@ export const dialogKey = (dialog: DialogState): string | null => {
     // three, but only in the state it was answered in.
     case 'adjust':
       return `adjust:${dialog.data.state}`;
-    // One key for both headings: the question is the same whichever
-    // section it is asked from.
+    // One key per direction, not one per heading: which section it was
+    // asked from doesn't change the question, but which way it is going
+    // does. Sharing a key meant answering "yes, silence them" also
+    // answered "yes, bring them back", and the way back was the one that
+    // then happened without asking.
     case 'bulkSuppress':
-      return 'bulkSuppress';
+      return dialog.data.silence ? 'bulkSilence' : 'bulkRestore';
     case 'switch':
       return `switch:${dialog.mode}`;
     case 'seek':
@@ -200,7 +203,8 @@ const HALF_QUESTIONS: [string, string][] = [
   ['correctPreset', 'Report a preset corrected to fit'],
   ['correctTime', 'Report a time corrected to fit'],
   ['duplicatePreset', 'Report a preset you already have'],
-  ['bulkSuppress', 'Tick or clear a whole section at once'],
+  ['bulkSilence', 'Silence a whole section at once'],
+  ['bulkRestore', 'Bring a whole section back at once'],
   ['fullConfirmations', 'Warn before confirming everything'],
   ['skipConfirmations', 'Warn before turning confirmations off'],
 ];
@@ -212,6 +216,13 @@ const HALF_QUESTIONS: [string, string][] = [
 const FULL_RULES: [string, string][] = [
   ['adjustAgain', 'Change the time again in the same run'],
 ];
+
+// The two rows a heading's own box must not touch. A control that
+// silences its own confirmation as a side effect is one that asks once
+// and never again: silencing the half section ticked bulkSilence and
+// bulkRestore along with everything else, and the click that brought the
+// section back was then silent.
+export const BULK_KEYS = ['bulkSilence', 'bulkRestore'];
 
 export const QUESTIONS: { key: string; label: string; tier: 'half' | 'full' }[] = [
   ...HALF_QUESTIONS.map(([key, label]) => ({ key, label, tier: 'half' as const })),
