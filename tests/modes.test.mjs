@@ -153,6 +153,17 @@ check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button'
 check('the list scrolls', await ev(`(()=>{const l=document.querySelector('[data-confirm-scroll]');return !!l && l.scrollHeight > l.clientHeight})()`), 'true');
 // In full mode nothing is greyed: every row is a question being asked.
 check('full greys nothing', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 0);
+// The line where the list turns from the questions half mode asks to the
+// ones only full does. Without it the greying is the only thing marking
+// that turn, and in the two modes that grey those rows there is nothing
+// to read it against.
+const DIVIDER = `document.querySelector('[data-confirm-divider]')`;
+// Rows before it, counted through the DOM rather than by index, so
+// reordering the list moves the check with it.
+const rowsAbove = () => ev(`(()=>{const d=${DIVIDER};if(!d)return -1;return [...document.querySelectorAll('[data-confirm-list] button')].filter(b=>d.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_PRECEDING).length})()`);
+check('the tiers are divided', await ev(`${DIVIDER}?.textContent ?? null`), 'ONLY WHEN EVERYTHING IS CONFIRMED');
+check('and it sits on the turn', await rowsAbove(), 22);
+check('lit in full, like the rows under it', await ev(`getComputedStyle(${DIVIDER}).color`), 'rgb(244, 244, 244)');
 
 // Ticking a row silences that one question and nothing else.
 await clickRow('Start the timer');
@@ -181,6 +192,7 @@ check('and the stop went through', await status(), 'READY');
 
 await hoverConfirm();
 check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 34);
+check('and greys the divider with them', await ev(`getComputedStyle(${DIVIDER}).color`), 'rgb(107, 114, 128)');
 // Greyed is not disabled: the answer still lands, it just changes nothing
 // until the mode comes back round to asking that question.
 await clickRow('Stop the timer');
@@ -192,6 +204,8 @@ await clickEl(CONFIRM_BTN, 'confirm toggle');
 check('three clicks come back to half', await mode(), 'half');
 await hoverConfirm();
 check('half greys only the full rows', await ev(`[...(${LIST}).querySelectorAll('button')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 12);
+check('and the divider greys with them', await ev(`getComputedStyle(${DIVIDER}).color`), 'rgb(107, 114, 128)');
+check('the twelve greyed are the twelve under it', await ev(`(()=>{const d=${DIVIDER};return [...document.querySelectorAll('[data-confirm-list] button')].filter(b=>b.style.color==='rgb(107, 114, 128)').every(b=>d.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING)})()`), 'true');
 await moveTo(700, 500);
 check('leaving closes the list', await ev(`!!(${LIST})`), 'false');
 

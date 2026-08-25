@@ -1,5 +1,5 @@
 import { Bell, ChevronsLeft, ChevronsRight, ExternalLink, Moon, Repeat, Sun, Trash2, X } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
 import { useLeaveGuard } from '@/hooks/useLeaveGuard';
@@ -46,6 +46,14 @@ const CONFIRM_LIST_HEADING: Record<ConfirmMode, string> = {
   full: "DON'T ASK ME AGAIN — ALL",
   none: "DON'T ASK ME AGAIN — NOTHING ASKS",
 };
+
+// The list runs half-tier questions first and full-tier ones after, and
+// this is drawn where it turns over. Without it the greying is the only
+// thing saying which is which, and grey against grey says nothing at all:
+// in half mode the second half is grey, and with confirmations off the
+// whole list is, so a reader has no way to tell a question their mode
+// skips from one nothing asks.
+const CONFIRM_LIST_DIVIDER = 'ONLY WHEN EVERYTHING IS CONFIRMED';
 
 const CONFIRM_LIST_FONT_SIZE = shrinkClamp(0.6, 1, 1.1, 0.72);
 
@@ -1997,12 +2005,34 @@ export default function Timer() {
                       a list cut to fit is questions with no way to answer
                       them. */}
                   <div data-confirm-scroll className="overflow-y-auto">
-                    {QUESTIONS.map((question) => {
+                    {QUESTIONS.map((question, i) => {
                       const live = isQuestionLive(question.tier, confirmMode);
                       const silenced = suppressedKeys.includes(question.key);
+                      // The turn from one tier to the other. Read off the
+                      // row before rather than an index, so reordering the
+                      // list can't leave the line in the wrong place.
+                      const opensFull = question.tier === 'full' && QUESTIONS[i - 1]?.tier === 'half';
                       return (
+                        <Fragment key={question.key}>
+                        {opensFull && (
+                          <div
+                            data-confirm-divider
+                            className="px-2 py-1 font-bold border-y-3"
+                            style={{
+                              fontSize: CONFIRM_LIST_FONT_SIZE,
+                              borderColor: 'var(--app-ink)',
+                              // Live in full mode and grey elsewhere, the
+                              // same as the rows it introduces: the line
+                              // says where the greying starts, and saying
+                              // it in a colour the greyed rows don't use
+                              // would make it a third thing to work out.
+                              color: isQuestionLive('full', confirmMode) ? 'var(--app-ink)' : '#6b7280',
+                            }}
+                          >
+                            {CONFIRM_LIST_DIVIDER}
+                          </div>
+                        )}
                         <button
-                          key={question.key}
                           type="button"
                           onClick={() => toggleSuppressedKey(question.key)}
                           aria-pressed={silenced}
@@ -2020,6 +2050,7 @@ export default function Timer() {
                           <DotCheckbox checked={silenced} fontSize={CONFIRM_LIST_FONT_SIZE} />
                           <span className="flex-1">{question.label}</span>
                         </button>
+                        </Fragment>
                       );
                     })}
                   </div>
