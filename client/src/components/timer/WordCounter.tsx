@@ -576,6 +576,10 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
             <div aria-hidden className={`absolute inset-y-0 w-1 ${isActive ? 'bg-green-500' : 'bg-white'}`} style={{ left: COUNTER_COLUMN_WIDTH }} />
             <textarea
               ref={textareaRef}
+              // The placeholder is not a name: it is gone the moment
+              // anything is typed, and a screen reader reading this box
+              // then has nothing to call it.
+              aria-label="Writing"
               value={text}
               onChange={handleTextChange}
               onFocus={() => setFocused(true)}
