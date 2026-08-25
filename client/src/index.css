@@ -666,6 +666,22 @@
    four lines. Kept as an exception rather than by scoping the rule
    above to direct children, since the confirm button is itself nested
    one div deep now to give the list something to hang from. */
+/* A control button under a finger, in its own colour. :active rather than
+   React state: the browser already tracks pointer down, pointer leave,
+   cancel and touch for free, where the state version covered mouse events
+   only — a tap on a phone fires the whole burst at once and never showed.
+   It also shared one variable with the held key, so a pointer crossing a
+   button cleared a key someone was holding and swallowed the press.
+
+   !important because the armed fill is an inline style, which a plain
+   rule cannot beat. --press is set there too, since the stylesheet has no
+   way to know which of the three colours this button is. */
+.control-press:active:not(:disabled) {
+  background-color: var(--press) !important;
+  color: var(--app-surface) !important;
+  transition: none !important;
+}
+
 .fs-header-row .fs-row-icons [data-confirm-list] button {
   max-width: none;
   max-height: none;

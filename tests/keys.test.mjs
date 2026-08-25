@@ -216,7 +216,7 @@ check('and leaving the box brings it back', await fillOf('RESUME'), 'var(--app-i
 const unfilled = () => evaluate(`(()=>{
   const bs=[...document.querySelectorAll('button')].filter(b=>b.querySelector('.control-hint'));
   return bs.filter(b=>b.style.backgroundColor!=='var(--app-ink)')
-    .map(b=>([...b.children].find(c=>!c.classList.contains('control-hint'))||{}).textContent.trim()).join(',');
+    .map(b=>[...b.children].find(c=>!c.classList.contains('control-hint'))?.textContent?.trim()).join(',');
 })()`);
 check('every armed button is filled', await unfilled(), '');
 
@@ -245,6 +245,35 @@ await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', w
 await sleep(200);
 check('the release is what acts', (await status()) !== before, 'true');
 await sleep(600);
+
+// The pointer and the keyboard used to write one variable between them,
+// so a pointer crossing a control button while a key was held cleared it
+// and handleKeyUp dropped the press on the floor. The holding is :active's
+// now, and the two don't meet.
+const crossed = await status();
+await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+await sleep(120);
+const spot = await evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.querySelector('span.control-hint'));const r=b.getBoundingClientRect();return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)}})()`);
+await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: spot.x, y: spot.y });
+await sleep(80);
+await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: spot.x, y: spot.y - 300 });
+await sleep(80);
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+await sleep(400);
+check('a pointer crossing a held key does not eat it', (await status()) !== crossed, 'true');
+await sleep(500);
+
+// And a key refused between going down and coming up lights nothing. The
+// dialog opening under a held TAB is the ordinary way to reach it.
+await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+await sleep(120);
+await evaluate(`(${CTRL('STOP')})?.click(), 'ok'`);
+await sleep(300);
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+await sleep(150);
+check('a refused release lights nothing', await heldFill(), 'var(--app-ink)');
+await press('Escape');
+await sleep(300);
 // Back to an untouched timer, where R and S are refused and their
 // buttons are drawn disabled.
 await evaluate(`(${CTRL('STOP')})?.click(), 'ok'`);

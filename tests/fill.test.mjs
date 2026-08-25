@@ -50,7 +50,7 @@ const expr = `(() => {
           return Math.round(r.top + 4 - g.getBoundingClientRect().top);
         })(),
         // What isControlHintClipped watches: the line against the box less
-        // its borders. It drops the hint once this falls under 24.
+        // its borders. It drops the hint once this falls under 10.
         hintSlack: Math.round(b.clientWidth - hintW),
         fs: Math.round(parseFloat(getComputedStyle(lab).fontSize) * 10) / 10,
         // What the label is solved against: the border box less its two
@@ -119,7 +119,11 @@ for (const r of rows) {
   // of them show. "Press R to" beside it is two characters shorter and
   // would report slack that isn't the app's to use.
   const on = r.btns.slice(0, 1).filter((b) => b.shown);
-  const hintClaims = on.every((b) => b.hintSlack <= 32 || b.hintFs >= b.base * 0.8);
+  // 18 is the 10 the hide rule allows plus the 8px of border the slack is
+  // measured across. It was 32 while that rule reserved 24, and left at 32
+  // it would pass a regression that put 20px of unused width back down
+  // both sides of every button.
+  const hintClaims = on.every((b) => b.hintSlack <= 18 || b.hintFs >= b.base * 0.8);
   // The key is the part worth finding at a glance, so it is drawn bigger
   // than the words around it — and has to stay off the border it sits
   // under, which at the padding this used to carry it did not.

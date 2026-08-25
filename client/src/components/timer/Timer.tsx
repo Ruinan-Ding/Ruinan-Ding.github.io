@@ -69,6 +69,16 @@ type KeyCode = 'Tab' | 'KeyR' | 'KeyS';
 const KEY_SCALE = 1.2;
 const KEY_LINE_HEIGHT = 1 / KEY_SCALE;
 
+// How close "Press TAB to" may come to both sides of its button before the
+// hint is dropped. One number, because the size is solved to stay clear of
+// it: two would drift, and when they did the difference stood as empty
+// margin down every button.
+const HINT_CLEARANCE = 10;
+// What that line comes to, in prose ems. Twelve characters of this
+// monospace at 0.6em each, three of them the key at KEY_SCALE, and a
+// little over so the line isn't sitting exactly on its own hide rule.
+const HINT_EMS = 9 * 0.6 + 3 * 0.6 * KEY_SCALE + 0.3;
+
 // Clears the header buttons in the same corner. Derived from the button so
 // it shrinks with them on a short window.
 const TIME_FIELDS_TOP_MARGIN = { marginTop: `calc(${HEADER_BUTTON_SIZE.height} + 0.5rem)` };
@@ -155,9 +165,6 @@ export default function Timer() {
   const [loadedEntry, setLoadedEntry] = useState<FlashTarget>(null);
   // Bumped with a direction when a field's adjustment applies, so each
   // countdown digit flashes green or red on its own.
-  const [keyPress, setKeyPress] = useState({ Tab: 0, KeyR: 0, KeyS: 0 });
-  const bumpKeyPress = (code: KeyCode) =>
-    setKeyPress((prev) => ({ ...prev, [code]: prev[code] + 1 }));
   const [hoursFlash, setHoursFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [minutesFlash, setMinutesFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [secondsFlash, setSecondsFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
@@ -326,9 +333,14 @@ export default function Timer() {
     // measured against without resizing the row that is observed. Two
     // passes left one viewport in the sweep reading a clamp chosen for the
     // layout before it.
+    let alive = true;
     let queued = 0;
     const timers: number[] = [];
     const soon = () => {
+      // document.fonts.ready resolves whenever it resolves, which can be
+      // after this effect is torn down; without this it would schedule
+      // two timeouts past the cleanup that was meant to own them.
+      if (!alive) return;
       check();
       cancelAnimationFrame(queued);
       timers.forEach(window.clearTimeout);
@@ -346,6 +358,7 @@ export default function Timer() {
     if (timerRowRef.current) observer.observe(timerRowRef.current);
     document.fonts?.ready.then(soon);
     return () => {
+      alive = false;
       window.removeEventListener('resize', soon);
       observer.disconnect();
       cancelAnimationFrame(queued);
@@ -415,13 +428,13 @@ export default function Timer() {
       return button.clientWidth - hint.scrollWidth;
     },
     timerRowRef,
-    // 10, where this was 24. It was measured back when the hint was
-    // solved off the label and could never reach the sides anyway; once
-    // the line was sized against the box instead, this reserve became the
-    // empty margin down both sides of every button, since a line that
-    // came closer than this would be dropped rather than drawn. What it
-    // is for is deciding there is no longer room, and 10 says that.
-    10,
+    // Was 24, measured back when the hint was solved off the label and
+    // could never reach the sides anyway. Once the line was sized against
+    // the box instead, this reserve became the empty margin down both
+    // sides of every button, since a line coming closer would be dropped
+    // rather than drawn. What it is for is deciding there is no longer
+    // room.
+    HINT_CLEARANCE,
     `${isRunning}${isPaused}${seconds < 0}${areShortcutsLive}`
   );
 
@@ -709,32 +722,58 @@ export default function Timer() {
   // Whether the key would do anything, asked before the button lights up,
   // so a refused one lights nothing: S and R are refused on an untouched
   // timer, and the dialog owns the keyboard while it is open.
-  const keyLiveRef = useRef<(code: string) => boolean>(() => false);
+  const keyLiveRef = useRef<(code: KeyCode) => boolean>(() => false);
   keyLiveRef.current = (code) => {
     if (dialog.type !== null) return false;
     if (code === 'Tab') return true;
     return !isIdleAtConfigured;
   };
-  const keyActionRef = useRef<(code: string) => void>(() => {});
+  // Reports whether it did anything, since a key can be refused between
+  // going down and coming up — the dialog that opens under a held TAB is
+  // the ordinary way — and one that did nothing must not flash as though
+  // it worked.
+  const keyActionRef = useRef<(code: KeyCode) => boolean>(() => false);
   keyActionRef.current = (code) => {
-    if (!keyLiveRef.current(code)) return;
+    if (!keyLiveRef.current(code)) return false;
     if (code === 'Tab') {
       if (isRunning) togglePause();
       else handleStart();
-      return;
+      return true;
     }
     if (code === 'KeyS') handleStopClick();
     if (code === 'KeyR') handleResetClick();
+    return true;
   };
 
-  // Which key is down. A held key colours its button and does nothing
-  // else; the run only moves when it comes back up, the way a button
-  // works under a finger. Held on the keydown, that was not true: TAB
-  // started the timer the instant it went down, so holding it swapped
-  // START for PAUSE under the very key that was still down.
+  // Which key is down, and which one just came up. Down colours the
+  // button and does nothing else; up moves the run and keeps the colour a
+  // beat longer, so a tap too quick to see held still reads as a press.
+  // Held on the keydown, that was not true: TAB started the timer the
+  // instant it went down, so holding it swapped START for PAUSE under the
+  // very key that was still down.
+  //
+  // Set straight rather than through useFlashOnToken, which turns on a
+  // tick later: batched with the release that clears heldKey, that tick
+  // was a frame of the armed white between the held colour and the
+  // flash — measured, and the same blink this whole thing exists to
+  // avoid.
   const [heldKey, setHeldKey] = useState<KeyCode | null>(null);
+  const [firedKey, setFiredKey] = useState<KeyCode | null>(null);
   const heldKeyRef = useRef<KeyCode | null>(null);
   heldKeyRef.current = heldKey;
+  const firedTimerRef = useRef(0);
+  const markFired = (code: KeyCode) => {
+    window.clearTimeout(firedTimerRef.current);
+    setFiredKey(code);
+    firedTimerRef.current = window.setTimeout(() => setFiredKey(null), KEY_PRESS_MS);
+  };
+  useEffect(() => () => window.clearTimeout(firedTimerRef.current), []);
+  // The window going away takes the keyup with it, and the button would
+  // hold its colour for good. Off the focus this component already
+  // tracks rather than a listener of its own.
+  useEffect(() => {
+    if (!isWindowFocused) setHeldKey(null);
+  }, [isWindowFocused]);
 
   useEffect(() => {
     const codeOf = (e: KeyboardEvent): KeyCode | null =>
@@ -765,22 +804,15 @@ export default function Timer() {
     const handleKeyUp = (e: KeyboardEvent) => {
       const action = codeOf(e);
       if (!action || heldKeyRef.current !== action) return;
-      e.preventDefault();
       setHeldKey(null);
-      bumpKeyPress(action);
-      keyActionRef.current(action);
+      if (keyActionRef.current(action)) markFired(action);
     };
-    // A key held while the window goes away never sends its keyup here,
-    // and the button would stay coloured for good.
-    const release = () => setHeldKey(null);
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', release);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', release);
     };
   }, []);
 
@@ -1428,21 +1460,15 @@ export default function Timer() {
   // -1:05.
   const configuredLabel = formatSignedLabel(configuredTotalSeconds);
 
+  // Down, or just up: held it stays, released it runs on for a beat so a
+  // tap too quick to see held is still a press you saw.
+  const isTabPressed = heldKey === 'Tab' || firedKey === 'Tab';
+  const isResetPressed = heldKey === 'KeyR' || firedKey === 'KeyR';
+  const isStopPressed = heldKey === 'KeyS' || firedKey === 'KeyS';
+
   // One-shot flash on a countdown segment, green for an increase and red
   // for a decrease. Tied to the tokens applyAdjustment bumps, so it fires
   // only when that field's edit applies rather than on every render.
-  // A key press has no click to point at, so the button it worked says so
-  // for a moment. Bumped where the action is taken rather than in the
-  // listener, so a key that is refused — S or R on an untouched timer —
-  // lights nothing.
-  const isTabFlashing = useFlashOnToken(keyPress.Tab, KEY_PRESS_MS);
-  const isResetFlashing = useFlashOnToken(keyPress.KeyR, KEY_PRESS_MS);
-  const isStopFlashing = useFlashOnToken(keyPress.KeyS, KEY_PRESS_MS);
-  // Down, or just up: held it stays, released it runs on for a beat so a
-  // tap too quick to see held is still a press you saw.
-  const isTabPressed = heldKey === 'Tab' || isTabFlashing;
-  const isResetPressed = heldKey === 'KeyR' || isResetFlashing;
-  const isStopPressed = heldKey === 'KeyS' || isStopFlashing;
   const isHoursFlashing = useFlashOnToken(hoursFlash.token);
   const isMinutesFlashing = useFlashOnToken(minutesFlash.token);
   const isSecondsFlashing = useFlashOnToken(secondsFlash.token);
@@ -1727,18 +1753,14 @@ export default function Timer() {
   // line's own width in space it wasn't allowed to use, at a size that is
   // hard to read, which is the whole reason it is there.
   //
-  // 7.9 is what the button will show, in units of the prose size. "Press
-  // TAB to" is nine characters of prose and three of key, and this
-  // monospace advances 0.6em a character, so the line comes to
-  // 9 * 0.6 + 3 * 0.6 * KEY_SCALE = 7.7 of it. The hint is dropped once
-  // it comes within 24px of both sides (see isControlHintClipped), so the
-  // line has to fit the box less that clearance — 18px of the box, being
-  // 8 of border and the 10 that rule now allows, where this took 32 and
-  // left the difference standing as margin down both sides of every
-  // button. The rest keeps it off the edge of its own hide rule rather
-  // than sitting exactly on it and flickering.
+  // Solved against what the button will show: the box less its 8px of
+  // border and the clearance isControlHintClipped drops the hint at,
+  // divided by HINT_EMS. Both figures come off KEY_SCALE rather than
+  // being written down beside it — a key drawn larger changes what the
+  // line measures and what may cap it, and a constant nothing reads is a
+  // trap for whoever changes it.
   //
-  // Capped by the label as well, and 0.83 is 1/KEY_SCALE: the key inside
+  // Capped by the label as well, at 1/KEY_SCALE: the key inside
   // the line is drawn larger again, and this is what stops that key
   // outgrowing the word it is a note on. It does two other jobs at the
   // same time — it keeps the box from growing on a short window, since
@@ -1749,7 +1771,7 @@ export default function Timer() {
   // The floor is a real floor, above what the narrow end can fit, so down
   // there the line stops fitting and goes rather than shrinking to
   // nothing — the label takes the whole box then.
-  const CONTROL_HINT = `max(0.62rem, min(calc((${CONTROL_WIDTH} - 18px) / 7.9), calc(${CONTROL_LABEL} * 0.83)))`;
+  const CONTROL_HINT = `max(0.62rem, min(calc((${CONTROL_WIDTH} - ${8 + HINT_CLEARANCE}px) / ${HINT_EMS}), calc(${CONTROL_LABEL} * ${(1 / KEY_SCALE).toFixed(3)})))`;
   // The whole distance from the key to the top of the box, with the rows
   // spread edge to edge. Raised from 0.12/0.6/1.5/0.32 once the key was
   // drawn larger than the words beside it: a glyph's ink runs past the
@@ -2362,20 +2384,15 @@ export default function Timer() {
     // since TAB being spoken for means these were never reachable by
     // keyboard to begin with. Before the action, so a dialog it opens
     // keeps the focus it takes for itself.
-    const press = (code: KeyCode, run: () => void) => ({
-      // A click is a press too, and it already lands on the release: the
-      // browser fires click after mouseup. What was missing was the
-      // holding — the button wears its colour from the moment it goes
-      // down, and lets go if the pointer leaves without releasing on it.
-      onMouseDown: () => setHeldKey(code),
-      onMouseUp: () => setHeldKey(null),
-      onMouseLeave: () => setHeldKey((prev) => (prev === code ? null : prev)),
-      onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
-        e.currentTarget.blur();
-        bumpKeyPress(code);
-        run();
-      },
-    });
+    // A click is a press too, and it already lands on the release: the
+    // browser fires click after mouseup. The holding is :active's job
+    // (see .control-press in index.css) rather than more of the state the
+    // keys use — one state for both meant a pointer crossing a button
+    // cleared the key someone was holding, and swallowed the press.
+    const press = (run: () => void) => (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.blur();
+      run();
+    };
     // A filled button is one whose key works right now.
     //
     // Filled the way the app's white boxes are: the ink, not a literal
@@ -2407,20 +2424,23 @@ export default function Timer() {
     // what fades it out.
     const lit = (color: string, pressed: boolean) => ({
       ...buttonStyle(color),
+      // What a press paints, for the keyboard here and for :active in the
+      // stylesheet, which cannot know which of the three colours this is.
+      '--press': color,
       ...(pressed
         ? { backgroundColor: color, color: 'var(--app-surface)', transition: 'none' }
         : areShortcutsLive
           ? { backgroundColor: 'var(--app-ink)', color: 'var(--app-surface)' }
           : {}),
-    });
+    }) as unknown as React.CSSProperties;
     const runLabel = isPaused ? 'RESUME' : 'PAUSE';
     return (
       <>
         {!isRunning && (
           <button
             ref={withHints ? firstControlRef : undefined}
-            {...press('Tab', handleStart)}
-            className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+            onClick={press(handleStart)}
+            className={`${borderClass} control-press font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
             style={lit('#22c55e', isTabPressed)}
           >
             {rows('START')}
@@ -2430,8 +2450,8 @@ export default function Timer() {
         {isRunning && (
           <button
             ref={withHints ? firstControlRef : undefined}
-            {...press('Tab', togglePause)}
-            className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200`}
+            onClick={press(togglePause)}
+            className={`${borderClass} control-press font-bold hover:opacity-80 transition-all duration-200`}
             style={lit(isPaused ? '#22c55e' : '#eab308', isTabPressed)}
           >
             {rows(runLabel)}
@@ -2439,18 +2459,18 @@ export default function Timer() {
         )}
 
         <button
-          {...press('KeyR', handleResetClick)}
+          onClick={press(handleResetClick)}
           disabled={isIdleAtConfigured}
-          className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+          className={`${borderClass} control-press font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
           style={lit('#eab308', isResetPressed)}
         >
           {rows('RESET')}
         </button>
 
         <button
-          {...press('KeyS', handleStopClick)}
+          onClick={press(handleStopClick)}
           disabled={isIdleAtConfigured}
-          className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+          className={`${borderClass} control-press font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
           style={lit('#ef4444', isStopPressed)}
         >
           {rows('STOP')}
