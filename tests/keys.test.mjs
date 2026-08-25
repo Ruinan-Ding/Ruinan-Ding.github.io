@@ -135,11 +135,12 @@ check('hints back after ESC', await hintShown(), 'true');
 await press('Tab');
 check('TAB starts again after ESC', await status(), 'RUNNING');
 
-// --- the key lights the button it worked --------------------------------
-// A click shows itself; a key press has nothing to point at, so the button
-// fills white the way the app's white boxes are for a moment. Read off the
-// inline style rather than the painted colour: the buttons carry a 200ms
-// transition, so what is on screen mid-flash is somewhere between the two.
+// --- a filled button is one whose key works ----------------------------
+// Steady, not a flash: the fill says the shortcut is armed. It follows
+// the shortcuts rather than the hint, so a window with no room for the
+// text keeps the fill; typing in the word counter is what takes both.
+// A press fills with the button's own colour instead, so "the key works"
+// and "the key just fired" cannot be read for one another.
 const CTRL = (label) => `[...document.querySelectorAll('button')].find(b=>{const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='${label}';})`;
 const fillOf = (label) => evaluate(`(()=>{const b=${CTRL(label)};return b?b.style.backgroundColor:null})()`);
 const tap = async (name) => {
@@ -148,14 +149,12 @@ const tap = async (name) => {
   if (k.text) await send('Input.dispatchKeyEvent', { type: 'char', ...k });
   await send('Input.dispatchKeyEvent', { type: 'keyUp', ...k });
 };
-
 // Painted, not merely set. These buttons carry transition-all 200ms for
-// their state colours, and left to it the fill crawled up from the surface
-// colour over 223ms, held white for 130 and sank back: a bloom rather than
-// a press, and easy to miss beside the label changing in the same instant.
-// Sampled in the page, since a round trip per sample is slower than the
-// flash, and the button is looked up each frame because the first one is
-// replaced — START unmounts and PAUSE mounts in its place.
+// their state colours, and a press left to it crawled up over 223ms, held
+// for 130 and sank back: a bloom rather than a press. Sampled in the page,
+// since a round trip per sample is slower than the flash, and the button
+// is looked up each frame because the first one is replaced — START
+// unmounts and PAUSE mounts in its place.
 const sampleFill = () => evaluate(`(()=>{
   window.__fill=[];
   const t0=performance.now();
@@ -167,33 +166,48 @@ const sampleFill = () => evaluate(`(()=>{
   tick();
   return 'ok';
 })()`);
-// The ink as the browser resolves it, since the fill is that token and
-// not a literal white: on the light theme --app-ink is near-black, and a
-// check written against white would pass on dark and be meaningless on
-// light — which is how a fill nobody could see got shipped.
-const INK = `(()=>{const p=document.createElement('span');p.style.color='var(--app-ink)';document.body.appendChild(p);const c=getComputedStyle(p).color;p.remove();return c})()`;
-const litPaintedAt = () => evaluate(`(()=>{const ink=${INK};const w=(window.__fill||[]).find(([,c])=>c===ink);return w?w[0]:-1})()`);
+const paintedAt = (css) => evaluate(`(()=>{
+  const p=document.createElement('span');p.style.color=${JSON.stringify('#PLACEHOLDER')};document.body.appendChild(p);
+  const want=getComputedStyle(p).color;p.remove();
+  const w=(window.__fill||[]).find(([,c])=>c===want);
+  return w?w[0]:-1;
+})()`.replace('#PLACEHOLDER', css));
 
-check('running before the press check', await status(), 'RUNNING');
-const restingFill = await fillOf('PAUSE');
+check('running before the fill checks', await status(), 'RUNNING');
+check('an armed button is filled', await fillOf('PAUSE'), 'var(--app-ink)');
+// STOP is live on a running timer and filled with it; the hint being
+// there or not has nothing to do with it.
+check('and so is every other live one', await fillOf('STOP'), 'var(--app-ink)');
+
 await sampleFill();
 await tap('Tab');
 await sleep(120);
-check('TAB fills the button it worked', await fillOf('RESUME'), 'var(--app-ink)');
-const paintedAt = await litPaintedAt();
-check(`the fill lands at once (${paintedAt}ms)`, paintedAt >= 0 && paintedAt <= 100, 'true');
+// Normalised by the browser: set as #22c55e, read back as rgb().
+check('a press takes the button its own colour', await fillOf('RESUME'), 'rgb(34, 197, 94)');
+const at = await paintedAt('#22c55e');
+check(`and lands at once (${at}ms)`, at >= 0 && at <= 100, 'true');
 await sleep(500);
-check('and it lets go again', await fillOf('RESUME'), restingFill);
+check('then back to armed', await fillOf('RESUME'), 'var(--app-ink)');
 check('the press still paused it', await status(), 'PAUSED');
 
-// R and S are the other two, and each lights its own button rather than
+// R and S are the other two, and each takes its own button rather than
 // whichever one the last key touched.
 await tap('r');
 await sleep(120);
-const lit = await evaluate(`(()=>{const on=[...document.querySelectorAll('button')].filter(b=>b.style.backgroundColor==='var(--app-ink)'&&b.querySelector('.control-hint'));return on.map(b=>[...b.children].find(c=>!c.classList.contains('control-hint'))?.textContent.trim()).join(',')})()`);
-check('R lights RESET alone', lit, 'RESET');
+const coloured = await evaluate(`(()=>{const on=[...document.querySelectorAll('button')].filter(b=>b.style.backgroundColor==='rgb(234, 179, 8)'&&b.querySelector('.control-hint'));return on.map(b=>[...b.children].find(c=>!c.classList.contains('control-hint'))?.textContent.trim()).join(',')})()`);
+check('R takes RESET alone', coloured, 'RESET');
 await sleep(700);
 if (await dialogOpen()) await press('Escape');
+
+// Typing is what puts them back: the keys belong to the textarea then,
+// and a button that says its key works would be saying something false.
+const ta = await evaluate(`(()=>{const t=document.querySelector('textarea');if(!t)return null;const r=t.getBoundingClientRect();return {x:Math.round(r.left+40),y:Math.round(r.top+20)}})()`);
+await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: ta.x, y: ta.y, button: 'left', clickCount: 1 });
+await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: ta.x, y: ta.y, button: 'left', clickCount: 1 });
+await sleep(600);
+check('typing empties the fill', await fillOf('RESUME'), 'var(--app-surface)');
+await press('Escape');
+check('and leaving the box brings it back', await fillOf('RESUME'), 'var(--app-ink)');
 
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(34)} got=${r.got.padEnd(30)} want=${r.want}`);
 console.log(`\n${out.filter((r) => r.pass).length}/${out.length} passed`);

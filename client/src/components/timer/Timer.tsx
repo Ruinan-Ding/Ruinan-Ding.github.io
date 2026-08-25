@@ -324,13 +324,19 @@ export default function Timer() {
     // passes left one viewport in the sweep reading a clamp chosen for the
     // layout before it.
     let queued = 0;
-    let later = 0;
+    const timers: number[] = [];
     const soon = () => {
       check();
       cancelAnimationFrame(queued);
-      window.clearTimeout(later);
+      timers.forEach(window.clearTimeout);
+      timers.length = 0;
       queued = requestAnimationFrame(check);
-      later = window.setTimeout(check, 150);
+      // Two late passes, not one. The loop is longer than it looks: the
+      // clamp changes the tip's height, which changes the corner column,
+      // which changes the height the countdown is sized against, which
+      // moves the line the clamp was measured from. Each pass settles one
+      // turn of that, and the controls growing taller added a turn.
+      timers.push(window.setTimeout(check, 150), window.setTimeout(check, 320));
     };
     window.addEventListener('resize', soon);
     const observer = new ResizeObserver(soon);
@@ -340,7 +346,7 @@ export default function Timer() {
       window.removeEventListener('resize', soon);
       observer.disconnect();
       cancelAnimationFrame(queued);
-      window.clearTimeout(later);
+      timers.forEach(window.clearTimeout);
     };
   }, [timerRowRef]);
 
@@ -1675,7 +1681,7 @@ export default function Timer() {
   // around 900px and the buttons then held their size while everything
   // beside them kept shrinking, which made them the largest thing on a
   // narrow window.
-  const CONTROL_LABEL = boxClamp(0.5, 1.85, 4.6, 1.25);
+  const CONTROL_LABEL = boxClamp(0.5, 2.05, 5.1, 1.4);
   const CONTROL_PAD_X = fitClamp(0.25, 1.4, 1.0);
   const CONTROL_WIDTH = fitClamp(4, 16, 8.5);
   // The hint against the width it actually has, rather than at a fixed
@@ -1696,24 +1702,21 @@ export default function Timer() {
   // line has to fit the box less that clearance — 18px of the box, being
   // 8 of border and the 10 that rule now allows, where this took 32 and
   // left the difference standing as margin down both sides of every
-  // button. The rest keeps it off
-  // the edge of its own hide rule rather than sitting exactly on it and
-  // flickering.
+  // button. The rest keeps it off the edge of its own hide rule rather
+  // than sitting exactly on it and flickering.
   //
-  // Capped by the label as well, which is what stops this growing the
-  // button on a short window: the label carries a cqh term and the width
-  // doesn't, so on its own the width term would hold a full-size note
-  // over a shrinking word and make the box taller exactly where height is
-  // scarcest, and it is what keeps the note under the word on a short
-  // window: at 1600x520 an absolute floor of 0.66rem held the hint at
-  // 10.6px against a 9.4px label, and a key drawn larger than that was
-  // touching the border above it. 0.82 rather than 1 so the note stays
-  // smaller than the word
-  // it is a note on, which at the short end they had come level with.
-  // The floor is a real floor, above what the narrow end can
-  // fit, so down there the line stops fitting and goes rather than
-  // shrinking to nothing — the label takes the whole box then.
-  const CONTROL_HINT = `max(0.62rem, min(calc((${CONTROL_WIDTH} - 18px) / 7.9), calc(${CONTROL_LABEL} * 1.02)))`;
+  // Capped by the label as well, and 0.83 is 1/KEY_SCALE: the key inside
+  // the line is drawn larger again, and this is what stops that key
+  // outgrowing the word it is a note on. It does two other jobs at the
+  // same time — it keeps the box from growing on a short window, since
+  // the label carries a cqh term and the width doesn't, and it keeps the
+  // key's ink off the border above it, which on a 520px-tall window it
+  // was touching.
+  //
+  // The floor is a real floor, above what the narrow end can fit, so down
+  // there the line stops fitting and goes rather than shrinking to
+  // nothing — the label takes the whole box then.
+  const CONTROL_HINT = `max(0.62rem, min(calc((${CONTROL_WIDTH} - 18px) / 7.9), calc(${CONTROL_LABEL} * 0.83)))`;
   // The whole distance from the key to the top of the box, with the rows
   // spread edge to edge. Raised from 0.12/0.6/1.5/0.32 once the key was
   // drawn larger than the words beside it: a glyph's ink runs past the
@@ -2330,26 +2333,42 @@ export default function Timer() {
       e.currentTarget.blur();
       run();
     };
-    // Filled the way the app's white boxes are, so a key press shows on
-    // the button it worked. Same shape as hovering one, which is what a
-    // press of it would have looked like.
+    // A filled button is one whose key works right now.
     //
-    // The ink, not a literal white. Those boxes are not white either —
-    // index.css maps Tailwind's --color-white onto --app-ink — and on the
-    // light theme the button's own surface is #f4f4f4, so filling it
-    // #ffffff was a four percent change nobody could see.
+    // Filled the way the app's white boxes are: the ink, not a literal
+    // white. Those boxes are not white either — index.css maps Tailwind's
+    // --color-white onto --app-ink — and on the light theme the button's
+    // own surface is #f4f4f4, so filling that #ffffff would be a four
+    // percent change nobody could see.
+    //
+    // It follows the shortcuts rather than the hint. The hint is dropped
+    // on a window with no room for it and the keys go on working, so the
+    // fill stays; it is typing in the word counter, or leaving the window,
+    // that takes the keys away, and that is when the button goes back to
+    // the surface it sits on.
+    //
+    // A press fills with the button's own colour instead, so the two
+    // states can't be confused for one another: white says the key works,
+    // green or yellow or red says it just did.
+    //
+    // A disabled button is not filled either, for the same reason it is
+    // not a lie: RESET and STOP are off on an untouched timer and their
+    // keys are refused there, and a white box at the 50% the disabled
+    // class draws came out a muddy grey that said nothing.
     //
     // transition none on the way in, and only on the way in. These buttons
-    // carry transition-all 200ms for their state colours, and left to it
-    // the fill crawled up from the surface colour over 223ms, held white
-    // for 130 and sank back — a bloom, not a press, and easy to miss
-    // beside the label changing and the window flashing green in the same
-    // instant. Dropped on release, so the class's own transition is what
-    // fades it out.
-    const lit = (color: string, pressed: boolean) =>
-      (pressed
-        ? { ...buttonStyle(color), backgroundColor: 'var(--app-ink)', color: 'var(--app-surface)', transition: 'none' }
-        : buttonStyle(color));
+    // carry transition-all 200ms for their state colours, and left to it a
+    // press crawled up over 223ms, held for 130 and sank back — a bloom,
+    // not a press. Dropped on release, so the class's own transition is
+    // what fades it out.
+    const lit = (color: string, pressed: boolean, off = false) => ({
+      ...buttonStyle(color),
+      ...(pressed
+        ? { backgroundColor: color, color: 'var(--app-surface)', transition: 'none' }
+        : areShortcutsLive && !off
+          ? { backgroundColor: 'var(--app-ink)', color: 'var(--app-surface)' }
+          : {}),
+    });
     const runLabel = isPaused ? 'RESUME' : 'PAUSE';
     return (
       <>
@@ -2379,7 +2398,7 @@ export default function Timer() {
           onClick={press(handleResetClick)}
           disabled={isIdleAtConfigured}
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-          style={lit('#eab308', isResetPressed)}
+          style={lit('#eab308', isResetPressed, isIdleAtConfigured)}
         >
           {rows('RESET')}
         </button>
@@ -2388,7 +2407,7 @@ export default function Timer() {
           onClick={press(handleStopClick)}
           disabled={isIdleAtConfigured}
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-          style={lit('#ef4444', isStopPressed)}
+          style={lit('#ef4444', isStopPressed, isIdleAtConfigured)}
         >
           {rows('STOP')}
         </button>
