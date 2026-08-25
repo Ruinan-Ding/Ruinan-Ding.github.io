@@ -79,10 +79,10 @@ function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, in
 
 interface PresetsPanelProps {
   presets: TimerEntry[];
-  // Returns whether the preset actually went in. False when that time is
-  // already listed, which is answered by flashing the existing row rather
-  // than adding a second copy.
-  onAdd: (parts: TimeParts & { negative?: boolean }) => boolean;
+  // Nothing comes back: a question can stand in front of the add, so
+  // whether it went in isn't known yet. The box clears on `inserted`
+  // instead, which only bumps once one actually lands.
+  onAdd: (parts: TimeParts & { negative?: boolean }) => void;
   // asks to remove; onRemove is the other half, called once the row has
   // finished animating out (see PresetRow)
   onRequestRemove: (id: string) => void;
@@ -109,6 +109,14 @@ interface PresetsPanelProps {
 // tracked instead and rendered unpadded, "1:30" rather than "00:01:30".
 function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, onRequestCorrect, onClear, correction, onCorrectionApplied, onSelect, inserted, loaded, duplicate }: PresetsPanelProps) {
   const [digits, setDigits] = useState('');
+  // Emptied when an add lands, not when one is asked for. A refused
+  // duplicate, a cancelled question or a full list all leave what was
+  // typed sitting there to edit, beside whatever said why.
+  useEffect(() => {
+    if (!inserted) return;
+    setDigits('');
+    setNegative(false);
+  }, [inserted]);
   // The sign of what's being typed, separate from the digits so "-" can be
   // pressed anywhere in the entry and pressed again to take it back off.
   const [negative, setNegative] = useState(false);
@@ -148,13 +156,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
       return;
     }
     if (add) {
-      // Only clear if the time actually went in. A refused duplicate
-      // leaves what was typed sitting there to edit, beside the row
-      // flashing red to say why.
-      if (onAdd({ ...parsePresetDigits(digits), negative })) {
-        setDigits('');
-        setNegative(false);
-      }
+      onAdd({ ...parsePresetDigits(digits), negative });
     } else {
       setDigits(presetDigitsFromParts(parsePresetDigits(digits)));
     }
@@ -209,10 +211,7 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   useEffect(() => {
     if (!correction) return;
     if (correction.add) {
-      if (onAdd({ ...parsePresetDigits(correction.digits), negative })) {
-        setDigits('');
-        setNegative(false);
-      }
+      onAdd({ ...parsePresetDigits(correction.digits), negative });
     } else {
       const before = rawPresetDigits(digits);
       const after = rawPresetDigits(correction.digits);

@@ -1047,15 +1047,24 @@ export default function Timer() {
     askThenRun({ type: 'switch', data: signed, mode }, () => applySwitch(parts, true, negative));
   }, [hasRunToLose, isPaused, applySwitch, askThenRun]);
 
-  const handleSelectEntry = useCallback((entry: TimerEntry) => {
+  // From either list. `act` says which, so the two get their own rows:
+  // switchToEntry only asks where there's a run to lose, and on an idle
+  // timer a click here started one with nothing said at all.
+  const handleSelectEntry = useCallback((entry: TimerEntry, act: FullAct) => {
     const parts: TimeParts = { hours: entry.hours ?? 0, minutes: entry.minutes, seconds: entry.seconds };
     // On the click rather than when the switch applies: a cancelled switch
     // leaves a harmless flash, and this saves threading the id through the
     // dialog. The panels check loaded before inserted, so loading a
     // just-created entry goes green rather than staying yellow.
     setLoadedEntry((prev) => bumpFlash(prev, entry.id));
-    switchToEntry(parts, entry.negative === true);
-  }, [switchToEntry]);
+    if (hasRunToLose()) {
+      switchToEntry(parts, entry.negative === true);
+      return;
+    }
+    askFull(act, () => switchToEntry(parts, entry.negative === true));
+  }, [switchToEntry, hasRunToLose, askFull]);
+  const handleSelectPreset = useCallback((entry: TimerEntry) => handleSelectEntry(entry, 'loadPreset'), [handleSelectEntry]);
+  const handleSelectHistory = useCallback((entry: TimerEntry) => handleSelectEntry(entry, 'loadHistory'), [handleSelectEntry]);
 
   const handleConfirmSwitch = (parts: TimeParts, start: boolean, negative = false) => {
     applySwitch(parts, start, negative);
@@ -1063,13 +1072,17 @@ export default function Timer() {
   };
 
   // The list is a set of times, so adding one it already holds adds
-  // nothing and points at the row instead. Returns whether anything went
-  // in, so the panel knows whether to clear its input.
+  // nothing and points at the row instead.
+  //
+  // Nothing is returned. The panel used to clear its input on a true from
+  // here, which only worked while the answer was immediate; with a
+  // question in front of the add it clears on the insert landing instead,
+  // so a cancel leaves the typed digits where they are.
   //
   // Matched on the time rather than the label, since formatEntryLabel
   // drops leading zeroes and 1:05 and 0:01:05 print the same. The sign
   // counts: -1:05 and 1:05 are different presets.
-  const handleAddPreset = useCallback((parts: TimeParts & { negative?: boolean }): boolean => {
+  const handleAddPreset = useCallback((parts: TimeParts & { negative?: boolean }) => {
     const negative = parts.negative === true;
     const existing = presets.find(
       (p) => (p.hours ?? 0) === parts.hours && p.minutes === parts.minutes && p.seconds === parts.seconds
@@ -1083,18 +1096,22 @@ export default function Timer() {
         { type: 'duplicatePreset', data: { id: existing.id, label: formatEntryLabel(existing) } },
         () => setDuplicatePreset((prev) => bumpFlash(prev, existing.id))
       );
-      return false;
+      return;
     }
-    if (presets.length >= MAX_PRESETS) return false;
-    const id = uniqueId();
-    setPresets((prev) => [...prev, { id, ...parts, negative, timestamp: 0 }]);
-    setInsertedPreset((prev) => bumpFlash(prev, id));
-    // Adding a time is a request to use it, so it runs, through the same
-    // gate as clicking the row would. An out-of-range entry never gets
-    // here: the panel sends it to the correction dialog first.
-    switchToEntry(parts, negative);
-    return true;
-  }, [presets, switchToEntry]);
+    if (presets.length >= MAX_PRESETS) return;
+    askFull('addPreset', () => {
+      const id = uniqueId();
+      setPresets((prev) => [...prev, { id, ...parts, negative, timestamp: 0 }]);
+      setInsertedPreset((prev) => bumpFlash(prev, id));
+      // Saving a time and running it are two decisions, so they are two
+      // questions. Deferred, or this one is opened by the click that is
+      // about to close the one it came from.
+      //
+      // An out-of-range entry never gets here: the panel sends it to the
+      // correction dialog first.
+      queueMicrotask(() => askFull('loadAddedPreset', () => switchToEntry(parts, negative)));
+    });
+  }, [presets, switchToEntry, askFull]);
 
   // Two steps, so the delete animation plays after the question is
   // answered. Setting this fizzes the row out; dropping it from the array
@@ -2472,14 +2489,14 @@ export default function Timer() {
             onClear={handleRequestClearPresets}
             correction={presetCorrection}
             onCorrectionApplied={handlePresetCorrectionApplied}
-            onSelect={handleSelectEntry}
+            onSelect={handleSelectPreset}
             inserted={insertedPreset}
             loaded={loadedEntry}
             duplicate={duplicatePreset}
           />
           <HistoryPanel
             history={history}
-            onSelect={handleSelectEntry}
+            onSelect={handleSelectHistory}
             onRequestRemove={handleRequestRemoveHistory}
             onRemove={handleRemoveHistoryEntry}
             removingId={removingHistoryId}

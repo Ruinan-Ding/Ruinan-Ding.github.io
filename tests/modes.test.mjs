@@ -149,7 +149,7 @@ const hoverConfirm = async () => {
 };
 await hoverConfirm();
 check('hovering opens the list', await ev(`!!(${LIST})`), 'true');
-check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button:not([data-confirm-section])').length ?? 0`), 45);
+check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button:not([data-confirm-section])').length ?? 0`), 51);
 check('the list scrolls', await ev(`(()=>{const l=document.querySelector('[data-confirm-scroll]');return !!l && l.scrollHeight > l.clientHeight})()`), 'true');
 // In full mode nothing is greyed: every row is a question being asked.
 check('full greys nothing', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 0);
@@ -206,7 +206,7 @@ await hoverConfirm();
 await clickSection('full', 'full heading again');
 await enter();
 await sleep(400);
-check('confirming silences the whole section', await ticks(), 21);
+check('confirming silences the whole section', await ticks(), 27);
 await hoverConfirm();
 check('and the heading fills', await ev(`${SECTION('full')}?.getAttribute('aria-pressed')`), 'true');
 
@@ -263,7 +263,7 @@ check('none asks nothing', await dialogTitle(), 'null');
 check('and the stop went through', await status(), 'READY');
 
 await hoverConfirm();
-check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 45);
+check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 51);
 check('and greys both headings with them', await ev(`[...document.querySelectorAll('[data-confirm-section]')].map(d=>getComputedStyle(d).color).join('|')`), 'rgb(107, 114, 128)|rgb(107, 114, 128)');
 // Greyed is not disabled: the answer still lands, it just changes nothing
 // until the mode comes back round to asking that question.
@@ -275,7 +275,7 @@ await moveTo(700, 500);
 await clickEl(CONFIRM_BTN, 'confirm toggle');
 check('three clicks come back to half', await mode(), 'half');
 await hoverConfirm();
-check('half greys only the full rows', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 21);
+check('half greys only the full rows', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 27);
 check('the half heading stays lit', await ev(`getComputedStyle(${SECTION('half')}).color`), 'rgb(34, 197, 94)');
 check('and the full one greys with its rows', await ev(`getComputedStyle(${SECTION('full')}).color`), 'rgb(107, 114, 128)');
 check('the twelve greyed are the twelve under it', await ev(`(()=>{const d=${SECTION('full')};return [...document.querySelectorAll('[data-confirm-list] button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').every(b=>d.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING)})()`), 'true');

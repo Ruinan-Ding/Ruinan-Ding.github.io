@@ -189,6 +189,42 @@ export const FULL_ACTS: Record<FullAct, { label: string; title: string; descript
     description: "Put the keyboard in the word counter? TAB, R and S go to the box you're typing in while it has focus, so the timer's shortcuts stop working until you press ESC or click away.",
     action: 'CONFIRM',
   },
+  copyWordCounter: {
+    label: 'Copy what the word counter holds',
+    title: 'COPY THE TEXT',
+    description: 'Copy everything in the word counter to the clipboard? Whatever is on it now is replaced.',
+    action: 'COPY',
+  },
+  leaveWordCounter: {
+    label: 'Take the keyboard back off the word counter',
+    title: 'LEAVE THE COUNTER',
+    description: "Give the keyboard back to the timer? TAB, R and S work the timer again, and stop reaching the box you were typing in.",
+    action: 'CONFIRM',
+  },
+  addPreset: {
+    label: 'Save a preset',
+    title: 'SAVE PRESET',
+    description: 'Add this time to the presets? It stays in the list until you delete it or clear them all.',
+    action: 'SAVE',
+  },
+  loadAddedPreset: {
+    label: 'Run a preset straight after saving it',
+    title: 'RUN IT NOW',
+    description: 'Put the preset you just saved on the timer and start it? Saying no leaves it in the list for later.',
+    action: 'RUN IT',
+  },
+  loadPreset: {
+    label: 'Run a preset from the list',
+    title: 'RUN PRESET',
+    description: 'Put this preset on the timer and start it? The timer has no run to lose, so nothing is discarded.',
+    action: 'RUN IT',
+  },
+  loadHistory: {
+    label: 'Run a time from history',
+    title: 'RUN THIS AGAIN',
+    description: 'Put this time back on the timer and start it? The timer has no run to lose, so nothing is discarded.',
+    action: 'RUN IT',
+  },
   timeZone: {
     label: "Change the clock's time zone",
     title: 'CHANGE TIME ZONE',

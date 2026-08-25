@@ -142,6 +142,30 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
   // Checked before any of it, so the modes that don't ask keep a plain
   // focus rather than a blur and refocus nobody needs.
   const typingAskedRef = useRef(false);
+  // Whether a pointer is down anywhere on the page. Blur fires on
+  // mousedown, so a question raised straight from it puts a modal overlay
+  // up before mouseup and the button under the pointer never gets its
+  // click — press the hide arrow and the counter stays where it is. The
+  // question waits for the pointer to come up, by which time the click it
+  // interrupted has been delivered.
+  const pointerDownRef = useRef(false);
+  useEffect(() => {
+    const down = () => { pointerDownRef.current = true; };
+    const up = () => { pointerDownRef.current = false; };
+    document.addEventListener('pointerdown', down, true);
+    document.addEventListener('pointerup', up, true);
+    return () => {
+      document.removeEventListener('pointerdown', down, true);
+      document.removeEventListener('pointerup', up, true);
+    };
+  }, []);
+  const askAfterThePointer = (run: () => void) => {
+    if (!pointerDownRef.current) {
+      run();
+      return;
+    }
+    document.addEventListener('pointerup', () => setTimeout(run, 0), { once: true });
+  };
   const handleTextareaFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
     const question: DialogState = { type: 'full', act: 'typeInWordCounter', run: () => {} };
     if (typingAskedRef.current || !shouldAsk(question, confirmMode)) {
@@ -294,7 +318,7 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
   // which this has everywhere it runs, and the fallback would only fire
   // where the modern API was deliberately blocked. Better to report the
   // failure than to smuggle the text out through a hidden textarea.
-  const handleCopy = async () => {
+  const copyText = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopyState('copied');
@@ -302,6 +326,7 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
       setCopyState('failed');
     }
   };
+  const handleCopy = () => askFull('copyWordCounter', copyText);
 
   const setFocused = (focused: boolean) => {
     setIsFocused(focused);
@@ -624,9 +649,22 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
               value={text}
               onChange={handleTextChange}
               onFocus={handleTextareaFocus}
+              // Asked after the fact, not before: focus has already left
+              // by the time this runs, and a question that took it back
+              // would fight whatever the click was aiming at. ESC asks at
+              // once; a click waits for its own mouseup first.
               onBlur={() => {
                 typingAskedRef.current = false;
                 setFocused(false);
+                askAfterThePointer(() => {
+                  // Whatever was clicked may have raised a question of
+                  // its own, and there is one dialog to show. That one
+                  // wins: it is about the thing being done, where this is
+                  // about having stopped typing. Read off the DOM because
+                  // the timer's dialogs are its own state, not this box's.
+                  if (document.querySelector('[role="alertdialog"][data-state="open"]')) return;
+                  askFull('leaveWordCounter', () => {});
+                });
               }}
               // ESC hands the keyboard back to the timer. Its shortcuts sit
               // on the window and skip anything being typed into, so

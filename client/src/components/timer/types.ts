@@ -49,6 +49,12 @@ export type FullAct =
   | 'volume'
   | 'alarmLoop'
   | 'typeInWordCounter'
+  | 'copyWordCounter'
+  | 'leaveWordCounter'
+  | 'addPreset'
+  | 'loadAddedPreset'
+  | 'loadPreset'
+  | 'loadHistory'
   | 'timeZone'
   | 'hourFormat';
 
