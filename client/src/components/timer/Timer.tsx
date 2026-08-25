@@ -272,18 +272,13 @@ export default function Timer() {
     setHidden: setTimeFieldsHidden,
   } = useTimeFieldsTuck(isRowLayout, isWideLayout);
   const isLinkCrowded = useTightFit(gapBetween(headerLeftRef, linkBandRef), timerRowRef, 8);
-  // How many lines of the alarm tip there is room for before it reaches
-  // the readout beside it.
+  // How many lines of the alarm tip fit before it reaches the readout.
   //
-  // A height media query can't answer this: the tip and the readout only
-  // collide where they share horizontal space, and where they do is a
-  // question about the sidebar, the window's width and how wide the
-  // countdown has grown, not about how tall the window is. Measured, it
-  // was running over the digits at 13 of 72 viewports.
-  //
-  // TIP_MAX_LINES when they don't overlap horizontally at all, which is
-  // most wide windows: the tip is off to the left of everything and can
-  // have its whole say.
+  // Not a height media query: the two only collide where they share
+  // horizontal space, and whether they do is a question about the
+  // sidebar, the window's width and how wide the countdown has grown.
+  // TIP_MAX_LINES when they don't overlap at all, which is most wide
+  // windows — the tip is off to the left and can have its whole say.
   const [tipLines, setTipLines] = useState(TIP_MAX_LINES);
   useEffect(() => {
     const check = () => {
@@ -748,9 +743,8 @@ export default function Timer() {
     if (code === 'Tab') return true;
     return !isIdleAtConfigured;
   };
-  // Reports whether it did anything, since a key can be refused between
-  // going down and coming up — the dialog that opens under a held TAB is
-  // the ordinary way — and one that did nothing must not flash as though
+  // Reports whether it did anything: a key can be refused between going
+  // down and coming up, and one that did nothing must not flash as though
   // it worked.
   const keyActionRef = useRef<(code: KeyCode) => boolean>(() => false);
   keyActionRef.current = (code) => {
@@ -766,17 +760,12 @@ export default function Timer() {
   };
 
   // Which key is down, and which one just came up. Down colours the
-  // button and does nothing else; up moves the run and keeps the colour a
+  // button and does nothing else; up moves the run and holds the colour a
   // beat longer, so a tap too quick to see held still reads as a press.
-  // Held on the keydown, that was not true: TAB started the timer the
-  // instant it went down, so holding it swapped START for PAUSE under the
-  // very key that was still down.
   //
   // Set straight rather than through useFlashOnToken, which turns on a
   // tick later: batched with the release that clears heldKey, that tick
-  // was a frame of the armed white between the held colour and the
-  // flash — measured, and the same blink this whole thing exists to
-  // avoid.
+  // is a frame of the armed white between the two colours.
   const [heldKey, setHeldKey] = useState<KeyCode | null>(null);
   const [firedKey, setFiredKey] = useState<KeyCode | null>(null);
   const heldKeyRef = useRef<KeyCode | null>(null);
@@ -1291,25 +1280,17 @@ export default function Timer() {
     }
 
     const state = timerStateKind();
-    // Half asks the way it always has: only where there's a run to lose,
-    // and once per stretch of it, since three fields doing the same thing
-    // shouldn't be three questions. Full asks every time and in every
-    // state, which is what makes the idle and ringing rows in the confirm
-    // list reachable at all — nothing else ever produces them.
-    // Full mode differs from half in two ways here, and they are separate
-    // questions with separate answers.
+    // Full differs from half two ways, and they answer separately.
     //
-    // Scope: which states ask at all. Half asks only where there's a run
-    // to lose; full asks in every one, which is what makes the idle and
-    // ringing rows in the list reachable — nothing else produces them.
-    // Those rows are how you take a state back out.
+    // Scope: which states ask. Half asks only where there's a run to
+    // lose; full asks in all four, which is what makes the idle and
+    // ringing rows in the list reachable at all.
     //
-    // Cadence: how often. Half asks once per pause or resume; full asks
-    // every time. That one is a rule rather than an act — the question it
-    // governs is a half-tier one and only its frequency changes — so it
-    // reads a row rather than a dialog key. Ticking "Change the time
-    // again in the same run" drops full to half's cadence while leaving
-    // its scope alone: still every state, now once per stretch.
+    // Cadence: how often. Half asks once per pause or resume, since three
+    // fields doing the same thing shouldn't be three questions; full asks
+    // every time. That is a rule rather than an act — the question is a
+    // half-tier one and only its frequency changes — so it reads a row
+    // instead of a dialog key.
     const asksInThisState = confirmMode === 'full' || hasRunToLose();
     const asksEveryTime = confirmMode === 'full' && !suppressedKeys.includes('adjustAgain');
     if (asksInThisState && (asksEveryTime || !askedAdjustRef.current)) {
@@ -2351,53 +2332,37 @@ export default function Timer() {
         </>
       );
     };
-    // A clicked button keeps focus, and a focused button answers ENTER
-    // and SPACE with another press of itself. This app's start/pause key
-    // is TAB, and TAB never reaches a button — the window handler takes it
-    // before focus moves — so those two are presses nobody asked for:
-    // click START and hit ENTER and the run you just started pauses.
-    // Dropping focus on the way out is what stops it, and costs nothing,
-    // since TAB being spoken for means these were never reachable by
-    // keyboard to begin with. Before the action, so a dialog it opens
-    // keeps the focus it takes for itself.
-    // A click is a press too, and it already lands on the release: the
-    // browser fires click after mouseup. The holding is :active's job
-    // (see .control-press in index.css) rather than more of the state the
-    // keys use — one state for both meant a pointer crossing a button
-    // cleared the key someone was holding, and swallowed the press.
+    // A click already lands on the release, since the browser fires click
+    // after mouseup; the holding is :active's job (.control-press in
+    // index.css) rather than more of the state the keys use, which as one
+    // variable let a pointer crossing a button swallow a held key.
+    //
+    // The blur is what stops a clicked button answering ENTER and SPACE
+    // with another press of itself. This app's start/pause key is TAB,
+    // which never reaches a button, so those two were presses nobody
+    // asked for: click START, hit ENTER, and the run you just started
+    // pauses. It costs nothing, since TAB being spoken for means these
+    // were never keyboard-reachable anyway. Before the action, so a
+    // dialog it opens keeps the focus it takes.
     const press = (run: () => void) => (e: React.MouseEvent<HTMLButtonElement>) => {
       e.currentTarget.blur();
       run();
     };
-    // A filled button is one whose key works right now.
+    // A filled button is one whose key works. It follows the shortcuts
+    // rather than the hint: a window with no room for "Press TAB to" still
+    // answers TAB, so the fill stays, and it is typing in the word counter
+    // or leaving the window that empties it.
     //
-    // Filled the way the app's white boxes are: the ink, not a literal
-    // white. Those boxes are not white either — index.css maps Tailwind's
-    // --color-white onto --app-ink — and on the light theme the button's
-    // own surface is #f4f4f4, so filling that #ffffff would be a four
-    // percent change nobody could see.
+    // The ink, not a literal white — index.css maps Tailwind's
+    // --color-white onto --app-ink, so the app's white boxes invert with
+    // the theme and this has to as well. A press takes the button's own
+    // colour instead, so "the key works" and "the key just fired" can't be
+    // read for one another.
     //
-    // It follows the shortcuts rather than the hint. The hint is dropped
-    // on a window with no room for it and the keys go on working, so the
-    // fill stays; it is typing in the word counter, or leaving the window,
-    // that takes the keys away, and that is when the button goes back to
-    // the surface it sits on.
-    //
-    // A press fills with the button's own colour instead, so the two
-    // states can't be confused for one another: white says the key works,
-    // green or yellow or red says it just did.
-    //
-    // All three fill together, including the two that are off on an
-    // untouched timer. Their keys are refused there, so this is not
-    // strictly "the key works" for them — the disabled class's own 50% is
-    // what says so, and a row where one button is filled and two are not
-    // reads as three unrelated controls rather than one set.
-    //
-    // transition none on the way in, and only on the way in. These buttons
-    // carry transition-all 200ms for their state colours, and left to it a
-    // press crawled up over 223ms, held for 130 and sank back — a bloom,
-    // not a press. Dropped on release, so the class's own transition is
-    // what fades it out.
+    // transition none on the way in only. These buttons carry
+    // transition-all 200ms for their state colours, which turns a press
+    // into a slow bloom; the release still fades on the class's own
+    // transition.
     const lit = (color: string, pressed: boolean) => ({
       ...buttonStyle(color),
       // What a press paints, for the keyboard here and for :active in the
@@ -2631,35 +2596,18 @@ export default function Timer() {
             >
             <div
               className="font-bold tracking-wider text-white"
-              // Solved from the layout rather than picked. Two things
-              // scale with this: the digit line, whose box is exactly 1x
-              // its font-size under leading-none, and the drain bar, which
-              // takes height and margin from the digit size and measures
-              // another 0.24x. So the content is the reserve below plus
-              // 1.24x, and 1.29 is the margin on that. Every 0.01 of it is
-              // ~5px of dead space on a 1080-tall window.
+              // Whichever runs out first, the column's width or its
+              // height. The height term takes the column less what has to
+              // sit under the digits and divides by 1.8, which covers the
+              // digit line and the drain bar that scales with it.
               //
-              // The reserve can't be a constant: the siblings are
-              // themselves min(vw, vh) clamps, ~12.5rem on a tall window
-              // and near 8.6rem on a short one. Every reserved pixel costs
-              // its own height in font-size, so over-reserving pins the
-              // digits at their floor with room to spare.
-              // max(floor, vh-scaled) tracks them while they scale and
-              // takes over once they stop; the second max() is the clock's
-              // own reserve, shaped like CLOCK_FONT_SIZE for the same reason.
-              //
-              // Shrinking this reserve does nothing on its own, which was
-              // measured rather than assumed: at all 22 viewports the
-              // min() picks the width term, so the digits are held by the
-              // column's width and never by this. The height the clock and
-              // hint rows gave back by going to one line each shows up as
-              // slack above and below instead, and spending it means
-              // changing how the row and the word counter split the column
-              // rather than touching anything here.
+              // BELOW_DIGITS is the controls' own height rather than a
+              // constant, since they are themselves clamps: every pixel
+              // over-reserved costs the digits their own height in
+              // font-size and pins them at the floor with room to spare.
               //
               // One formula, two containers: at sm+ the nearest is the box
-              // above, below sm it's the row. Same siblings either way,
-              // since the website link is hidden below md.
+              // above, below sm it's the row.
               style={{
                 fontSize: `clamp(1.2rem, min(${digitWidthLimit}, calc((100cqh - ${BELOW_DIGITS}) / 1.8)), ${digitCeiling})`,
                 fontFamily: "'IBM Plex Mono', monospace",

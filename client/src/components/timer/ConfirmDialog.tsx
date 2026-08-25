@@ -265,20 +265,11 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           actionRef.current.focus();
         }}
         onKeyDown={(e) => {
-          // ENTER is what every one of these dialogs prints on its action
-          // button, but the browser hands it to whatever holds focus, and
-          // the dialog opening pointed at the action only holds until
-          // something inside is clicked. Ticking "don't ask this again"
-          // and then reaching for ENTER — the ordinary way to answer one
-          // of these — pressed the checkbox again and left the question
-          // standing.
-          //
-          // Sent to the action from anywhere but CANCEL, rather than
-          // patching that one control, since the same thing is true of
-          // anything else that ends up with the focus. CANCEL is the
-          // exception because it is the one way a keyboard says no:
-          // tabbing onto it and pressing the key printed on it must not
-          // confirm.
+          // ENTER is printed on the action button, but the browser hands
+          // it to whatever holds focus, and the dialog only opens pointed
+          // at the action — anything clicked inside takes it, the "don't
+          // ask this again" box included. So it goes to the action from
+          // anywhere but CANCEL, which is the one way a keyboard says no.
           if (e.key === 'Enter' && !(e.target as HTMLElement).closest('[data-cancel]')) {
             e.preventDefault();
             actionRef.current?.click();

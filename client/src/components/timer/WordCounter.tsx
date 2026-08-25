@@ -133,17 +133,14 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
   };
   const askFull = (act: FullAct, run: () => void) => ask({ type: 'full', act, run }, run);
 
-  // Focus is the act here, so the question comes before it: the box is
-  // given the keyboard only once it's answered. It has to let go first —
-  // the dialog takes focus as it opens, and a textarea still holding it
-  // would be typed into behind the question — and the flag is set in the
-  // answer rather than before the blur, or the blur clears it and the
-  // focus that follows asks again, forever. Cleared on blur, so coming
-  // back to the box is a fresh visit and asks again.
-  //
-  // The question is looked up before any of that, so the modes that
-  // don't ask keep the plain focus they always had rather than a
-  // blur-and-refocus nobody needs.
+  // Focus is the act, so the question comes before it and the box is
+  // given the keyboard only once it's answered. It has to let go first,
+  // or a textarea still holding focus is typed into behind the dialog.
+  // The flag is set in the answer rather than before the blur — set
+  // earlier, the blur clears it and the focus that follows asks again,
+  // forever — and cleared on blur, so returning to the box asks afresh.
+  // Checked before any of it, so the modes that don't ask keep a plain
+  // focus rather than a blur and refocus nobody needs.
   const typingAskedRef = useRef(false);
   const handleTextareaFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
     const question: DialogState = { type: 'full', act: 'typeInWordCounter', run: () => {} };

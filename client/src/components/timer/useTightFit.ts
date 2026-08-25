@@ -56,20 +56,12 @@ export function useTightFit(
         setIsTight(true);
       }
     };
-    // One pass per resize is one too few. Dropping the piece changes the
-    // layout that decides whether to drop it, and a pass that bails —
-    // because the two boxes weren't level yet, or the gap hadn't settled —
-    // records nothing, so nothing brings it back. A window resized in one
-    // jump then keeps whatever the first frame happened to say: measured
-    // over 182 viewports, two of them sat with the clock 12px under the
-    // speaker until something else moved. A second look on the next frame
-    // costs one rect read and settles both cases.
-    // Two of them, because the state this reads is the state it writes:
+    // Three passes, because the state this reads is the state it writes:
     // dropping the piece reopens the gap, restoring it closes one, and
-    // each pass can only move one step. The frame after covers a drop
-    // React has committed but the browser hasn't laid out; the short delay
-    // after that covers the other direction, where a piece coming back
-    // widens its row only once it has actually rendered.
+    // each pass moves one step. The frame after covers a drop React has
+    // committed but the browser hasn't laid out; the delay after that
+    // covers a piece coming back, which widens its row only once it has
+    // rendered.
     let queued = 0;
     let later = 0;
     const checkSoon = () => {
@@ -128,15 +120,3 @@ export const gapWhenLevel = (
   return rb.left - ra.right;
 };
 
-// The gap between a box's left edge and the inside of the box it sits in,
-// which is what "reaches the sidebar, or the window edge once the sidebar
-// is tucked" comes to: the row already starts where the sidebar ends.
-export const gapFromLeftEdge = (
-  inner: React.RefObject<HTMLElement | null>,
-  outer: React.RefObject<HTMLElement | null>
-) => () => {
-  const a = inner.current;
-  const b = outer.current;
-  if (!a || !b) return null;
-  return a.getBoundingClientRect().left - b.getBoundingClientRect().left;
-};
