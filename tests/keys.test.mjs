@@ -209,6 +209,51 @@ check('typing empties the fill', await fillOf('RESUME'), 'var(--app-surface)');
 await press('Escape');
 check('and leaving the box brings it back', await fillOf('RESUME'), 'var(--app-ink)');
 
+// All three together, including the two that are off on an untouched
+// timer: a row where one is filled and two are not reads as three
+// unrelated controls rather than one set. The disabled class's own 50% is
+// what says those two can't be pressed yet.
+const unfilled = () => evaluate(`(()=>{
+  const bs=[...document.querySelectorAll('button')].filter(b=>b.querySelector('.control-hint'));
+  return bs.filter(b=>b.style.backgroundColor!=='var(--app-ink)')
+    .map(b=>([...b.children].find(c=>!c.classList.contains('control-hint'))||{}).textContent.trim()).join(',');
+})()`);
+check('every armed button is filled', await unfilled(), '');
+
+// --- held colours, released acts ---------------------------------------
+// A held key colours its button and does nothing else. Held on the way
+// down, TAB started the timer the instant it went down, so holding it
+// swapped START for PAUSE under the very key that was still down — and
+// autorepeat kept the swap coming.
+const heldFill = () => evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.querySelector('span.control-hint'));return b?b.style.backgroundColor:null})()`);
+const heldLabel = () => evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.querySelector('span.control-hint'));return b?([...b.children].find(c=>!c.classList.contains('control-hint'))||{}).textContent.trim():null})()`);
+const before = await status();
+await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+await sleep(150);
+check('a held key takes the colour', await heldFill(), 'rgb(34, 197, 94)');
+check('and the timer has not moved', await status(), before);
+const labelHeld = await heldLabel();
+// Autorepeat is what a held key really sends. It used to be one press per
+// repeat, ~30 a second, each with its own oscillator.
+for (let i = 0; i < 8; i++) {
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, autoRepeat: true });
+  await sleep(40);
+}
+check('autorepeat changes nothing', await status(), before);
+check('nor the label under the key', await heldLabel(), labelHeld);
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+await sleep(200);
+check('the release is what acts', (await status()) !== before, 'true');
+await sleep(600);
+// Back to an untouched timer, where R and S are refused and their
+// buttons are drawn disabled.
+await evaluate(`(${CTRL('STOP')})?.click(), 'ok'`);
+await sleep(500);
+if (await dialogOpen()) await press('Enter');
+check('stopped', await status(), 'READY');
+check('two of them are disabled there', await evaluate(`[...document.querySelectorAll('button')].filter(b=>b.querySelector('.control-hint')&&b.disabled).length`), '2');
+check('and all three are still filled', await unfilled(), '');
+
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(34)} got=${r.got.padEnd(30)} want=${r.want}`);
 console.log(`\n${out.filter((r) => r.pass).length}/${out.length} passed`);
 

@@ -59,6 +59,9 @@ const TIP_MAX_LINES = 10;
 // this is how long it holds at full white before that starts.
 const KEY_PRESS_MS = 320;
 
+// The three keys that work the controls, and the buttons they belong to.
+type KeyCode = 'Tab' | 'KeyR' | 'KeyS';
+
 // The key inside "Press TAB to", against the words either side of it. The
 // key is the only part worth finding at a glance; the rest is grammar.
 // 1.2 of the prose, on a line whose height is held at the prose's own so
@@ -153,7 +156,7 @@ export default function Timer() {
   // Bumped with a direction when a field's adjustment applies, so each
   // countdown digit flashes green or red on its own.
   const [keyPress, setKeyPress] = useState({ Tab: 0, KeyR: 0, KeyS: 0 });
-  const bumpKeyPress = (code: 'Tab' | 'KeyR' | 'KeyS') =>
+  const bumpKeyPress = (code: KeyCode) =>
     setKeyPress((prev) => ({ ...prev, [code]: prev[code] + 1 }));
   const [hoursFlash, setHoursFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
   const [minutesFlash, setMinutesFlash] = useState<{ token: number; direction: 'inc' | 'dec' }>({ token: 0, direction: 'inc' });
@@ -700,43 +703,45 @@ export default function Timer() {
   // browser takes, with nothing to undo it.
   const isSelfReloadingRef = useLeaveGuard(isRunning || isPaused || isAlarmRinging);
 
-  // Tab/S/R mirror the on-screen controls. The ref lets the keydown
-  // listener register once instead of rebinding every tick.
-  const keyActionRef = useRef<(code: string) => boolean>(() => false);
-  keyActionRef.current = (code) => {
-    // The dialog owns the keyboard while it's open.
+  // Tab/S/R mirror the on-screen controls. The ref lets the listeners
+  // register once instead of rebinding every tick.
+  //
+  // Whether the key would do anything, asked before the button lights up,
+  // so a refused one lights nothing: S and R are refused on an untouched
+  // timer, and the dialog owns the keyboard while it is open.
+  const keyLiveRef = useRef<(code: string) => boolean>(() => false);
+  keyLiveRef.current = (code) => {
     if (dialog.type !== null) return false;
+    if (code === 'Tab') return true;
+    return !isIdleAtConfigured;
+  };
+  const keyActionRef = useRef<(code: string) => void>(() => {});
+  keyActionRef.current = (code) => {
+    if (!keyLiveRef.current(code)) return;
     if (code === 'Tab') {
-      bumpKeyPress('Tab');
-      if (isRunning) {
-        togglePause();
-      } else {
-        handleStart();
-      }
-      return true;
+      if (isRunning) togglePause();
+      else handleStart();
+      return;
     }
-    if (code === 'KeyS') {
-      if (isIdleAtConfigured) return false;
-      bumpKeyPress('KeyS');
-      handleStopClick();
-      return true;
-    }
-    if (code === 'KeyR') {
-      if (isIdleAtConfigured) return false;
-      bumpKeyPress('KeyR');
-      handleResetClick();
-      return true;
-    }
-    return false;
+    if (code === 'KeyS') handleStopClick();
+    if (code === 'KeyR') handleResetClick();
   };
 
+  // Which key is down. A held key colours its button and does nothing
+  // else; the run only moves when it comes back up, the way a button
+  // works under a finger. Held on the keydown, that was not true: TAB
+  // started the timer the instant it went down, so holding it swapped
+  // START for PAUSE under the very key that was still down.
+  const [heldKey, setHeldKey] = useState<KeyCode | null>(null);
+  const heldKeyRef = useRef<KeyCode | null>(null);
+  heldKeyRef.current = heldKey;
+
   useEffect(() => {
+    const codeOf = (e: KeyboardEvent): KeyCode | null =>
+      (e.key === 'Tab' ? 'Tab' : e.code === 'KeyS' || e.code === 'KeyR' ? e.code : null);
     const handleKeyDown = (e: KeyboardEvent) => {
-      const action = e.key === 'Tab' ? 'Tab' : e.code === 'KeyS' || e.code === 'KeyR' ? e.code : null;
+      const action = codeOf(e);
       if (!action) return;
-      // Autorepeat is not three hundred presses: held down, the key fires
-      // ~30 pause/resume toggles a second, each with its own oscillator.
-      if (e.repeat) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       // A text field keeps its own keys: TAB moves out of one, and S and R
       // are letters someone is typing. Everywhere else these three are the
@@ -745,14 +750,37 @@ export default function Timer() {
       // Buttons are deliberately not exempt: blocking S and R there would
       // kill both shortcuts for anyone who had just clicked something.
       if ((e.target as HTMLElement | null)?.closest?.(TYPES_INTO)) return;
-      if (keyActionRef.current(action)) {
-        e.preventDefault();
-      }
+      if (!keyLiveRef.current(action)) return;
+      // Every repeat too, or the browser takes the held TAB and walks the
+      // focus ring with it.
+      e.preventDefault();
+      // Autorepeat is not three hundred presses. Nothing here acts on the
+      // way down any more, but the state still shouldn't churn at ~30Hz.
+      if (e.repeat) return;
+      setHeldKey(action);
     };
+    // Where the run actually moves. Guarded on this key having been the
+    // one taken on the way down, so a TAB released over the page after
+    // being pressed inside a text field isn't the timer's to act on.
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const action = codeOf(e);
+      if (!action || heldKeyRef.current !== action) return;
+      e.preventDefault();
+      setHeldKey(null);
+      bumpKeyPress(action);
+      keyActionRef.current(action);
+    };
+    // A key held while the window goes away never sends its keyup here,
+    // and the button would stay coloured for good.
+    const release = () => setHeldKey(null);
 
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', release);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', release);
     };
   }, []);
 
@@ -1407,9 +1435,14 @@ export default function Timer() {
   // for a moment. Bumped where the action is taken rather than in the
   // listener, so a key that is refused — S or R on an untouched timer —
   // lights nothing.
-  const isTabPressed = useFlashOnToken(keyPress.Tab, KEY_PRESS_MS);
-  const isResetPressed = useFlashOnToken(keyPress.KeyR, KEY_PRESS_MS);
-  const isStopPressed = useFlashOnToken(keyPress.KeyS, KEY_PRESS_MS);
+  const isTabFlashing = useFlashOnToken(keyPress.Tab, KEY_PRESS_MS);
+  const isResetFlashing = useFlashOnToken(keyPress.KeyR, KEY_PRESS_MS);
+  const isStopFlashing = useFlashOnToken(keyPress.KeyS, KEY_PRESS_MS);
+  // Down, or just up: held it stays, released it runs on for a beat so a
+  // tap too quick to see held is still a press you saw.
+  const isTabPressed = heldKey === 'Tab' || isTabFlashing;
+  const isResetPressed = heldKey === 'KeyR' || isResetFlashing;
+  const isStopPressed = heldKey === 'KeyS' || isStopFlashing;
   const isHoursFlashing = useFlashOnToken(hoursFlash.token);
   const isMinutesFlashing = useFlashOnToken(minutesFlash.token);
   const isSecondsFlashing = useFlashOnToken(secondsFlash.token);
@@ -2329,10 +2362,20 @@ export default function Timer() {
     // since TAB being spoken for means these were never reachable by
     // keyboard to begin with. Before the action, so a dialog it opens
     // keeps the focus it takes for itself.
-    const press = (run: () => void) => (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.currentTarget.blur();
-      run();
-    };
+    const press = (code: KeyCode, run: () => void) => ({
+      // A click is a press too, and it already lands on the release: the
+      // browser fires click after mouseup. What was missing was the
+      // holding — the button wears its colour from the moment it goes
+      // down, and lets go if the pointer leaves without releasing on it.
+      onMouseDown: () => setHeldKey(code),
+      onMouseUp: () => setHeldKey(null),
+      onMouseLeave: () => setHeldKey((prev) => (prev === code ? null : prev)),
+      onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.currentTarget.blur();
+        bumpKeyPress(code);
+        run();
+      },
+    });
     // A filled button is one whose key works right now.
     //
     // Filled the way the app's white boxes are: the ink, not a literal
@@ -2351,21 +2394,22 @@ export default function Timer() {
     // states can't be confused for one another: white says the key works,
     // green or yellow or red says it just did.
     //
-    // A disabled button is not filled either, for the same reason it is
-    // not a lie: RESET and STOP are off on an untouched timer and their
-    // keys are refused there, and a white box at the 50% the disabled
-    // class draws came out a muddy grey that said nothing.
+    // All three fill together, including the two that are off on an
+    // untouched timer. Their keys are refused there, so this is not
+    // strictly "the key works" for them — the disabled class's own 50% is
+    // what says so, and a row where one button is filled and two are not
+    // reads as three unrelated controls rather than one set.
     //
     // transition none on the way in, and only on the way in. These buttons
     // carry transition-all 200ms for their state colours, and left to it a
     // press crawled up over 223ms, held for 130 and sank back — a bloom,
     // not a press. Dropped on release, so the class's own transition is
     // what fades it out.
-    const lit = (color: string, pressed: boolean, off = false) => ({
+    const lit = (color: string, pressed: boolean) => ({
       ...buttonStyle(color),
       ...(pressed
         ? { backgroundColor: color, color: 'var(--app-surface)', transition: 'none' }
-        : areShortcutsLive && !off
+        : areShortcutsLive
           ? { backgroundColor: 'var(--app-ink)', color: 'var(--app-surface)' }
           : {}),
     });
@@ -2375,7 +2419,7 @@ export default function Timer() {
         {!isRunning && (
           <button
             ref={withHints ? firstControlRef : undefined}
-            onClick={press(handleStart)}
+            {...press('Tab', handleStart)}
             className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
             style={lit('#22c55e', isTabPressed)}
           >
@@ -2386,7 +2430,7 @@ export default function Timer() {
         {isRunning && (
           <button
             ref={withHints ? firstControlRef : undefined}
-            onClick={press(togglePause)}
+            {...press('Tab', togglePause)}
             className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200`}
             style={lit(isPaused ? '#22c55e' : '#eab308', isTabPressed)}
           >
@@ -2395,19 +2439,19 @@ export default function Timer() {
         )}
 
         <button
-          onClick={press(handleResetClick)}
+          {...press('KeyR', handleResetClick)}
           disabled={isIdleAtConfigured}
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-          style={lit('#eab308', isResetPressed, isIdleAtConfigured)}
+          style={lit('#eab308', isResetPressed)}
         >
           {rows('RESET')}
         </button>
 
         <button
-          onClick={press(handleStopClick)}
+          {...press('KeyS', handleStopClick)}
           disabled={isIdleAtConfigured}
           className={`${borderClass} font-bold hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-          style={lit('#ef4444', isStopPressed, isIdleAtConfigured)}
+          style={lit('#ef4444', isStopPressed)}
         >
           {rows('STOP')}
         </button>
