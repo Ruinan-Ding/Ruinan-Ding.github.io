@@ -124,6 +124,30 @@ export const FULL_ACTS: Record<FullAct, { label: string; title: string; descript
     description: 'Put the word counter full screen? It covers the page until you come back out.',
     action: 'CONFIRM',
   },
+  theme: {
+    label: 'Switch between light and dark',
+    title: 'SWITCH THEME',
+    description: 'Switch the page between light and dark? Nothing else changes, and the same button switches it back.',
+    action: 'SWITCH',
+  },
+  volume: {
+    label: 'Change the alarm volume',
+    title: 'CHANGE VOLUME',
+    description: "Change how loud the alarm is? Dragging all the way down mutes it, and asks nothing more while you're on the slider.",
+    action: 'CHANGE',
+  },
+  alarmLoop: {
+    label: 'Turn the repeating alarm on or off',
+    title: 'REPEAT THE ALARM',
+    description: 'Change whether the alarm keeps sounding past zero? Off, it rings once and stops; on, it repeats until you stop or reset the timer.',
+    action: 'CONFIRM',
+  },
+  typeInWordCounter: {
+    label: 'Type in the word counter',
+    title: 'TYPE IN THE COUNTER',
+    description: "Put the keyboard in the word counter? TAB, R and S go to the box you're typing in while it has focus, so the timer's shortcuts stop working until you press ESC or click away.",
+    action: 'CONFIRM',
+  },
   timeZone: {
     label: "Change the clock's time zone",
     title: 'CHANGE TIME ZONE',
@@ -166,9 +190,18 @@ const HALF_QUESTIONS: [string, string][] = [
   ['skipConfirmations', 'Warn before turning confirmations off'],
 ];
 
+// Full-tier rows that are not acts. A row here silences a rule rather
+// than a dialog: there is no act to describe because the question it
+// governs is one of the half-tier ones, and what full mode changes is how
+// often it comes back.
+const FULL_RULES: [string, string][] = [
+  ['adjustAgain', 'Change the time again in the same run'],
+];
+
 export const QUESTIONS: { key: string; label: string; tier: 'half' | 'full' }[] = [
   ...HALF_QUESTIONS.map(([key, label]) => ({ key, label, tier: 'half' as const })),
   ...(Object.keys(FULL_ACTS) as FullAct[]).map((act) => ({ key: act, label: FULL_ACTS[act].label, tier: 'full' as const })),
+  ...FULL_RULES.map(([key, label]) => ({ key, label, tier: 'full' as const })),
 ];
 
 // Dialogs that report what happened rather than ask whether it should.

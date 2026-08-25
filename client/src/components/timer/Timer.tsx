@@ -48,12 +48,18 @@ const CONFIRM_LIST_HEADING: Record<ConfirmMode, string> = {
 };
 
 // The list runs half-tier questions first and full-tier ones after, and
-// this is drawn where it turns over. Without it the greying is the only
-// thing saying which is which, and grey against grey says nothing at all:
-// in half mode the second half is grey, and with confirmations off the
-// whole list is, so a reader has no way to tell a question their mode
-// skips from one nothing asks.
-const CONFIRM_LIST_DIVIDER = 'ONLY WHEN EVERYTHING IS CONFIRMED';
+// each group is headed. Without them the greying is the only thing saying
+// which is which, and grey against grey says nothing at all: in half mode
+// the second group is grey, and with confirmations off both are, so a
+// reader has no way to tell a question their mode skips from one nothing
+// asks.
+//
+// Both worded as what makes the group active, since that is the thing
+// being read off the greying.
+const CONFIRM_LIST_SECTION: Record<'half' | 'full', string> = {
+  half: 'ACTIVE WHENEVER CONFIRMATIONS ARE ON',
+  full: 'ONLY ACTIVE WHEN EVERYTHING IS CONFIRMED',
+};
 
 const CONFIRM_LIST_FONT_SIZE = shrinkClamp(0.6, 1, 1.1, 0.72);
 
@@ -839,6 +845,19 @@ export default function Timer() {
     closeDialog();
   };
 
+  // Asked once for a drag rather than once for each of its hundred
+  // steps. Marked before asking and cleared when the slider is let go, so
+  // a cancel doesn't hand the rest of that drag a free pass — and it
+  // can't: the dialog takes the focus, which ends the drag.
+  const volumeAskedRef = useRef(false);
+  const requestVolumeChange = (value: number) => {
+    if (volumeAskedRef.current) {
+      handleVolumeChange(value);
+      return;
+    }
+    volumeAskedRef.current = true;
+    askFull('volume', () => handleVolumeChange(value));
+  };
   // Dragging the slider to 0 mutes; dragging back off 0 unmutes.
   const handleVolumeChange = (value: number) => {
     setVolume(value);
@@ -1256,8 +1275,23 @@ export default function Timer() {
     // shouldn't be three questions. Full asks every time and in every
     // state, which is what makes the idle and ringing rows in the confirm
     // list reachable at all — nothing else ever produces them.
-    const askEveryAdjustment = confirmMode === 'full';
-    if (askEveryAdjustment || (hasRunToLose() && !askedAdjustRef.current)) {
+    // Full mode differs from half in two ways here, and they are separate
+    // questions with separate answers.
+    //
+    // Scope: which states ask at all. Half asks only where there's a run
+    // to lose; full asks in every one, which is what makes the idle and
+    // ringing rows in the list reachable — nothing else produces them.
+    // Those rows are how you take a state back out.
+    //
+    // Cadence: how often. Half asks once per pause or resume; full asks
+    // every time. That one is a rule rather than an act — the question it
+    // governs is a half-tier one and only its frequency changes — so it
+    // reads a row rather than a dialog key. Ticking "Change the time
+    // again in the same run" drops full to half's cadence while leaving
+    // its scope alone: still every state, now once per stretch.
+    const asksInThisState = confirmMode === 'full' || hasRunToLose();
+    const asksEveryTime = confirmMode === 'full' && !suppressedKeys.includes('adjustAgain');
+    if (asksInThisState && (asksEveryTime || !askedAdjustRef.current)) {
       // An out-of-range edit comes through here too, so a running timer
       // gets the same question before it's discarded.
       //
@@ -1277,7 +1311,7 @@ export default function Timer() {
       return;
     }
     applyAndReport();
-  }, [shownTotal, timerStateKind, hasRunToLose, applyAdjustment, askThenRun, confirmMode]);
+  }, [shownTotal, timerStateKind, hasRunToLose, applyAdjustment, askThenRun, confirmMode, suppressedKeys]);
 
   // A typed commit replaces one unit's magnitude and keeps the sign. 61
   // arrives here as 61 and toSignedTotal turns the whole thing into 1m 01s.
@@ -1766,10 +1800,15 @@ export default function Timer() {
             max={1}
             step={0.01}
             value={volume}
-            onChange={(e) => handleVolumeChange(Number(e.target.value))}
-            onPointerUp={(e) => playVolumePreview(Number((e.target as HTMLInputElement).value))}
+            onChange={(e) => requestVolumeChange(Number(e.target.value))}
+            onPointerUp={(e) => {
+              volumeAskedRef.current = false;
+              playVolumePreview(Number((e.target as HTMLInputElement).value));
+            }}
+            onBlur={() => { volumeAskedRef.current = false; }}
             onKeyUp={(e) => {
               if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
+                volumeAskedRef.current = false;
                 playVolumePreview(Number((e.target as HTMLInputElement).value));
               }
             }}
@@ -1792,7 +1831,7 @@ export default function Timer() {
   );
   const ringerButton = (
     <button
-      onClick={() => setIsAlarmLooping((prev: boolean) => !prev)}
+      onClick={() => askFull('alarmLoop', () => setIsAlarmLooping((prev: boolean) => !prev))}
       className="relative flex items-center justify-center border-3 transition-all duration-200 hover:opacity-80 flex-shrink-0"
       style={{
         ...HEADER_BUTTON_SIZE,
@@ -1913,7 +1952,7 @@ export default function Timer() {
 
             {/* Sun while dark, showing what clicking gets you. */}
             <HeaderToggleButton
-              onClick={() => setIsLightTheme((prev) => !prev)}
+              onClick={() => askFull('theme', () => setIsLightTheme((prev) => !prev))}
               icon={isLightTheme ? <Moon style={HEADER_ICON_SIZE_LG} /> : <Sun style={HEADER_ICON_SIZE_LG} />}
               label={isLightTheme ? 'Switch to the dark theme' : 'Switch to the light theme'}
             />
@@ -2008,28 +2047,32 @@ export default function Timer() {
                     {QUESTIONS.map((question, i) => {
                       const live = isQuestionLive(question.tier, confirmMode);
                       const silenced = suppressedKeys.includes(question.key);
-                      // The turn from one tier to the other. Read off the
-                      // row before rather than an index, so reordering the
-                      // list can't leave the line in the wrong place.
-                      const opensFull = question.tier === 'full' && QUESTIONS[i - 1]?.tier === 'half';
+                      // The first row of each group. Read off the row
+                      // before rather than an index, so reordering the
+                      // list can't leave a heading in the wrong place.
+                      const opensTier = i === 0 || QUESTIONS[i - 1].tier !== question.tier;
                       return (
                         <Fragment key={question.key}>
-                        {opensFull && (
+                        {opensTier && (
                           <div
-                            data-confirm-divider
-                            className="px-2 py-1 font-bold border-y-3"
+                            data-confirm-section={question.tier}
+                            // Ruled off the group above as well, except at
+                            // the top, where the panel's own heading has
+                            // already drawn that line and a second one
+                            // beside it is 6px of border.
+                            className={`px-2 py-1 font-bold border-b-3 ${i > 0 ? 'border-t-3' : ''}`}
                             style={{
                               fontSize: CONFIRM_LIST_FONT_SIZE,
                               borderColor: 'var(--app-ink)',
-                              // Live in full mode and grey elsewhere, the
-                              // same as the rows it introduces: the line
-                              // says where the greying starts, and saying
-                              // it in a colour the greyed rows don't use
-                              // would make it a third thing to work out.
-                              color: isQuestionLive('full', confirmMode) ? 'var(--app-ink)' : '#6b7280',
+                              // The colour of the rows it heads: it says
+                              // where the greying starts and stops, and
+                              // saying that in a colour those rows don't
+                              // use would make it a third thing to work
+                              // out.
+                              color: live ? 'var(--app-ink)' : '#6b7280',
                             }}
                           >
-                            {CONFIRM_LIST_DIVIDER}
+                            {CONFIRM_LIST_SECTION[question.tier]}
                           </div>
                         )}
                         <button

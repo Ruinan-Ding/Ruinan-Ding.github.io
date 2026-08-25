@@ -41,6 +41,10 @@ export type FullAct =
   | 'tuckTimeFields'
   | 'tuckWordCounter'
   | 'fullscreen'
+  | 'theme'
+  | 'volume'
+  | 'alarmLoop'
+  | 'typeInWordCounter'
   | 'timeZone'
   | 'hourFormat';
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import DotCheckbox from './DotCheckbox';
 import { formatEntryLabel, formatSignedLabel, fromTotalSeconds } from './format';
-import { dialogKey, FULL_ACTS, isAcknowledgement } from './suppressions';
+import { dialogKey, FULL_ACTS, isAcknowledgement, QUESTIONS } from './suppressions';
 import type { DialogState } from './types';
 
 interface ConfirmDialogProps {
@@ -215,6 +215,13 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   // through the exit animation like the copy above.
   const suppressibleRef = useRef(false);
   if (dialog.type !== null) suppressibleRef.current = key !== null;
+  // What this box is called in the list the confirm button drops down.
+  // The tick and the row there are one answer written to one key, and
+  // nothing said so: from here it looked like a per-dialog setting, and
+  // from the list it looked like a separate one. Held through the exit
+  // animation, like everything else the fade would otherwise blank.
+  const listLabelRef = useRef<string | null>(null);
+  if (dialog.type !== null) listLabelRef.current = QUESTIONS.find((q) => q.key === key)?.label ?? null;
   const acknowledgeRef = useRef(false);
   if (dialog.type !== null) acknowledgeRef.current = isAcknowledgement(dialog);
 
@@ -292,7 +299,16 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             title="Skip this particular confirmation from now on. Resetting the website to defaults brings it back."
           >
             <DotCheckbox checked={dontAskAgain} />
-            Don't ask this again
+            {/* One flex item, not two: the row's gap-2 sits between items,
+                which put eight pixels in front of the bracket. Inside a
+                span it is an ordinary space, and a long row name wraps
+                under the words rather than stretching the dialog. */}
+            <span className="text-left">
+              Don't ask this again
+              {listLabelRef.current && (
+                <span className="opacity-60 font-normal"> ({listLabelRef.current})</span>
+              )}
+            </span>
           </button>
         )}
         {/* Held through the exit animation like the copy, or the buttons

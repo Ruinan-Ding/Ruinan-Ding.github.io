@@ -132,6 +132,37 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
     setDialog(next);
   };
   const askFull = (act: FullAct, run: () => void) => ask({ type: 'full', act, run }, run);
+
+  // Focus is the act here, so the question comes before it: the box is
+  // given the keyboard only once it's answered. It has to let go first —
+  // the dialog takes focus as it opens, and a textarea still holding it
+  // would be typed into behind the question — and the flag is set in the
+  // answer rather than before the blur, or the blur clears it and the
+  // focus that follows asks again, forever. Cleared on blur, so coming
+  // back to the box is a fresh visit and asks again.
+  //
+  // The question is looked up before any of that, so the modes that
+  // don't ask keep the plain focus they always had rather than a
+  // blur-and-refocus nobody needs.
+  const typingAskedRef = useRef(false);
+  const handleTextareaFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    const question: DialogState = { type: 'full', act: 'typeInWordCounter', run: () => {} };
+    if (typingAskedRef.current || !shouldAsk(question, confirmMode)) {
+      typingAskedRef.current = true;
+      setFocused(true);
+      return;
+    }
+    const box = e.currentTarget;
+    box.blur();
+    setDialog({
+      type: 'full',
+      act: 'typeInWordCounter',
+      run: () => {
+        typingAskedRef.current = true;
+        box.focus();
+      },
+    });
+  };
   // Only on the way in. Coming back out of a tuck or out of full screen
   // gives something back rather than taking it away, and the auto-collapse
   // on a shrinking window never reaches either of these.
@@ -582,8 +613,11 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
               aria-label="Writing"
               value={text}
               onChange={handleTextChange}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
+              onFocus={handleTextareaFocus}
+              onBlur={() => {
+                typingAskedRef.current = false;
+                setFocused(false);
+              }}
               // ESC hands the keyboard back to the timer. Its shortcuts sit
               // on the window and skip anything being typed into, so
               // dropping focus is the whole of what "back to the timer"
