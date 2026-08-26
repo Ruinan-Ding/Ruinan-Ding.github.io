@@ -99,6 +99,11 @@ check('preset: second 7', await val(ADD), '0:77');
 await digit('5');
 check('preset: a third digit appends', await val(ADD), '7:75');
 
+// Emptied before moving on. 7:75 is not a time — a field over its own
+// ceiling — so leaving the box on it now raises a correction, and that
+// lands between this click's press and its release.
+await clear(ADD);
+
 // Padding is overridden, not appended to, in the minutes box too.
 const MIN = `document.querySelectorAll('.time-fields-box input')[1]`;
 await clickEl(MIN);

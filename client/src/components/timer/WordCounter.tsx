@@ -168,7 +168,10 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
   };
   const handleTextareaFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
     const question: DialogState = { type: 'full', act: 'typeInWordCounter', run: () => {} };
-    if (typingAskedRef.current || !shouldAsk(question, confirmMode)) {
+    // Full screen is the word counter — there is nothing else on the page
+    // to be moving the keyboard away from, so neither this question nor
+    // its opposite means anything there.
+    if (isFullscreen || typingAskedRef.current || !shouldAsk(question, confirmMode)) {
       typingAskedRef.current = true;
       setFocused(true);
       return;
@@ -656,6 +659,7 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
               onBlur={() => {
                 typingAskedRef.current = false;
                 setFocused(false);
+                if (isFullscreen) return;
                 askAfterThePointer(() => {
                   // Whatever was clicked may have raised a question of
                   // its own, and there is one dialog to show. That one

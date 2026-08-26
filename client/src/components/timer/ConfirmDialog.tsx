@@ -139,12 +139,12 @@ const getCopy = (dialog: DialogState) => {
       };
     case 'correctPreset':
       return {
-        title: 'TIME CORRECTED',
-        // Not per-unit limits any more: the units carry, so "1:99" is
-        // 2:39 and goes in as typed. The one thing a preset is refused for
-        // is a total past the end of the range, and that is what this says.
-        description: `${dialog.data.typed} is past the longest time this can hold. It's been corrected to ${dialog.data.corrected}.`,
-        action: 'OK',
+        title: 'NOT A TIME',
+        // Per-unit, and rounded down. Carrying would read 88:88:88 as 89
+        // hours and change — inside the range, so nothing would question
+        // it, and four minutes past what was typed.
+        description: `${dialog.data.typed} isn't a time: a minute or a second is over 59. Rounded down it's ${dialog.data.corrected}.`,
+        action: 'CORRECT IT',
       };
     case 'correctTime':
       return {
@@ -222,9 +222,18 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   useEffect(() => {
     if (key !== null) setDontAskAgain(false);
   }, [key]);
+  // Which question is showing, as one value. One replacing another is a
+  // change of question but not of open/closed, and onOpenAutoFocus below
+  // only fires on the second — so a dialog raised from the answer to the
+  // one before it kept the focus Radix had already placed, which is
+  // CANCEL. ENTER then cancelled the question it was meant to confirm.
+  const question = dialog.type === null ? null : `${dialog.type}:${key ?? ''}`;
   // The button ENTER should land on when the dialog opens: the action on a
   // two-button dialog, the single OK on an acknowledgement.
   const actionRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (question !== null) actionRef.current?.focus();
+  }, [question]);
   // A dialog that can never be silenced renders without the row. Held
   // through the exit animation like the copy above.
   const suppressibleRef = useRef(false);

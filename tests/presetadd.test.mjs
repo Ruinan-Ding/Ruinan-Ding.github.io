@@ -74,14 +74,23 @@ await ev(`localStorage.setItem('timerAppPresets','[]'), localStorage.setItem('ti
 await send('Page.reload', {});
 await sleep(2600);
 
-// 161 is 1m 61s, which carries to 2:01 rather than being refused or clamped.
+// 161 is 1m 61s. A field over its own ceiling is not a time, and it
+// rounds down to 1:59 — where carrying used to make it 2:01, two seconds
+// past what anyone typed and never questioned.
 await enter('161');
-check('161 carries to 2:01', (await rows()).includes('2:01'), 'true');
-check('and asked nothing', await dialogTitle(), 'null');
+// Confirmations are off here, so the correction lands without a word.
+check('161 asks nothing with confirmations off', await dialogTitle(), 'null');
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+await sleep(700);
+check('and rounds down to 1:59', (await rows()).includes('1:59'), 'true');
+check('rather than carrying to 2:01', (await rows()).includes('2:01'), 'false');
 
-// 9999 is 99m 99s, which carries into an hour.
+// 9999 is 99m 99s: both fields over, both cut, no carry into an hour.
 await enter('9999');
-check('9999 carries to 1:40:39', (await rows()).includes('1:40:39'), 'true');
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+await sleep(700);
+check('9999 rounds down to 59:59', (await rows()).includes('59:59'), 'true');
+check('and never carries into an hour', (await rows()).some((r) => r.startsWith('1:40')), 'false');
 
 // A minus makes it a time that starts already counting up.
 await enter('105', true);
@@ -94,7 +103,27 @@ await ev(`localStorage.setItem('timerConfirmMode','"half"'), 'ok'`);
 await send('Page.reload', {});
 await sleep(2600);
 await enter('999999');
-check('999999 is refused', await dialogTitle(), 'TIME CORRECTED');
+check('999999 is refused', await dialogTitle(), 'NOT A TIME');
+
+// Rounded down, field by field, never carried. 88:88:88 comes to 89 hours
+// and change if the minutes and seconds are allowed to carry, which is
+// inside the range and so was never questioned at all — and four minutes
+// past what was typed.
+const confirmAll = async () => {
+  for (let i = 0; i < 4 && (await dialogTitle()) !== 'null'; i++) {
+    await press('Enter', 'Enter', 13, String.fromCharCode(13));
+    await sleep(600);
+  }
+};
+await confirmAll();
+await ev(`localStorage.setItem('timerAppPresets','[]'), 'ok'`);
+await send('Page.reload', {});
+await sleep(2600);
+await enter('888888');
+check('88:88:88 is not a time', await dialogTitle(), 'NOT A TIME');
+await confirmAll();
+check('and it rounds down to 88:59:59', (await rows()).includes('88:59:59'), 'true');
+check('rather than carrying to 89:29:28', (await rows()).includes('89:29:28'), 'false');
 
 console.log('rows:', JSON.stringify(await rows()));
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(34)} got=${r.got.padEnd(16)} want=${r.want}`);

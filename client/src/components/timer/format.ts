@@ -1,4 +1,4 @@
-import { MAX_TOTAL_SECONDS } from './constants';
+import {  } from './constants';
 import type { TimeParts, TimerEntry } from './types';
 
 // Takes the half-typed string as well as the number, since a box mid-entry
@@ -106,8 +106,16 @@ export const formatSignedLabel = (total: number) =>
 // refused rather than corrected down a unit at a time.
 export const presetTotalFromDigits = (digits: string) => toTotalSeconds(rawPresetDigits(digits));
 
-export const parsePresetDigits = (digits: string): TimeParts =>
-  fromTotalSeconds(Math.min(presetTotalFromDigits(digits), MAX_TOTAL_SECONDS));
+// Each field cut to its own ceiling, rounded down and never carried:
+// 88:88:88 is 88:59:59, not the 89:29:28 that carrying 88 minutes and 88
+// seconds produces. A minute reading 88 is a typo, and the nearest time
+// the clock can show is the one below it, not one four minutes past what
+// was typed. Two digits can't exceed 99 hours, so clamping the fields
+// keeps the total inside MAX_TOTAL_SECONDS by construction.
+export const parsePresetDigits = (digits: string): TimeParts => {
+  const raw = rawPresetDigits(digits);
+  return { hours: raw.hours, minutes: Math.min(raw.minutes, 59), seconds: Math.min(raw.seconds, 59) };
+};
 
 // The same split with no clamping: literally what was typed. Digits fill
 // from the right, so every digit of "990000" passes through the seconds
@@ -133,4 +141,11 @@ export const presetDigitsFromParts = ({ hours, minutes, seconds }: TimeParts) =>
 
 // Only when the carry has nowhere left to go: 99:99:99 is past 99:59:59
 // and there is no hour to carry into. Anything that fits, fits.
-export const isPresetOutOfRange = (digits: string) => presetTotalFromDigits(digits) > MAX_TOTAL_SECONDS;
+// A field over its own ceiling, which is the only way six digits can fail
+// to be a time. It is not about the total: 88:88:88 comes to 89 hours and
+// change, well inside the range, and is still not a time anyone can point
+// at on a clock.
+export const isPresetInvalid = (digits: string) => {
+  const raw = rawPresetDigits(digits);
+  return raw.minutes > 59 || raw.seconds > 59;
+};

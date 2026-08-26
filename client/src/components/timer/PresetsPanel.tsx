@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { countColor, LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, PRESETS_WARN, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE_SOLO, SIDEBAR_HEADING_FONT_SIZE } from './constants';
-import { formatEntryLabel, fromTotalSeconds, isPresetOutOfRange, pad, parsePresetDigits, presetDigitsFromParts, presetTotalFromDigits, rawPresetDigits } from './format';
+import { formatEntryLabel, fromTotalSeconds, isPresetInvalid, pad, parsePresetDigits, presetDigitsFromParts, presetTotalFromDigits, rawPresetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
 import { useDigitEntry } from './useDigitEntry';
@@ -148,10 +148,17 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   // Three ways to finish an entry: Enter, the + button, and leaving the
   // field. Only the first two add it, but all three are a commit and so
   // all three are where an out-of-range entry gets questioned.
+  // One question per entry. Asking takes focus off this box, and losing
+  // focus is itself a commit, so the dialog's own arrival asked again —
+  // with add false, since a blur adds nothing — and the second question
+  // replaced the first. The + then had nothing to add.
+  const correctionAskedRef = useRef(false);
   const handleCommit = (add: boolean) => {
     if (digits === '') return;
     if (add && atCapacity) return;
-    if (isPresetOutOfRange(digits)) {
+    if (isPresetInvalid(digits)) {
+      if (correctionAskedRef.current) return;
+      correctionAskedRef.current = true;
       onRequestCorrect(digits, add);
       return;
     }
@@ -210,8 +217,14 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   // where the typed digits live.
   useEffect(() => {
     if (!correction) return;
+    correctionAskedRef.current = false;
     if (correction.add) {
-      onAdd({ ...parsePresetDigits(correction.digits), negative });
+      // Deferred past the dialog that answered the correction. Adding
+      // raises the next question, and Radix closes the old one after this
+      // runs — which took the new one down with it, so the save dialog
+      // appeared and then answered nothing.
+      const parts = { ...parsePresetDigits(correction.digits), negative };
+      setTimeout(() => onAdd(parts), 0);
     } else {
       const before = rawPresetDigits(digits);
       const after = rawPresetDigits(correction.digits);
