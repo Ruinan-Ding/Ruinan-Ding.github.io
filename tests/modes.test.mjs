@@ -161,9 +161,9 @@ const SECTION = (tier) => `document.querySelector('[data-confirm-section="${tier
 // Rows before a heading, counted through the DOM rather than by index, so
 // reordering the list moves the check with it.
 const rowsAbove = (tier) => ev(`(()=>{const d=${SECTION(tier)};if(!d)return -1;return [...document.querySelectorAll('[data-confirm-list] button:not([data-confirm-section])')].filter(b=>d.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_PRECEDING).length})()`);
-check('the half group is headed', await ev(`${SECTION('half')}?.textContent ?? null`), 'ACTIVE WHENEVER CONFIRMATIONS ARE ON');
+check('the half group is headed', await ev(`${SECTION('half')}?.textContent ?? null`), 'ACTIVE CONFIRMATIONS');
 check('and it opens the list', await rowsAbove('half'), 0);
-check('the full group is headed', await ev(`${SECTION('full')}?.textContent ?? null`), 'ONLY ACTIVE WHEN EVERYTHING IS CONFIRMED');
+check('the full group is headed', await ev(`${SECTION('full')}?.textContent ?? null`), 'ACTIVE IN FULL CONFIRMATION ONLY');
 check('and it sits on the turn', await rowsAbove('full'), 24);
 check('both lit in full', await ev(`[...document.querySelectorAll('[data-confirm-section]')].map(d=>getComputedStyle(d).color).join('|')`), 'rgb(34, 197, 94)|rgb(34, 197, 94)');
 // One line, not two, where the panel's own heading already drew one.
@@ -172,8 +172,8 @@ check('the top heading is not double-ruled', await ev(`getComputedStyle(${SECTIO
 // it isn't. The heading is the one line saying which of the two a reader
 // is looking at, so it must not be the colour of either on its own.
 check('a live heading is green', await ev(`getComputedStyle(${SECTION('half')}).color`), 'rgb(34, 197, 94)');
-// Over the rows it heads, and still on one line. "ONLY ACTIVE WHEN
-// EVERYTHING IS CONFIRMED" is forty characters against a 22rem panel
+// Over the rows it heads, and still on one line. The longer heading is
+// thirty-two characters against a 22rem panel
 // less its padding, its border and the heading's own box, so there is
 // not much room over.
 check('a heading is larger than its rows', await ev(`(()=>{

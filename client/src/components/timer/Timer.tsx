@@ -65,13 +65,13 @@ const CONFIRM_LIST_HEADING: Record<ConfirmMode, string> = {
 // Both worded as what makes the group active, since that is the thing
 // being read off the greying.
 const CONFIRM_LIST_SECTION: Record<'half' | 'full', string> = {
-  half: 'ACTIVE WHENEVER CONFIRMATIONS ARE ON',
-  full: 'ONLY ACTIVE WHEN EVERYTHING IS CONFIRMED',
+  half: 'ACTIVE CONFIRMATIONS',
+  full: 'ACTIVE IN FULL CONFIRMATION ONLY',
 };
 
 const CONFIRM_LIST_FONT_SIZE = shrinkClamp(0.6, 1, 1.1, 0.72);
 // The section headings, a little over the rows they head. Not much over:
-// "ONLY ACTIVE WHEN EVERYTHING IS CONFIRMED" is forty characters, and the
+// The longer of the two is thirty-two characters, and the
 // panel is 22rem less its padding, its border and the heading's own box.
 const CONFIRM_SECTION_FONT_SIZE = `calc(${CONFIRM_LIST_FONT_SIZE} * 1.15)`;
 
