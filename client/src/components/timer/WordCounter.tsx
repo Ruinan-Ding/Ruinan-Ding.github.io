@@ -488,7 +488,7 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
                 the labels themselves had room to spare. */}
             <div className="flex items-center flex-nowrap" style={{ gap: boxCap('0.75rem', 3) }}>
             <button
-              onClick={() => setAlnumWordsOnly((prev) => !prev)}
+              onClick={() => askFull('countWords', () => setAlnumWordsOnly((prev) => !prev))}
               aria-pressed={alnumWordsOnly}
               // min-w-0 and clipped: index.css's blanket `.flex { min-width:
               // 0 }` lets these shrink under their own content, and
@@ -508,7 +508,7 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
             </button>
 
             <button
-              onClick={() => setAlnumCharsOnly((prev) => !prev)}
+              onClick={() => askFull('countChars', () => setAlnumCharsOnly((prev) => !prev))}
               aria-pressed={alnumCharsOnly}
               // min-w-0 and clipped: index.css's blanket `.flex { min-width:
               // 0 }` lets these shrink under their own content, and

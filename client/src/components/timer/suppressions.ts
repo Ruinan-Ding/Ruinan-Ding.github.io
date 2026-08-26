@@ -189,6 +189,24 @@ export const FULL_ACTS: Record<FullAct, { label: string; title: string; descript
     description: "Put the keyboard in the word counter? TAB, R and S go to the box you're typing in while it has focus, so the timer's shortcuts stop working until you press ESC or click away.",
     action: 'CONFIRM',
   },
+  unmute: {
+    label: 'Turn the alarm sound back on',
+    title: 'UNMUTE',
+    description: 'Let the alarm sound again? It plays at whatever the volume slider is set to.',
+    action: 'UNMUTE',
+  },
+  countWords: {
+    label: 'Change what counts as a word',
+    title: 'CHANGE WORD COUNTING',
+    description: 'Change whether a word has to contain a letter or a number? It only changes the count, never what you typed.',
+    action: 'CHANGE',
+  },
+  countChars: {
+    label: 'Change what counts as a character',
+    title: 'CHANGE CHARACTER COUNTING',
+    description: 'Change whether punctuation and spaces count as characters? It only changes the count, never what you typed.',
+    action: 'CHANGE',
+  },
   copyWordCounter: {
     label: 'Copy what the word counter holds',
     title: 'COPY THE TEXT',

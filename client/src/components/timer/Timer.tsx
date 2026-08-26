@@ -847,14 +847,20 @@ export default function Timer() {
   // ever mutes, which asks first.
   const handleMuteToggle = () => {
     if (isSilentMode) {
-      // The slider keeps whatever level it was left at, 0 included, and
-      // the toggle tone plays at that level: at 0 there's nothing to hear,
-      // which is what 0 means.
-      beep(...TONES.silentToggle);
-      setIsSilentMode(false);
+      askFull('unmute', () => {
+        // The slider keeps whatever level it was left at, 0 included, and
+        // the toggle tone plays at that level: at 0 there's nothing to
+        // hear, which is what 0 means.
+        beep(...TONES.silentToggle);
+        setIsSilentMode(false);
+      });
       return;
     }
-    if (!hasMutedBefore) {
+    // Once ever in half mode, which is what the warning is for: you won't
+    // hear the alarm. Full asks every time, like it does of everything
+    // else — without that the row in the list stopped meaning anything
+    // after the first mute.
+    if (!hasMutedBefore || confirmMode === 'full') {
       askThenRun({ type: 'mute' }, handleConfirmMute);
       return;
     }
@@ -2108,13 +2114,13 @@ export default function Timer() {
                             style={{
                               fontSize: CONFIRM_SECTION_FONT_SIZE,
                               borderColor: 'var(--app-ink)',
-                              // Green while the section is asking, grey
-                              // while it isn't — the same green this app
-                              // gives a live control everywhere else,
-                              // against the grey its own rows go. The
-                              // heading is the one line that says which of
-                              // the two a reader is looking at.
-                              color: live ? '#22c55e' : '#6b7280',
+                              // Green while the section is asking, red
+                              // while it isn't. Its rows grey out, which
+                              // says "not in play"; the heading says
+                              // whether the group is on or off, and those
+                              // are the two colours this app already uses
+                              // for that everywhere else.
+                              color: live ? '#22c55e' : '#ef4444',
                             }}
                           >
                             {/* Full when every question below asks, the
