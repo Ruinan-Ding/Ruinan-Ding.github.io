@@ -208,7 +208,8 @@ await enter();
 await sleep(400);
 check('confirming silences the whole section', await ticks(), 27);
 await hoverConfirm();
-check('and the heading fills', await ev(`${SECTION('full')}?.getAttribute('aria-pressed')`), 'true');
+// Ticked means asks, so a silenced section reads as empty.
+check('and the heading empties', await ev(`${SECTION('full')}?.getAttribute('aria-pressed')`), 'false');
 
 // Any ticked, so the same box clears them.
 await clickSection('full', 'full heading a third time');
@@ -295,7 +296,7 @@ check('half still asks about reset', await dialogTitle(), 'CONFIRM RESET');
 // The tick here and the row in the list are one answer written to one
 // key, and nothing said so: from the dialog it read as a per-dialog
 // setting, from the list as a separate one. The dialog names its row.
-check('the tick names its row in the list', await ev(`document.querySelector('[role="alertdialog"] [data-dont-ask]')?.textContent ?? null`), "Don't ask this again (Reset the timer)");
+check('the box names its row in the list', await ev(`document.querySelector('[role="alertdialog"] [data-dont-ask]')?.textContent ?? null`), 'Keep asking this (Reset the timer)');
 await press('Escape', 'Escape', 27);
 
 // --- the same list inside the word counter's fullscreen row -------------

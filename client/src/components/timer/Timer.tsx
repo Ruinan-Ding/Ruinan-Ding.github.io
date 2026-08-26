@@ -41,10 +41,18 @@ const CONFIRM_MODE_TITLE: Record<ConfirmMode, string> = {
 
 // The list names the mode it is showing, since a row greyed out has no
 // other way to say why.
+// Ticked means asks. Written the other way round it read as a list of
+// negatives to switch on — an empty box meaning "you will be asked" is a
+// double negative to hold in your head, and everything arrived unticked
+// so the default looked like nothing was set. Every box starts full, and
+// clearing one is what stops that question.
+//
+// Only the wording turns over: what is stored is still the questions that
+// have been silenced, which is the short list.
 const CONFIRM_LIST_HEADING: Record<ConfirmMode, string> = {
-  half: "DON'T ASK ME AGAIN",
-  full: "DON'T ASK ME AGAIN — ALL",
-  none: "DON'T ASK ME AGAIN — NOTHING ASKS",
+  half: 'ASK ME ABOUT',
+  full: 'ASK ME ABOUT — EVERYTHING',
+  none: 'ASK ME ABOUT — NOTHING ASKS',
 };
 
 // The list runs half-tier questions first and full-tier ones after, and
@@ -153,7 +161,7 @@ export default function Timer() {
   const [confirmMode, setConfirmMode] = useState<ConfirmMode>(readConfirmMode);
   // The list the confirm button drops down, and the answers it shows.
   // Read fresh each time it opens rather than kept in sync: every dialog's
-  // own "don't ask this again" writes the same store, the word counter
+  // own "keep asking this" writes the same store, the word counter
   // writes it too, and a mirror that only this button updates goes stale
   // the first time one of those fires.
   const [isConfirmListOpen, setIsConfirmListOpen] = useState(false);
@@ -536,7 +544,7 @@ export default function Timer() {
 
   // Every "are you sure?" goes through here, so both ways a question can
   // already be answered are checked in one place: confirmations off
-  // globally, or this one silenced by its own "don't ask again".
+  // globally, or this one silenced by clearing its own box.
   //
   // The site RESET is the only dialog that calls setDialog directly, since
   // letting anything skip it would be self-defeating.
@@ -1287,7 +1295,7 @@ export default function Timer() {
       ? { typed: formatSignedLabel(Math.trunc(total)), corrected: formatSignedLabel(Math.trunc(next)) }
       : null;
     // After the correction lands, since it reports what already happened,
-    // and through askThenRun so its own "don't ask again" is read as well
+    // and through askThenRun so its own box is read as well
     // as written.
     const applyAndReport = () => {
       applyAdjustment(next, unit, previousTotal);
@@ -2088,7 +2096,7 @@ export default function Timer() {
                             type="button"
                             data-confirm-section={question.tier}
                             onClick={() => toggleSection(question.tier)}
-                            aria-pressed={sectionTicked(question.tier) === sectionKeys(question.tier).length}
+                            aria-pressed={sectionTicked(question.tier) === 0}
                             title={sectionTicked(question.tier) === 0
                               ? 'Stop every question in this section asking'
                               : 'Let every question in this section ask again'}
@@ -2109,14 +2117,14 @@ export default function Timer() {
                               color: live ? '#22c55e' : '#6b7280',
                             }}
                           >
-                            {/* Full when every question below is silenced,
-                                the diagonal when some are: the same three
+                            {/* Full when every question below asks, the
+                                diagonal when some do: the same three
                                 positions the confirm button itself uses. */}
                             <DotCheckbox
                               checked={(() => {
                                 const total = sectionKeys(question.tier).length;
-                                const ticked = sectionTicked(question.tier);
-                                return ticked === 0 ? false : ticked === total ? true : 'half';
+                                const silenced = sectionTicked(question.tier);
+                                return silenced === 0 ? true : silenced === total ? false : 'half';
                               })()}
                               fontSize={CONFIRM_SECTION_FONT_SIZE}
                             />
@@ -2126,19 +2134,19 @@ export default function Timer() {
                         <button
                           type="button"
                           onClick={() => toggleSuppressedKey(question.key)}
-                          aria-pressed={silenced}
+                          aria-pressed={!silenced}
                           // Greyed rather than disabled: a question the
                           // current mode never asks is still one that can
-                          // be answered ahead of time, and ticking it here
+                          // be answered ahead of time, and clearing it here
                           // is what makes switching modes later do what was
                           // already decided.
                           className="w-full flex items-center gap-2 px-2 py-1 text-left hover:opacity-70 transition-opacity"
                           style={{ fontSize: CONFIRM_LIST_FONT_SIZE, color: live ? 'var(--app-ink)' : '#6b7280' }}
                           title={live
-                            ? 'Tick to stop this one asking'
-                            : "Tick to stop this one asking. The confirm mode you're in doesn't ask it, so nothing changes until you cycle back to one that does"}
+                            ? 'Clear this to stop it asking'
+                            : "Clear this to stop it asking. The confirm mode you're in doesn't ask it, so nothing changes until you cycle back to one that does"}
                         >
-                          <DotCheckbox checked={silenced} fontSize={CONFIRM_LIST_FONT_SIZE} />
+                          <DotCheckbox checked={!silenced} fontSize={CONFIRM_LIST_FONT_SIZE} />
                           <span className="flex-1">{question.label}</span>
                         </button>
                         </Fragment>

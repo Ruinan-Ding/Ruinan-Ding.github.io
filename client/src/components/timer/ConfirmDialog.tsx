@@ -167,8 +167,8 @@ const getCopy = (dialog: DialogState) => {
       return {
         title: silence ? 'SILENCE THE SECTION' : 'BRING THE SECTION BACK',
         description: silence
-          ? `Stop all ${count} questions ${section} from asking? Each one keeps its own tick, so you can bring any of them back on its own row afterwards.`
-          : `Let all ${count} questions ${section} ask again? This clears every tick in that section, including ones you set one at a time.`,
+          ? `Stop all ${count} questions ${section} from asking? Each one keeps its own box, so you can bring any of them back on its own row afterwards.`
+          : `Let all ${count} questions ${section} ask again? This fills every box in that section, including ones you cleared one at a time.`,
         action: silence ? 'SILENCE ALL' : 'BRING BACK',
       };
     }
@@ -178,7 +178,7 @@ const getCopy = (dialog: DialogState) => {
       return {
         title: 'CONFIRM EVERYTHING',
         description:
-          "Ask about everything from now on? On top of what already asks, starting the timer, pausing and resuming it, stopping or resetting it while the alarm is ringing, deleting a history entry, tucking a panel away, going full screen and changing the clock's zone or its 12/24 setting will each ask first. The same button carries on round to turning confirmations off altogether. To leave one of these out, tick it in the list that button drops down.",
+          "Ask about everything from now on? On top of what already asks, starting the timer, pausing and resuming it, stopping or resetting it while the alarm is ringing, deleting a history entry, tucking a panel away, going full screen and changing the clock's zone or its 12/24 setting will each ask first. The same button carries on round to turning confirmations off altogether. To leave one of these out, clear its box in the list that button drops down.",
         action: 'CONFIRM ALL',
       };
     // Only reachable on the way from FULL to none, which is the one step
@@ -187,7 +187,7 @@ const getCopy = (dialog: DialogState) => {
       return {
         title: 'TURN OFF CONFIRMATIONS',
         description:
-          "Turn off confirmations? Everything — stopping, resetting, starting, pausing, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset or a history entry, clearing presets, history or the word counter, tucking a panel away, going full screen, changing the clock and hiding the website link — will happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. The same button cycles back round to confirmations, and won't ask twice. To silence just one question instead, tick it in the list that button drops down, or tick \"Don't ask this again\" in its own dialog.",
+          "Turn off confirmations? Everything — stopping, resetting, starting, pausing, adjusting the time, loading a preset, seeking the bar, muting, deleting a preset or a history entry, clearing presets, history or the word counter, tucking a panel away, going full screen, changing the clock and hiding the website link — will happen the moment you click, with no dialog and no undo. Resetting the website to defaults will still ask. The same button cycles back round to confirmations, and won't ask twice. To silence just one question instead, clear its box in the list that button drops down, or clear \"Keep asking this\" in its own dialog.",
         action: 'TURN OFF',
       };
     // Every FULL-mode question reads its copy out of the one table, so an
@@ -288,7 +288,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           // holds focus, so a spacebar reflex answers a question that
           // doesn't advertise Space as an answer. ENTER confirms and ESC
           // cancels, and both say so on the buttons. The exception is the
-          // "don't ask again" checkbox, the one control here Space belongs
+          // "keep asking this" checkbox, the one control here Space belongs
           // to.
           if (e.key !== ' ') return;
           if ((e.target as HTMLElement).closest('[data-dont-ask]')) return;
@@ -308,17 +308,20 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             type="button"
             data-dont-ask
             onClick={() => setDontAskAgain((prev) => !prev)}
-            aria-pressed={dontAskAgain}
+            // Ticked means it keeps asking, which is how it arrives and
+            // how the list beside it reads. Clearing the box is what
+            // stops this one question.
+            aria-pressed={!dontAskAgain}
             className="flex items-center gap-2 text-white text-sm font-bold self-start transition-opacity duration-200 hover:opacity-80"
-            title="Skip this particular confirmation from now on. Resetting the website to defaults brings it back."
+            title="Clear this to stop this particular question asking. Resetting the website to defaults brings it back."
           >
-            <DotCheckbox checked={dontAskAgain} />
+            <DotCheckbox checked={!dontAskAgain} />
             {/* One flex item, not two: the row's gap-2 sits between items,
                 which put eight pixels in front of the bracket. Inside a
                 span it is an ordinary space, and a long row name wraps
                 under the words rather than stretching the dialog. */}
             <span className="text-left">
-              Don't ask this again
+              Keep asking this
               {listLabelRef.current && (
                 <span className="opacity-60 font-normal"> ({listLabelRef.current})</span>
               )}

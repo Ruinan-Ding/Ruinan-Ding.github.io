@@ -2,8 +2,8 @@ import { readBoolean, readJSON, writeJSON } from '@/lib/storage';
 import { STORAGE_KEYS } from './constants';
 import type { ConfirmMode, DialogState, FullAct } from './types';
 
-// Questions answered with a dialog's "Don't ask again" checkbox, kept in
-// localStorage so they stay answered across a reload. The site RESET wipes
+// Questions whose box has been cleared, in a dialog or in the list, kept
+// in localStorage so they stay answered across a reload. The site RESET wipes
 // every STORAGE_KEYS entry including this one, so "until reset" needs no
 // code here.
 //

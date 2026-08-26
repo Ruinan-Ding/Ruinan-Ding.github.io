@@ -128,8 +128,8 @@ else {
 
 // --- ENTER still answers after the mouse has been somewhere else -------
 // The dialog opens pointed at its action button, but a click anywhere
-// inside moves focus, and ENTER presses whatever holds it. Ticking "don't
-// ask this again" and then reaching for ENTER is the ordinary way to
+// inside moves focus, and ENTER presses whatever holds it. Clearing
+// "keep asking this" and then reaching for ENTER is the ordinary way to
 // answer one of these, and it was pressing the checkbox again.
 const dialogOpen = () => ev(`!!document.querySelector('[role="alertdialog"][data-state="open"]')`);
 const DONT_ASK = `document.querySelector('[role="alertdialog"] [data-dont-ask]')`;
@@ -137,8 +137,9 @@ const TICKED = `${DONT_ASK}?.getAttribute('aria-pressed')`;
 
 await clickEl(CONTROL('STOP'), 'STOP');
 check('STOP asks first', await dialogOpen(), 'true');
-await clickEl(DONT_ASK, "don't ask again");
-check('the box is ticked', await ev(TICKED), 'true');
+check('the box arrives ticked', await ev(TICKED), 'true');
+await clickEl(DONT_ASK, 'keep asking this');
+check('and clicking clears it', await ev(TICKED), 'false');
 check('and it holds focus', await ev(`document.activeElement?.hasAttribute?.('data-dont-ask') === true`), 'true');
 await press('Enter', 'Enter', 13, String.fromCharCode(13));
 check('ENTER confirms rather than re-ticking', await dialogOpen(), 'false');
