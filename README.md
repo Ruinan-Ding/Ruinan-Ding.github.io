@@ -1,5 +1,4 @@
 # Write Timer
-
 A minimal countdown timer. Set a time, hit start, and it counts down. When it hits zero it keeps going into negative time, beeping until you stop it. There's also a word counter scratchpad below the clock for timed writing sessions.
 
 ## Features
