@@ -225,11 +225,12 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   // Which question is showing, as one value. One replacing another is a
   // change of question but not of open/closed, and onOpenAutoFocus below
   // only fires on the second — so a dialog raised from the answer to the
-  // one before it kept the focus Radix had already placed, which is
-  // CANCEL. ENTER then cancelled the question it was meant to confirm.
+  // one before it kept the focus Radix had already placed, and showed a
+  // fresh question with the ring still sat on the previous CANCEL.
   const question = dialog.type === null ? null : `${dialog.type}:${key ?? ''}`;
-  // The button ENTER should land on when the dialog opens: the action on a
-  // two-button dialog, the single OK on an acknowledgement.
+  // The dialog's answer: the action on a two-button dialog, the single OK
+  // on an acknowledgement. Where the focus ring opens, and what the
+  // confirm key presses wherever the focus has since gone.
   const actionRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (question !== null) actionRef.current?.focus();
@@ -252,18 +253,10 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
     <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss(dontAskAgain)}>
       <AlertDialogContent
         className="bg-black border-4 border-white p-4 gap-3"
-        // Focus the answer rather than intercept the key. Radix opens with
-        // CANCEL focused, so ENTER, which this app advertises as yes,
-        // lands on no. Answering that with a handler that confirms
-        // whatever holds focus turns tabbing onto CANCEL and pressing the
-        // key printed on it into a confirm, which is the one way a
-        // keyboard user says no. Guarding on "has focus moved" only moves
-        // the hole: a keydown listener for Tab can't see focus moved by
-        // mouse or by arrow key.
-        //
-        // Focus where the default action already is needs no interception:
-        // ENTER presses what it points at, and CANCEL cancels once you
-        // move to it.
+        // Radix opens an AlertDialog with CANCEL focused, which points the
+        // dialog at the answer nobody opened it to give. The action is
+        // what a reader is deciding about, so that is where the focus ring
+        // goes and what ESC is measured against.
         onOpenAutoFocus={(e) => {
           // Only take the focus over if there's something to take it to.
           // preventDefault with nothing focused afterwards leaves it on the
@@ -278,24 +271,31 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           // ENTER, because a dialog that answers to the key you were
           // already leaning on gets answered by accident.
           //
-          // By code, not by character: the same physical key carries a
-          // different glyph on other layouts, and it is the key under the
-          // finger that was meant. Nothing in this dialog takes text, and
-          // Radix holds focus inside it, so a backquote arriving here
-          // cannot be someone typing one.
-          if (e.code === 'Backquote') {
+          // By code, not by character, so a US layout's shifted tilde and
+          // a UK layout's different glyph are still the same physical key.
+          // Where that key is spoken for by the system it simply never
+          // arrives, and ESC and the mouse still answer.
+          //
+          // Bare, and once per press: with a modifier this is the window
+          // switcher on two desktops, and held down it repeats about
+          // thirty times a second, which answers a chain of dialogs before
+          // the second one has been read.
+          if (e.code === 'Backquote' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
+            // Stops here rather than carrying on to the window's own
+            // shortcuts behind the dialog.
+            e.stopPropagation();
             actionRef.current?.click();
             return;
           }
-          // ENTER and Space answer nothing. Left to the browser each
-          // presses whatever holds focus — and the dialog opens pointed at
-          // the action, so a reflex on either would answer a question
-          // before it was read. ESC still cancels, and both keys that do
-          // anything say so on the buttons. The exception is the "keep
-          // asking this" checkbox, which Space belongs to.
+          // ENTER and Space are dead on the confirm button alone. The
+          // dialog opens pointed at it, so a reflex on either would answer
+          // before the question was read. Everything else in here keeps
+          // the keys a button is meant to answer: CANCEL takes them, and
+          // so does the "keep asking this" box, which is the only way a
+          // keyboard reaches either.
           if (e.key !== 'Enter' && e.key !== ' ') return;
-          if (e.key === ' ' && (e.target as HTMLElement).closest('[data-dont-ask]')) return;
+          if (acknowledgeRef.current || e.target !== actionRef.current) return;
           e.preventDefault();
           e.stopPropagation();
         }}
@@ -344,6 +344,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // two-button case, so ENTER opens pointed at it either way.
             <AlertDialogCancel
               ref={actionRef}
+              aria-keyshortcuts="Backquote"
               onClick={() => onConfirm(dontAskAgain)}
               className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
             >
@@ -352,7 +353,6 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           ) : (
             <>
               <AlertDialogCancel
-                data-cancel
                 onClick={() => onDismiss(false)}
                 className="border-4 border-white text-white text-xs font-bold h-auto px-3 py-1 hover:bg-white hover:text-black"
               >
@@ -360,6 +360,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
               </AlertDialogCancel>
               <AlertDialogAction
                 ref={actionRef}
+                aria-keyshortcuts="Backquote"
                 onClick={() => onConfirm(dontAskAgain)}
                 className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
               >

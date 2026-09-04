@@ -1,4 +1,4 @@
-// Enter starts, Enter confirms, Space no longer starts, Esc leaves the
+// Enter starts, the backquote confirms, Space no longer starts, Esc leaves the
 // word counter. Real key events through CDP so focus and default
 // activation behave the way they will for a person.
 import { spawn } from 'node:child_process';

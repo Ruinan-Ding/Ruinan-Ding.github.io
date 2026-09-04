@@ -47,7 +47,7 @@ const press = async (key, code, vk, text) => {
   await sleep(700);
 };
 // The backquote is the confirm key; ENTER answers nothing in a dialog.
-const enter = () => press('`', 'Backquote', 192, '`');
+const confirmDialog = () => press('`', 'Backquote', 192, '`');
 const moveTo = async (x, y) => {
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
   await sleep(300);
@@ -125,7 +125,7 @@ check('turning the full set on asks first', await dialogTitle(), 'CONFIRM EVERYT
 await press('Escape', 'Escape', 27);
 check('cancelling leaves it in half', await mode(), 'half');
 await clickEl(CONFIRM_BTN, 'confirm toggle');
-await enter();
+await confirmDialog();
 check('confirming reaches full', await mode(), 'full');
 check('full fills the square', await ev(`(${CONFIRM_BTN})?.querySelector('span > span')?.style.clipPath || 'none'`), 'none');
 check('full is persisted', await stored(), '"full"');
@@ -136,7 +136,7 @@ check('full mode asks before pausing', await dialogTitle(), 'PAUSE TIMER');
 await press('Escape', 'Escape', 27);
 check('cancelling leaves it running', await status(), 'RUNNING');
 await press('Tab', 'Tab', 9);
-await enter();
+await confirmDialog();
 check('confirming pauses', await status(), 'PAUSED');
 
 // --- the list -----------------------------------------------------------
@@ -205,7 +205,7 @@ check('cancelling ticks nothing', await ticks(), 0);
 
 await hoverConfirm();
 await clickSection('full', 'full heading again');
-await enter();
+await confirmDialog();
 await sleep(400);
 check('confirming silences the whole section', await ticks(), 30);
 await hoverConfirm();
@@ -215,7 +215,7 @@ check('and the heading empties', await ev(`${SECTION('full')}?.getAttribute('ari
 // Any ticked, so the same box clears them.
 await clickSection('full', 'full heading a third time');
 check('the other way asks too', await dialogTitle(), 'BRING THE SECTION BACK');
-await enter();
+await confirmDialog();
 await sleep(400);
 check('and clears the section', await ticks(), 0);
 
@@ -226,13 +226,13 @@ check('and clears the section', await ticks(), 0);
 await hoverConfirm();
 await clickSection('half', 'half heading');
 check('the half section asks going out', await dialogTitle(), 'SILENCE THE SECTION');
-await enter();
+await confirmDialog();
 await sleep(400);
 check('and leaves its own two rows alone', await ticks(), 22);
 await hoverConfirm();
 await clickSection('half', 'half heading again');
 check('so the way back still asks', await dialogTitle(), 'BRING THE SECTION BACK');
-await enter();
+await confirmDialog();
 await sleep(400);
 check('and clears it', await ticks(), 0);
 
@@ -244,7 +244,7 @@ await clickRow('Start the timer');
 check('the tick is written', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('"start"')`), 'true');
 await moveTo(700, 500);
 await clickEl(CONTROL('STOP'), 'STOP');
-await enter();
+await confirmDialog();
 await sleep(400);
 await clickEl(CONTROL('START'), 'START');
 check('a silenced question stops asking', await dialogTitle(), 'null');
@@ -257,7 +257,7 @@ await press('Escape', 'Escape', 27);
 // --- full -> none, which is the one step that warns ---------------------
 await clickEl(CONFIRM_BTN, 'confirm toggle');
 check('turning it off asks first', await dialogTitle(), 'TURN OFF CONFIRMATIONS');
-await enter();
+await confirmDialog();
 check('two clicks reach none', await mode(), 'none');
 check('none empties the square', await ev(`(${CONFIRM_BTN})?.querySelector('span > span')?.style.backgroundColor`), 'transparent');
 await clickEl(CONTROL('STOP'), 'STOP');
@@ -355,7 +355,7 @@ check('cancelling changes nothing', await ev(FIELDS), before);
 
 await clickEl(ARROW, 'second step');
 check('and asks again the very next time', await dialogTitle(), 'ADJUST TIME');
-await enter();
+await confirmDialog();
 await sleep(400);
 check('confirming applies it', (await ev(FIELDS)) !== before, true);
 
@@ -378,7 +378,7 @@ await ev(`document.activeElement?.blur?.(), 'ok'`);
 
 await clickEl(ARROW, 'first step after the tick');
 check('the first adjustment still asks', await dialogTitle(), 'ADJUST TIME');
-await enter();
+await confirmDialog();
 await sleep(400);
 const oncePer = await ev(FIELDS);
 await clickEl(ARROW, 'second step after the tick');
@@ -420,7 +420,7 @@ check('cancelling puts them back', await ev(FIELDS), paused);
 
 await clickEl(SEC_ARROW, 'seconds step');
 check('a cancelled question is asked again', await dialogTitle(), 'ADJUST TIME');
-await enter();
+await confirmDialog();
 await sleep(400);
 const answered = await ev(FIELDS);
 check('confirming applies it', answered !== paused, true);
@@ -433,7 +433,7 @@ await press('Tab', 'Tab', 9);
 check('resumed', await status(), 'RUNNING');
 await clickEl(SEC_ARROW, 'seconds step');
 check('a resume re-arms the question', await dialogTitle(), 'ADJUST TIME');
-await enter();
+await confirmDialog();
 await sleep(400);
 
 await press('Tab', 'Tab', 9);

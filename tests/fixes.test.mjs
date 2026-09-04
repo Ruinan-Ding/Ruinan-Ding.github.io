@@ -103,7 +103,7 @@ check('0%: no red slash', zeroIcon?.slash, 'false');
 check('0%: keeps the small X', zeroIcon?.xLines, '2');
 check('the two icons differ', JSON.stringify(mutedIcon?.slash) !== JSON.stringify(zeroIcon?.slash), 'true');
 
-// 3. Enter on a deliberately-tabbed CANCEL cancels; untouched Enter confirms.
+// 3. The confirm key is not an activation of whatever holds focus.
 await seed('', 600);
 await send('Page.reload', {});
 await sleep(2500);
@@ -111,9 +111,9 @@ await activate();
 await press('Tab', 'Tab', 9); // start
 await clickEl(`[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='STOP')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='STOP';})`, 'STOP');
 check('dialog open', await dialogTitle(), 'CONFIRM STOP');
-// Radix opens with CANCEL focused, so Tab moves *off* it. Cycle until it
-// comes back round to CANCEL: that is focus the user placed by hand, which
-// is the whole distinction being tested.
+// The dialog opens on its action, so Tab moves *off* it. Cycle until it
+// reaches CANCEL: focus the user placed by hand, on the one button that
+// means the opposite of what the confirm key does.
 let focusedLabel = null;
 for (let i = 0; i < 6; i++) {
   await press('Tab', 'Tab', 9);
@@ -121,13 +121,12 @@ for (let i = 0; i < 6; i++) {
   if (/CANCEL/.test(focusedLabel ?? '')) break;
 }
 check('tabbed round to CANCEL', /CANCEL/.test(focusedLabel ?? ''), 'true');
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
-check('ENTER on hand-focused CANCEL does nothing', await status(), 'RUNNING');
-check('and leaves the dialog standing', await dialogTitle(), 'CONFIRM STOP');
-// The backquote is not an activation of whatever holds focus, so it
-// means the same from CANCEL as from anywhere else.
+// The backquote reaches the dialog's action wherever the focus has got
+// to, so it means the same from CANCEL as from anywhere else. ENTER
+// from here is the opposite answer, and enterkey covers that.
 await press('`', 'Backquote', 192, '`');
-check('the backquote confirms from there', await status(), 'READY');
+check('the backquote confirms from CANCEL', await status(), 'READY');
+check('and closes the dialog', await dialogTitle(), 'null');
 
 // 4. Held TAB is one press, not thirty.
 await seed('', 600);

@@ -80,14 +80,12 @@ await sleep(2600);
 await enter('161');
 // Confirmations are off here, so the correction lands without a word.
 check('161 asks nothing with confirmations off', await dialogTitle(), 'null');
-await press('`', 'Backquote', 192, '`');
 await sleep(700);
 check('and rounds down to 1:59', (await rows()).includes('1:59'), 'true');
 check('rather than carrying to 2:01', (await rows()).includes('2:01'), 'false');
 
 // 9999 is 99m 99s: both fields over, both cut, no carry into an hour.
 await enter('9999');
-await press('`', 'Backquote', 192, '`');
 await sleep(700);
 check('9999 rounds down to 59:59', (await rows()).includes('59:59'), 'true');
 check('and never carries into an hour', (await rows()).some((r) => r.startsWith('1:40')), 'false');

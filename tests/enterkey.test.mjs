@@ -145,15 +145,46 @@ await press('`', 'Backquote', 192, '`');
 check('the backquote confirms rather than re-ticking', await dialogOpen(), 'false');
 check('and the timer stopped', await status(), 'READY');
 
-// The other half of the same rule: ENTER on CANCEL is how a keyboard says
-// no, and must stay that way.
+// ENTER on the button the dialog opens pointed at answers nothing. This is
+// the press the confirm key was moved off ENTER to stop: the dialog arrives
+// with the ring already on its action, so a reflex on ENTER would have
+// confirmed a question that had not been read yet.
 await clickEl(CONTROL('START'), 'START');
 await clickEl(CONTROL('RESET'), 'RESET');
 check('RESET asks', await dialogOpen(), 'true');
+const ACTION = `document.querySelector('[role="alertdialog"] [aria-keyshortcuts]')`;
+check('and opens pointed at its action', await ev(`document.activeElement === ${ACTION}`), 'true');
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('ENTER there confirms nothing', await dialogOpen(), 'true');
+await press(' ', 'Space', 32, ' ');
+check('and neither does Space', await dialogOpen(), 'true');
+
+// The confirm key bare and once, not as half of a shortcut. Alt+backquote
+// switches windows on GNOME and Cmd+backquote cycles them on macOS, and a
+// modifier's own keydown reaches the page first, so the combination that
+// leaves the window would answer the dialog on its way out.
+const backquote = (extra) => send('Input.dispatchKeyEvent', {
+  type: 'rawKeyDown', key: '`', code: 'Backquote', windowsVirtualKeyCode: 192, ...extra,
+});
+// Alt=1, Ctrl=2, Meta=4 in the protocol's modifier bits.
+for (const [name, modifiers] of [['Ctrl', 2], ['Alt', 1], ['Cmd', 4]]) {
+  await backquote({ modifiers });
+  await sleep(300);
+  check(`${name}+backquote confirms nothing`, await dialogOpen(), 'true');
+}
+// Held down it repeats about thirty times a second, which would answer
+// every dialog in a chain before the second one was on screen.
+await backquote({ autoRepeat: true });
+await sleep(300);
+check('a held backquote confirms nothing', await dialogOpen(), 'true');
+
+// The other half of the same rule: ENTER on CANCEL is how a keyboard says
+// no, and must stay that way. Both keys a button answers to are live
+// everywhere in here except on that one action.
 const CANCEL = `[...document.querySelectorAll('[role="alertdialog"] button')].find(b=>b.textContent.trim().startsWith('CANCEL'))`;
 await ev(`(${CANCEL})?.focus(), 'ok'`);
-await press('Escape', 'Escape', 27);
-check('ESC from CANCEL still cancels', await dialogOpen(), 'false');
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('ENTER on CANCEL cancels', await dialogOpen(), 'false');
 check('and the run carried on', await status(), 'RUNNING');
 
 const width = Math.max(...out.map((r) => r.name.length));
