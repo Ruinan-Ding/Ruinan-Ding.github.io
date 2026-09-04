@@ -85,7 +85,7 @@ await clickSel(`document.querySelector('[aria-label="Reset the website to defaul
 await sleep(600);
 check('RESET asked first', await ev(`!!document.querySelector('[role="alertdialog"][data-state="open"]')`), true);
 dialog = null;
-await key({ key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+await key({ key: '`', code: 'Backquote', windowsVirtualKeyCode: 192, text: '`' });
 await sleep(2500);
 check('no browser leave prompt blocked the reload', !!dialog, false);
 const after = await ev(`JSON.stringify({keys:Object.keys(localStorage).length, status:[...document.querySelectorAll('div')].filter(e=>/^(READY|RUNNING|PAUSED|STOPPED|FINISHED)$/.test(e.textContent.trim())&&e.children.length===0).pop()?.textContent.trim()})`);

@@ -121,7 +121,7 @@ check('overtime edit did not restart a countdown', await status(), 'PAUSED');
 const afterStep = await signedFields();
 check(`stepping up moved toward zero (${beforeStep} -> ${afterStep})`, afterStep === beforeStep + 1, 'true');
 await clickEl(btn('STOP'), 'STOP');
-if (await dialogTitle()) await press('Enter', 'Enter', 13, String.fromCharCode(13));
+if (await dialogTitle()) await press('`', 'Backquote', 192, '`');
 await sleep(600);
 check('STOP returned to the configured total', await fields(), beforeCfg);
 
@@ -133,7 +133,7 @@ await clickEl(BAR, 'bar while idle');
 check('idle seek asks', await dialogTitle(), 'SET TIME');
 await press('Escape', 'Escape', 27);
 
-// 4. ENTER lands on the action button; CANCEL is reachable and says no.
+// 4. The backquote confirms from wherever focus is; CANCEL says no.
 await seed(600);
 await send('Page.reload', {});
 await sleep(2500);
@@ -148,12 +148,12 @@ check('focus starts on the action', await ev(`/CONFIRM/.test(document.activeElem
 // question standing, which is the whole complaint about ENTER not working.
 await press('Tab', 'Tab', 9);
 const moved = await ev(`document.activeElement?.textContent?.trim().slice(0,10) ?? ''`);
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
-check(`ENTER off the action (${moved}) still confirms`, await status(), 'READY');
+await press('`', 'Backquote', 192, '`');
+check(`the backquote confirms from ${moved} too`, await status(), 'READY');
 
-// CANCEL is the exception, and the reason ENTER isn't simply bound to the
-// action for the whole dialog: it is the one way a keyboard says no, and
-// the key printed on it has to do what it says.
+// ESC is how a keyboard says no. The backquote is not an activation of
+// whatever holds focus, so it confirms from CANCEL as readily as from
+// anywhere else — which is why the way to refuse has to be its own key.
 await ev(`document.activeElement?.blur?.(), 'ok'`);
 await clickEl(btn('START'), 'START');
 await clickEl(btn('STOP'), 'STOP again');
@@ -162,13 +162,13 @@ await press('Tab', 'Tab', 9);
 await press('Tab', 'Tab', 9);
 const onCancel = await ev(`document.activeElement?.textContent?.trim().slice(0,6) ?? ''`);
 check('two TABs reach CANCEL', onCancel, 'CANCEL');
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
-check('ENTER on CANCEL says no', await status(), 'RUNNING');
+await press('Escape', 'Escape', 27);
+check('ESC from CANCEL says no', await status(), 'RUNNING');
 await press('Escape', 'Escape', 27);
 await sleep(400);
 await clickEl(btn('STOP'), 'STOP once more');
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
-check('untouched ENTER confirms', await status(), 'READY');
+await press('`', 'Backquote', 192, '`');
+check('an untouched backquote confirms', await status(), 'READY');
 
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(46)} got=${r.got.padEnd(14)} want=${r.want}`);
 console.log(`\n${out.filter((r) => r.pass).length}/${out.length} passed`);

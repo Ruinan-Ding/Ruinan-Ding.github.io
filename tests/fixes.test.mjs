@@ -121,14 +121,13 @@ for (let i = 0; i < 6; i++) {
   if (/CANCEL/.test(focusedLabel ?? '')) break;
 }
 check('tabbed round to CANCEL', /CANCEL/.test(focusedLabel ?? ''), 'true');
-await press('Enter', 'Enter', 13, '\r');
-check(`Enter on hand-focused CANCEL does not confirm`, await status(), 'RUNNING');
-check('and it closed the dialog', await dialogTitle(), 'null');
-await sleep(400);
-await clickEl(`[...document.querySelectorAll('button')].find(b=>{const t=b.textContent.trim();if(t==='STOP')return true;const m=[...b.children].find(c=>!c.classList.contains('control-hint'));return !!m&&m.textContent.trim()==='STOP';})`, 'STOP again');
-check('dialog open again', await dialogTitle(), 'CONFIRM STOP');
-await press('Enter', 'Enter', 13, '\r'); // untouched
-check('untouched Enter still confirms', await status(), 'READY');
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('ENTER on hand-focused CANCEL does nothing', await status(), 'RUNNING');
+check('and leaves the dialog standing', await dialogTitle(), 'CONFIRM STOP');
+// The backquote is not an activation of whatever holds focus, so it
+// means the same from CANCEL as from anywhere else.
+await press('`', 'Backquote', 192, '`');
+check('the backquote confirms from there', await status(), 'READY');
 
 // 4. Held TAB is one press, not thirty.
 await seed('', 600);

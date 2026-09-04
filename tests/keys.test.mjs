@@ -33,6 +33,7 @@ const KEYS = {
   Space: { key: ' ', code: 'Space', windowsVirtualKeyCode: 32, text: ' ' },
   Escape: { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 },
   Tab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 },
+  Backquote: { key: '`', code: 'Backquote', windowsVirtualKeyCode: 192, text: '`' },
   r: { key: 'r', code: 'KeyR', windowsVirtualKeyCode: 82, text: 'r' },
 };
 const press = async (name) => {
@@ -100,21 +101,21 @@ check('TAB resumes', await status(), 'RUNNING');
 await press('Enter');
 check('ENTER no longer toggles', await status(), 'RUNNING');
 
-// S opens the stop confirmation; ENTER should take it. The dialog keeps
-// ENTER — only the timer's own start/pause moved to TAB.
+// S opens the stop confirmation; the backquote takes it. ENTER answers
+// nothing anywhere now: not on the page, not in a dialog.
 await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 's', code: 'KeyS', windowsVirtualKeyCode: 83 });
 await send('Input.dispatchKeyEvent', { type: 'char', key: 's', code: 'KeyS', windowsVirtualKeyCode: 83, text: 's' });
 await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 's', code: 'KeyS', windowsVirtualKeyCode: 83 });
 await sleep(800);
 check('S opens a dialog', await dialogOpen(), 'true');
-check('dialog advertises ENTER', await evaluate(`document.querySelector('[role="alertdialog"]')?.innerText.includes('(ENTER)')`), 'true');
+check('dialog advertises the backquote', await evaluate(`document.querySelector('[role="alertdialog"]')?.innerText.includes('(\`)')`), 'true');
 // Radix focuses Cancel on open, so an unguarded Space pressed it and
 // answered the question. It should do nothing at all.
 await press('Space');
 check('SPACE leaves the dialog open', await dialogOpen(), 'true');
 check('SPACE answered nothing', await status(), 'RUNNING');
-await press('Enter');
-check('ENTER confirms the dialog', await dialogOpen(), 'false');
+await press('Backquote');
+check('the backquote confirms the dialog', await dialogOpen(), 'false');
 check('timer stopped', await status(), 'READY');
 
 // Esc leaves the word counter.
@@ -278,7 +279,7 @@ await sleep(300);
 // buttons are drawn disabled.
 await evaluate(`(${CTRL('STOP')})?.click(), 'ok'`);
 await sleep(500);
-if (await dialogOpen()) await press('Enter');
+if (await dialogOpen()) await press('Backquote');
 check('stopped', await status(), 'READY');
 check('two of them are disabled there', await evaluate(`[...document.querySelectorAll('button')].filter(b=>b.querySelector('.control-hint')&&b.disabled).length`), '2');
 check('and all three are still filled', await unfilled(), '');

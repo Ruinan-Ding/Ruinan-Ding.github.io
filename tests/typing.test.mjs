@@ -37,6 +37,14 @@ ws.onmessage = (m) => {
 };
 const send = (method, params = {}) => new Promise((res) => { const i = id++; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
 const evaluate = async (e) => (await send('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.value;
+// The dialog's confirm key. ENTER means a newline in the counter and a
+// commit in a time field, and answers nothing in a dialog.
+const confirmDialog = async () => {
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: '`', code: 'Backquote', windowsVirtualKeyCode: 192 });
+  await send('Input.dispatchKeyEvent', { type: 'char', key: '`', code: 'Backquote', windowsVirtualKeyCode: 192, text: '`' });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: '`', code: 'Backquote', windowsVirtualKeyCode: 192 });
+  await sleep(600);
+};
 const pressEnter = async () => {
   for (const type of ['rawKeyDown', 'char', 'keyUp']) {
     await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
@@ -157,18 +165,18 @@ await send('Page.reload', {});
 await sleep(2600);
 await clickLabel('Full screen');
 check('full screen asks', await dialogTitle(), 'FULL SCREEN');
-await pressEnter();
+await confirmDialog();
 await sleep(500);
 check('and nothing asks on top of it', await dialogTitle(), 'none');
 await clickLabel('Hide word counter');
 check('so the tuck is reachable', await dialogTitle(), 'HIDE WORD COUNTER');
-await pressEnter();
+await confirmDialog();
 await sleep(500);
 await send('Page.reload', {});
 await sleep(2600);
 await clickLabel('Show word counter');
 check('un-hiding asks too', await dialogTitle(), 'SHOW THE WORD COUNTER');
-await pressEnter();
+await confirmDialog();
 await sleep(500);
 check('and still lands back in full screen', await isFullscreen(), true);
 

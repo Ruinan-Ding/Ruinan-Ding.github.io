@@ -141,8 +141,8 @@ check('the box arrives ticked', await ev(TICKED), 'true');
 await clickEl(DONT_ASK, 'keep asking this');
 check('and clicking clears it', await ev(TICKED), 'false');
 check('and it holds focus', await ev(`document.activeElement?.hasAttribute?.('data-dont-ask') === true`), 'true');
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
-check('ENTER confirms rather than re-ticking', await dialogOpen(), 'false');
+await press('`', 'Backquote', 192, '`');
+check('the backquote confirms rather than re-ticking', await dialogOpen(), 'false');
 check('and the timer stopped', await status(), 'READY');
 
 // The other half of the same rule: ENTER on CANCEL is how a keyboard says
@@ -152,8 +152,8 @@ await clickEl(CONTROL('RESET'), 'RESET');
 check('RESET asks', await dialogOpen(), 'true');
 const CANCEL = `[...document.querySelectorAll('[role="alertdialog"] button')].find(b=>b.textContent.trim().startsWith('CANCEL'))`;
 await ev(`(${CANCEL})?.focus(), 'ok'`);
-await press('Enter', 'Enter', 13, String.fromCharCode(13));
-check('ENTER on CANCEL still cancels', await dialogOpen(), 'false');
+await press('Escape', 'Escape', 27);
+check('ESC from CANCEL still cancels', await dialogOpen(), 'false');
 check('and the run carried on', await status(), 'RUNNING');
 
 const width = Math.max(...out.map((r) => r.name.length));

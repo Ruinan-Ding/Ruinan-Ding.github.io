@@ -46,7 +46,8 @@ const press = async (key, code, vk, text) => {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk });
   await sleep(700);
 };
-const enter = () => press('Enter', 'Enter', 13, String.fromCharCode(13));
+// The backquote is the confirm key; ENTER answers nothing in a dialog.
+const enter = () => press('`', 'Backquote', 192, '`');
 const moveTo = async (x, y) => {
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
   await sleep(300);

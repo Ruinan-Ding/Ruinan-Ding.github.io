@@ -274,24 +274,28 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           actionRef.current.focus();
         }}
         onKeyDown={(e) => {
-          // ENTER is printed on the action button, but the browser hands
-          // it to whatever holds focus, and the dialog only opens pointed
-          // at the action — anything clicked inside takes it, the "don't
-          // ask this again" box included. So it goes to the action from
-          // anywhere but CANCEL, which is the one way a keyboard says no.
-          if (e.key === 'Enter' && !(e.target as HTMLElement).closest('[data-cancel]')) {
+          // Backquote is yes. A key nothing else here wants, rather than
+          // ENTER, because a dialog that answers to the key you were
+          // already leaning on gets answered by accident.
+          //
+          // By code, not by character: the same physical key carries a
+          // different glyph on other layouts, and it is the key under the
+          // finger that was meant. Nothing in this dialog takes text, and
+          // Radix holds focus inside it, so a backquote arriving here
+          // cannot be someone typing one.
+          if (e.code === 'Backquote') {
             e.preventDefault();
             actionRef.current?.click();
             return;
           }
-          // Space answers nothing. Left to the browser it presses whatever
-          // holds focus, so a spacebar reflex answers a question that
-          // doesn't advertise Space as an answer. ENTER confirms and ESC
-          // cancels, and both say so on the buttons. The exception is the
-          // "keep asking this" checkbox, the one control here Space belongs
-          // to.
-          if (e.key !== ' ') return;
-          if ((e.target as HTMLElement).closest('[data-dont-ask]')) return;
+          // ENTER and Space answer nothing. Left to the browser each
+          // presses whatever holds focus — and the dialog opens pointed at
+          // the action, so a reflex on either would answer a question
+          // before it was read. ESC still cancels, and both keys that do
+          // anything say so on the buttons. The exception is the "keep
+          // asking this" checkbox, which Space belongs to.
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          if (e.key === ' ' && (e.target as HTMLElement).closest('[data-dont-ask]')) return;
           e.preventDefault();
           e.stopPropagation();
         }}
@@ -343,7 +347,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
               onClick={() => onConfirm(dontAskAgain)}
               className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
             >
-              {copy?.action} <span className="opacity-60 font-normal">(ENTER / ESC)</span>
+              {copy?.action} <span className="opacity-60 font-normal">(` / ESC)</span>
             </AlertDialogCancel>
           ) : (
             <>
@@ -359,7 +363,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
                 onClick={() => onConfirm(dontAskAgain)}
                 className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
               >
-                {copy?.action} <span className="opacity-60 font-normal">(ENTER)</span>
+                {copy?.action} <span className="opacity-60 font-normal">(`)</span>
               </AlertDialogAction>
             </>
           )}
