@@ -126,11 +126,12 @@ else {
   console.log(`  tip: ${tip.lines} lines at ${tip.fontPx}px in ${tip.tipR - tip.tipL}px`);
 }
 
-// --- ENTER still answers after the mouse has been somewhere else -------
+// --- The confirm key still answers after the mouse has been elsewhere --
 // The dialog opens pointed at its action button, but a click anywhere
-// inside moves focus, and ENTER presses whatever holds it. Clearing
-// "keep asking this" and then reaching for ENTER is the ordinary way to
-// answer one of these, and it was pressing the checkbox again.
+// inside moves focus, and a key that presses whatever holds it would
+// answer the wrong control. Clearing "keep asking this" and then
+// confirming is the ordinary way to answer one of these, and it was
+// pressing the checkbox again.
 const dialogOpen = () => ev(`!!document.querySelector('[role="alertdialog"][data-state="open"]')`);
 const DONT_ASK = `document.querySelector('[role="alertdialog"] [data-dont-ask]')`;
 const TICKED = `${DONT_ASK}?.getAttribute('aria-pressed')`;

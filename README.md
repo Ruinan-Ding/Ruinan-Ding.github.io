@@ -10,7 +10,7 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 - Word counter with per-line and total line/word/character counts, optional alphanumeric-only filters, copy/clear, and a full-screen mode that keeps the timer controls in reach
 - Wall clock above the digits: any time zone the browser knows, and click the time to switch 12/24-hour
 - Drain bar under the digits: hover to preview a point, click to seek there
-- Enter to start/pause/resume, R to reset, S to stop; Esc leaves the word counter or the field you're typing in
+- Tab to start/pause/resume, R to reset, S to stop; Esc leaves the word counter or the field you're typing in
 - Arrow keys move the whole time by one of that box's units, the same as the chevrons beside it; the preset box takes them too
 - Mute toggle with a volume slider, plus an alarm repeat toggle (ring forever or ring once)
 - Light and dark themes
@@ -19,7 +19,7 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 
 ## Usage
 
-Set a time with the input fields or a preset, then press START (or Enter). Once it's running those fields become the time left, ticking down — editing one moves the run without changing the total, so STOP still returns to what you configured. The three boxes are one signed time: 61 in the seconds carries to 1:01, stepping 59 up carries too, stepping 00:00:00 down goes to -00:00:01, and "-" flips the sign onto the largest unit that has a number. Past zero, stepping back up is the way out of overtime. The chevrons and the arrow keys both move the whole time rather than the one box, so at -1:30 stepping the seconds up reaches -1:29. Typing is the other way round: it sets that unit's own value and carries on commit. The preset box works the same way, "-" and arrows included. PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Confirmation dialogs take the backquote key for yes and Esc for no — Enter answers nothing there, so a reflex on the key that started the timer cannot confirm a question you have not read yet. Everything persists across page reloads; the bin button in the top-right restores the site to defaults.
+Set a time with the input fields or a preset, then press START (or Tab). Once it's running those fields become the time left, ticking down — editing one moves the run without changing the total, so STOP still returns to what you configured. The three boxes are one signed time: 61 in the seconds carries to 1:01, stepping 59 up carries too, stepping 00:00:00 down goes to -00:00:01, and "-" flips the sign onto the largest unit that has a number. Past zero, stepping back up is the way out of overtime. The chevrons and the arrow keys both move the whole time rather than the one box, so at -1:30 stepping the seconds up reaches -1:29. Typing is the other way round: it sets that unit's own value and carries on commit. The preset box works the same way, "-" and arrows included. PAUSE silences the alarm, STOP resets to the configured time, RESET restarts. Confirmation dialogs take the backquote key for yes and Esc for no — Enter answers nothing there, so a reflex on the key that started the timer cannot confirm a question you have not read yet. Everything persists across page reloads; the bin button in the top-right restores the site to defaults.
 
 Tip: for a stopwatch, turn off the alarm repeat toggle and set the time to 00:00:00 — it rings once, then keeps counting silently.
 

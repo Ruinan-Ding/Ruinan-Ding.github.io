@@ -260,7 +260,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
         onOpenAutoFocus={(e) => {
           // Only take the focus over if there's something to take it to.
           // preventDefault with nothing focused afterwards leaves it on the
-          // body, where ENTER and ESC reach the window's timer shortcuts
+          // body, where TAB and ESC reach the window's timer shortcuts
           // and act on the run behind the dialog.
           if (!actionRef.current) return;
           e.preventDefault();
@@ -341,7 +341,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // and an acknowledgement has nothing to decline, ENTER, ESC
             // and the click all land on the same result, which is what the
             // label says. It carries actionRef like the Action does in the
-            // two-button case, so ENTER opens pointed at it either way.
+            // two-button case, so the dialog opens pointed at it either way.
             <AlertDialogCancel
               ref={actionRef}
               aria-keyshortcuts="Backquote"
