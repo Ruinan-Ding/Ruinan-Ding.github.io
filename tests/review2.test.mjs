@@ -70,7 +70,6 @@ const BAR = `[...document.querySelectorAll('div')].find(d=>d.className.includes(
 const seed = (secs, extra = '') => ev(`localStorage.setItem('timerAppState', JSON.stringify({seconds:${secs},isPaused:false,isRunning:false,hours:0,minutes:${Math.floor(secs / 60)},timerSeconds:${secs % 60}})),
   localStorage.setItem('timerSkipConfirmations','false'), localStorage.setItem('timerDontAskAgain','[]'),
   localStorage.setItem('timerSilentMode','true'), localStorage.setItem('timerAlarmLoop','false'),
-  localStorage.setItem('timerHasMutedBefore','true'),
   localStorage.setItem('wordCounterCollapsed','true'), localStorage.setItem('wordCounterCollapsedAt','null'),
   localStorage.setItem('timerSidebarHidden','false'), localStorage.setItem('timerTimeFieldsHidden','false'), ${extra} 'ok'`);
 // Run a 3s timer past zero, then PAUSE it: silent, holding a count-up.

@@ -69,7 +69,7 @@ const status = () => evaluate(`[...document.querySelectorAll('div')].filter(e=>/
 const dialogTitle = () => evaluate(`document.querySelector('[role="alertdialog"] h2, [role="alertdialog"] [id$="title"]')?.textContent ?? null`);
 const seed = (extra = '') => evaluate(`localStorage.setItem('timerAppState', JSON.stringify({seconds:2,isPaused:false,isRunning:false,hours:0,minutes:0,timerSeconds:2})),
   localStorage.setItem('timerSkipConfirmations','false'), localStorage.setItem('timerDontAskAgain','[]'),
-  localStorage.setItem('timerHasMutedBefore','true'), localStorage.setItem('timerAlarmLoop','true'),
+  localStorage.setItem('timerAlarmLoop','true'),
   localStorage.setItem('wordCounterCollapsed','true'), localStorage.setItem('wordCounterCollapsedAt','null'),
   localStorage.setItem('wordCounterFullscreen','false'), localStorage.setItem('timerSidebarHidden','false'),
   localStorage.setItem('timerTimeFieldsHidden','false'), ${extra} 'ok'`);
@@ -106,6 +106,11 @@ await clickEl(`document.querySelector('[aria-label="Unmute"]')`, 'unmute');
 check('unmuted', await evaluate(`!!document.querySelector('[aria-label="Mute"]')`), 'true');
 check('volume still 0', await evaluate(`document.querySelector('input[type=range]')?.value`), '0');
 await clickEl(`document.querySelector('[aria-label="Mute"]')`, 'mute again');
+// Every mute asks, not only the first one this browser ever made. It was
+// a one-time warning, which left the row in the confirm list governing
+// nothing from the second mute onwards.
+check('muting asks every time', await dialogTitle(), 'CONFIRM MUTE');
+await press('`', 'Backquote', 192, '`');
 await clickEl(`document.querySelector('[aria-label="Unmute"]')`, 'unmute again');
 check('volume still 0 after a round trip', await evaluate(`document.querySelector('input[type=range]')?.value`), '0');
 

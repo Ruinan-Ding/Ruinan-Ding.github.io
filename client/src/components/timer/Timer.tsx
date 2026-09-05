@@ -149,8 +149,6 @@ export default function Timer() {
     const saved = readJSON<unknown>(STORAGE_KEYS.volume, null);
     return typeof saved === 'number' && Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : DEFAULT_VOLUME;
   });
-  // Gates the one-time "are you sure?" the first time this browser mutes.
-  const [hasMutedBefore, setHasMutedBefore] = useState(() => readBoolean(STORAGE_KEYS.hasMutedBefore, false));
   // On, the alarm repeats until stopped; off, it rings one burst and goes
   // quiet. Off by default, which is also what makes 00:00:00 usable as a
   // count-up stopwatch.
@@ -624,7 +622,6 @@ export default function Timer() {
   usePersisted(STORAGE_KEYS.silentMode, isSilentMode);
   usePersisted(STORAGE_KEYS.presets, presets);
   usePersisted(STORAGE_KEYS.volume, volume);
-  usePersisted(STORAGE_KEYS.hasMutedBefore, hasMutedBefore);
   usePersisted(STORAGE_KEYS.alarmLoop, isAlarmLooping);
   usePersisted(STORAGE_KEYS.confirmMode, confirmMode);
   usePersisted(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
@@ -843,8 +840,8 @@ export default function Timer() {
     }
   };
 
-  // Muting makes no sound of its own, except the first time this browser
-  // ever mutes, which asks first.
+  // Muting makes no sound of its own, so the question is the only thing
+  // that marks it happening.
   const handleMuteToggle = () => {
     if (isSilentMode) {
       askFull('unmute', () => {
@@ -856,44 +853,32 @@ export default function Timer() {
       });
       return;
     }
-    // Once ever in half mode, which is what the warning is for: you won't
-    // hear the alarm. Full asks every time, like it does of everything
-    // else — without that the row in the list stopped meaning anything
-    // after the first mute.
-    if (!hasMutedBefore || confirmMode === 'full') {
-      askThenRun({ type: 'mute' }, handleConfirmMute);
-      return;
-    }
-    setIsSilentMode(true);
+    // Every time, in both modes that ask at all. It was once ever per
+    // browser, which left the row in the list meaning nothing after the
+    // first mute — and "you won't hear the alarm" is worth saying every
+    // time it becomes true, not only the first. The box on the dialog is
+    // still there for anyone who wants it silent for good.
+    askThenRun({ type: 'mute' }, handleConfirmMute);
   };
 
   const handleConfirmMute = () => {
     setIsSilentMode(true);
-    setHasMutedBefore(true);
     closeDialog();
   };
 
-  // Asked once for a drag rather than once for each of its hundred
-  // steps. Marked before asking and cleared when the slider is let go, so
-  // a cancel doesn't hand the rest of that drag a free pass — and it
-  // can't: the dialog takes the focus, which ends the drag.
-  const volumeAskedRef = useRef(false);
-  const requestVolumeChange = (value: number) => {
-    if (volumeAskedRef.current) {
-      handleVolumeChange(value);
-      return;
-    }
-    volumeAskedRef.current = true;
+  // Every landing point, not once for the drag. It used to ask on the
+  // first step and wave the other ninety-nine through, which left the
+  // one control in full mode that stopped asking after it had been
+  // answered once — the same thing the mute button above spells out.
+  // Dragging on past the dialog keeps moving what it is about to apply,
+  // and one answer settles wherever the slider came to rest.
+  const requestVolumeChange = (value: number) =>
     askFull('volume', () => handleVolumeChange(value));
-  };
   // Dragging the slider to 0 mutes; dragging back off 0 unmutes.
   const handleVolumeChange = (value: number) => {
     setVolume(value);
     if (value === 0) {
       setIsSilentMode(true);
-      // Sliding to 0 is already a deliberate mute, so the button's
-      // one-time "are you sure?" has been answered.
-      setHasMutedBefore(true);
     } else if (isSilentMode) {
       setIsSilentMode(false);
     }
@@ -1845,14 +1830,9 @@ export default function Timer() {
             step={0.01}
             value={volume}
             onChange={(e) => requestVolumeChange(Number(e.target.value))}
-            onPointerUp={(e) => {
-              volumeAskedRef.current = false;
-              playVolumePreview(Number((e.target as HTMLInputElement).value));
-            }}
-            onBlur={() => { volumeAskedRef.current = false; }}
+            onPointerUp={(e) => playVolumePreview(Number((e.target as HTMLInputElement).value))}
             onKeyUp={(e) => {
               if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
-                volumeAskedRef.current = false;
                 playVolumePreview(Number((e.target as HTMLInputElement).value));
               }
             }}

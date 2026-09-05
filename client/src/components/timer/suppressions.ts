@@ -174,7 +174,7 @@ export const FULL_ACTS: Record<FullAct, { label: string; title: string; descript
   volume: {
     label: 'Change the alarm volume',
     title: 'CHANGE VOLUME',
-    description: "Change how loud the alarm is? Dragging all the way down mutes it, and asks nothing more while you're on the slider.",
+    description: 'Change how loud the alarm is? Dragging all the way down mutes it.',
     action: 'CHANGE',
   },
   alarmLoop: {

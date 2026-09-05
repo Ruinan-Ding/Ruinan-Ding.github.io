@@ -131,7 +131,6 @@ export const STORAGE_KEYS = {
   silentMode: 'timerSilentMode',
   presets: 'timerAppPresets',
   volume: 'timerVolume',
-  hasMutedBefore: 'timerHasMutedBefore',
   alarmLoop: 'timerAlarmLoop',
   // Superseded by confirmMode, still read once as its default so a
   // browser that only ever knew the old switch keeps its answer.

@@ -71,7 +71,7 @@ const countBeeps = `(() => {
 // then 'still RUNNING' is the wrong thing to assert against.
 const seed = (extra = '', secs = 2) => evaluate(`localStorage.setItem('timerAppState', JSON.stringify({seconds:${secs},isPaused:false,isRunning:false,hours:0,minutes:${Math.floor(secs / 60)},timerSeconds:${secs % 60}})),
   localStorage.setItem('timerSkipConfirmations','false'), localStorage.setItem('timerDontAskAgain','[]'),
-  localStorage.setItem('timerHasMutedBefore','true'), localStorage.setItem('timerAlarmLoop','false'),
+  localStorage.setItem('timerAlarmLoop','false'),
   localStorage.setItem('timerVolume','0.5'),
   localStorage.setItem('wordCounterCollapsed','true'), localStorage.setItem('wordCounterCollapsedAt','null'),
   localStorage.setItem('wordCounterFullscreen','false'), localStorage.setItem('timerSidebarHidden','false'),

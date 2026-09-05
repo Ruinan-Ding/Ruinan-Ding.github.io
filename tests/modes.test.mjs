@@ -359,6 +359,23 @@ await confirmDialog();
 await sleep(400);
 check('confirming applies it', (await ev(FIELDS)) !== before, true);
 
+// The slider asks at every point it is dragged to, not once for the
+// drag. Asking on the first step and waving the other ninety-nine
+// through left one control whose row in the list stopped meaning
+// anything after a single answer. Dispatched rather than dragged: the
+// popup only shows on hover, and what is under test is the handler.
+const SLIDER = `document.querySelector('input[type=range]')`;
+const dragVolume = async (value) => {
+  await ev(`(()=>{const el=${SLIDER};const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(el,'${value}');el.dispatchEvent(new Event('input',{bubbles:true}));return 'ok'})()`);
+  await sleep(500);
+};
+await dragVolume(0.4);
+check('the first point asks', await dialogTitle(), 'CHANGE VOLUME');
+await confirmDialog();
+await dragVolume(0.7);
+check('and so does the next one', await dialogTitle(), 'CHANGE VOLUME');
+await press('Escape', 'Escape', 27);
+
 // --- the one thing full mode does with no dialog to silence -------------
 // Asking on every adjustment, where half asks once per pause or resume,
 // is a rule rather than an act: the question it governs is a half-tier
