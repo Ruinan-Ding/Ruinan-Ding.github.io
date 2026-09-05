@@ -13,12 +13,12 @@ export const offsetLabel = (shortOffset: string) => {
   return offset === '' ? '+0' : offset;
 };
 
-// dd/mm/yyyy, assembled from parts rather than trusted to a locale's own
-// ordering: en-US would put the month first and the app formats everything
-// else in en-US. The weekday stays in front of it.
+// mm/dd/yyyy, assembled from parts rather than left to the locale, so the
+// order is the app's own decision and not whatever pattern an ICU build
+// happens to ship. The weekday stays in front of it.
 export const formatDateParts = (formatter: Intl.DateTimeFormat, at: number) => {
   const parts = Object.fromEntries(formatter.formatToParts(at).map((p) => [p.type, p.value]));
-  const date = `${parts.day}/${parts.month}/${parts.year}`;
+  const date = `${parts.month}/${parts.day}/${parts.year}`;
   return parts.weekday ? `${parts.weekday}, ${date}` : date;
 };
 

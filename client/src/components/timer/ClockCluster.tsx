@@ -87,8 +87,8 @@ function ClockCluster({
   // the date first. The time omits the zone because the box below it
   // carries the offset; the third formatter is what that box reads.
   //
-  // The date is 2-digit day and month so formatDateParts can lay it out as
-  // dd/mm/yyyy, which no en-US pattern gives on its own.
+  // The date is 2-digit day and month so formatDateParts lays it out as
+  // mm/dd/yyyy with both halves the same width.
   const clock = useMemo(() => ({
     time: new Intl.DateTimeFormat('en-US', {
       timeZone,
