@@ -143,9 +143,9 @@ await clickEl(btn('STOP'), 'STOP');
 check('dialog open', await dialogTitle(), 'CONFIRM STOP');
 check('focus starts on the action', await ev(`/CONFIRM/.test(document.activeElement?.textContent ?? '')`), 'true');
 // One TAB lands on the "don't ask" checkbox, which is not an answer to
-// anything: ENTER goes to the action from there, as it does from anywhere
-// that isn't CANCEL. It used to press the checkbox again and leave the
-// question standing, which is the whole complaint about ENTER not working.
+// anything: the confirm key goes to the action from there, as it does
+// from wherever the focus has got to. ENTER used to press the checkbox
+// again and leave the question standing.
 await press('Tab', 'Tab', 9);
 const moved = await ev(`document.activeElement?.textContent?.trim().slice(0,10) ?? ''`);
 await press('`', 'Backquote', 192, '`');
@@ -162,8 +162,12 @@ await press('Tab', 'Tab', 9);
 await press('Tab', 'Tab', 9);
 const onCancel = await ev(`document.activeElement?.textContent?.trim().slice(0,6) ?? ''`);
 check('two TABs reach CANCEL', onCancel, 'CANCEL');
-await press('Escape', 'Escape', 27);
-check('ESC from CANCEL says no', await status(), 'RUNNING');
+// ENTER rather than ESC, which closes the dialog from any focus at all
+// and so proved nothing about the two TABs above it. CANCEL is a button
+// and has to answer the keys a button answers to, or tabbing to it is a
+// dead end.
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('ENTER on CANCEL says no', await status(), 'RUNNING');
 await press('Escape', 'Escape', 27);
 await sleep(400);
 await clickEl(btn('STOP'), 'STOP once more');

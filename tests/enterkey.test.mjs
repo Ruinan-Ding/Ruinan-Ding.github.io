@@ -188,6 +188,17 @@ await press('Enter', 'Enter', 13, String.fromCharCode(13));
 check('ENTER on CANCEL cancels', await dialogOpen(), 'false');
 check('and the run carried on', await status(), 'RUNNING');
 
+// The confirm key is answered inside the dialog and stops there. Loose on
+// the page it is an ordinary character: the word counter pulls focus back
+// to its text on any key a control does not answer to, and would have
+// caught this one and typed it into somebody's writing.
+await clickEl(CONTROL('RESET'), 'RESET');
+check('RESET asks again', await dialogOpen(), 'true');
+await ev(`window.__seen = 0, document.addEventListener('keydown', () => { window.__seen++; }), 'ok'`);
+await press('`', 'Backquote', 192, '`');
+check('the confirm key answers', await dialogOpen(), 'false');
+check('and never reaches the page', await ev('window.__seen'), '0');
+
 const width = Math.max(...out.map((r) => r.name.length));
 out.forEach((r) => console.log(`${r.pass ? 'ok  ' : 'FAIL'}  ${r.name.padEnd(width)}  got=${r.got.padEnd(10)} want=${r.want}`));
 console.log(`${out.filter((r) => r.pass).length}/${out.length} passed`);

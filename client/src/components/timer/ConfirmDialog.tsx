@@ -246,6 +246,19 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   // animation, like everything else the fade would otherwise blank.
   const listLabelRef = useRef<string | null>(null);
   if (dialog.type !== null) listLabelRef.current = QUESTIONS.find((q) => q.key === key)?.label ?? null;
+  // What the confirm key is called on the keyboard actually plugged in.
+  // The handler matches the physical position, and on a layout where that
+  // position is not a backquote the printed hint would name a glyph the
+  // user cannot type. Chromium answers this; everywhere else the
+  // backquote is the honest guess, which is what it renders until then.
+  const [keyLabel, setKeyLabel] = useState('`');
+  useEffect(() => {
+    // Not in the DOM lib yet, so the shape it is called with is spelled out.
+    const keyboard = (navigator as { keyboard?: { getLayoutMap?: () => Promise<Map<string, string>> } }).keyboard;
+    keyboard?.getLayoutMap?.()
+      .then((map) => { const label = map.get('Backquote'); if (label) setKeyLabel(label); })
+      .catch(() => { /* no layout to read; the guess stands */ });
+  }, []);
   const acknowledgeRef = useRef(false);
   if (dialog.type !== null) acknowledgeRef.current = isAcknowledgement(dialog);
 
@@ -348,7 +361,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
               onClick={() => onConfirm(dontAskAgain)}
               className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
             >
-              {copy?.action} <span className="opacity-60 font-normal">(` / ESC)</span>
+              {copy?.action} <span className="opacity-60 font-normal">({keyLabel} / ESC)</span>
             </AlertDialogCancel>
           ) : (
             <>
@@ -364,7 +377,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
                 onClick={() => onConfirm(dontAskAgain)}
                 className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
               >
-                {copy?.action} <span className="opacity-60 font-normal">(`)</span>
+                {copy?.action} <span className="opacity-60 font-normal">({keyLabel})</span>
               </AlertDialogAction>
             </>
           )}
