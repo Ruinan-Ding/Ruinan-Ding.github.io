@@ -277,7 +277,7 @@ const HALF_QUESTIONS: [string, string][] = [
   ['clearPresets', 'Delete every preset'],
   ['clearHistory', 'Clear all history'],
   ['clearWordCounter', 'Clear the word counter'],
-  ['hideWebsiteLink', 'Hide the website link'],
+  ['hideWebsiteLink', 'Show the website link'],
   ['correctPreset', 'Report a preset corrected to fit'],
   ['correctTime', 'Report a time corrected to fit'],
   ['duplicatePreset', 'Report a preset you already have'],
@@ -295,12 +295,17 @@ const FULL_RULES: [string, string][] = [
   ['adjustAgain', 'Change the time again in the same run'],
 ];
 
-// The two rows a heading's own box must not touch. A control that
-// silences its own confirmation as a side effect is one that asks once
-// and never again: silencing the half section ticked bulkSilence and
-// bulkRestore along with everything else, and the click that brought the
-// section back was then silent.
-export const BULK_KEYS = ['bulkSilence', 'bulkRestore'];
+// The rows a heading's own box must not touch. A control that silences
+// its own confirmation as a side effect is one that asks once and never
+// again: silencing the half section ticked bulkSilence and bulkRestore
+// along with everything else, and the click that brought the section
+// back was then silent.
+//
+// hideWebsiteLink is here for a different reason. Its row is not a
+// question but the link's own switch — ticked means the link is on the
+// page — so a heading that swept it up would take the link off the page
+// as a side effect of quietening a section.
+export const BULK_KEYS = ['bulkSilence', 'bulkRestore', 'hideWebsiteLink'];
 
 export const QUESTIONS: { key: string; label: string; tier: 'half' | 'full' }[] = [
   ...HALF_QUESTIONS.map(([key, label]) => ({ key, label, tier: 'half' as const })),

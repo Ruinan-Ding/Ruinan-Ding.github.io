@@ -516,8 +516,24 @@ export default function Timer() {
   };
   // The write hands back the new list, so this can't read back a value
   // localStorage hasn't taken yet.
-  const toggleSuppressedKey = (key: string) =>
-    setSuppressedKeys(setSuppressedKey(key, !suppressedKeys.includes(key)));
+  //
+  // The website link's row is not a question. Ticked means the link is on
+  // the page, and the two move together: answering the hide dialog clears
+  // the row, and clearing the row takes the link away. With confirmations
+  // off the row can still be set but has nothing to act through, so it is
+  // applied on the way back into a mode that reads it.
+  const toggleSuppressedKey = (key: string) => {
+    const next = setSuppressedKey(key, !suppressedKeys.includes(key));
+    setSuppressedKeys(next);
+    if (key === 'hideWebsiteLink' && confirmMode !== 'none') setIsWebsiteLinkHidden(next.includes(key));
+  };
+  // Both ways round, and on mount as well: a link hidden with
+  // confirmations off left the row saying it should be on the page, and
+  // this is where that gets settled.
+  useEffect(() => {
+    if (confirmMode === 'none') return;
+    setIsWebsiteLinkHidden(readSuppressedKeys().includes('hideWebsiteLink'));
+  }, [confirmMode]);
 
   // A whole section from its own heading. Standard select-all: with any
   // of them ticked the box clears the section, and with none ticked it
@@ -1438,6 +1454,12 @@ export default function Timer() {
         break;
       case 'hideWebsiteLink':
         setIsWebsiteLinkHidden(true);
+        // Answering clears the row, which is what the link reads. The
+        // path below this one, taken with confirmations off, deliberately
+        // leaves it alone: nothing was answered, so the row still says the
+        // link is wanted and switching to a mode that reads it brings the
+        // link back.
+        setSuppressedKeys(setSuppressedKey('hideWebsiteLink', true));
         closeDialog();
         break;
       case 'clearHistory':
@@ -2128,9 +2150,12 @@ export default function Timer() {
                           // already decided.
                           className="w-full flex items-center gap-2 px-2 py-1 text-left hover:opacity-70 transition-opacity"
                           style={{ fontSize: CONFIRM_LIST_FONT_SIZE, color: live ? 'var(--app-ink)' : '#6b7280' }}
-                          title={live
-                            ? 'Clear this to stop it asking'
-                            : "Clear this to stop it asking. The confirm mode you're in doesn't ask it, so nothing changes until you cycle back to one that does"}
+                          title={(() => {
+                            const what = question.key === 'hideWebsiteLink' ? 'take the website link off the page' : 'stop it asking';
+                            return live
+                              ? `Clear this to ${what}`
+                              : `Clear this to ${what}. The confirm mode you're in doesn't read this row, so nothing changes until you cycle back to one that does`;
+                          })()}
                         >
                           <DotCheckbox checked={!silenced} fontSize={CONFIRM_LIST_FONT_SIZE} />
                           <span className="flex-1">{question.label}</span>
@@ -2169,7 +2194,7 @@ export default function Timer() {
         onClick={handleHideWebsiteLinkClick}
         className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
         style={{ width: shrinkClamp(1.4, 2, 2.2, 1.8), height: shrinkClamp(1.4, 2, 2.2, 1.8), backgroundColor: 'var(--app-surface)' }}
-        title="Hide this link — stays hidden until you reset the website to defaults"
+        title="Hide this link — its row in the confirmations list brings it back"
         aria-label="Hide website link"
       >
         <X style={{ width: shrinkClamp(0.8, 1.3, 1.4, 1.1), height: shrinkClamp(0.8, 1.3, 1.4, 1.1) }} />

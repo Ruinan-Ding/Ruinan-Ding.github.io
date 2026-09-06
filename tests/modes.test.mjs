@@ -222,13 +222,15 @@ check('and clears the section', await ticks(), 0);
 // The half section is the one that catches it: the two rows about this
 // box live there, and a box that ticks its own confirmation asks once and
 // never again. Silencing the half section used to tick both, and the
-// click that brought it back was silent.
+// click that brought it back was silent. The website link's row is spared
+// for its own reason — it is the link's switch, not a question, and a
+// heading that swept it up would take the link off the page.
 await hoverConfirm();
 await clickSection('half', 'half heading');
 check('the half section asks going out', await dialogTitle(), 'SILENCE THE SECTION');
 await confirmDialog();
 await sleep(400);
-check('and leaves its own two rows alone', await ticks(), 22);
+check('and leaves the three it must not touch alone', await ticks(), 21);
 await hoverConfirm();
 await clickSection('half', 'half heading again');
 check('so the way back still asks', await dialogTitle(), 'BRING THE SECTION BACK');
@@ -469,6 +471,47 @@ await sleep(4500);
 check('past zero and ringing', await status(), 'FINISHED');
 await clickEl(SEC_ARROW, 'seconds step');
 check('half never asks while it rings', await dialogTitle(), 'null');
+
+// --- the website link's row is the link's own switch --------------------
+// Not a question: ticked means the link is on the page, and the two move
+// together. Answering the hide dialog clears the row, ticking the row
+// puts the link back, and the dialog carries no "keep asking this" box,
+// which here would read as one thing and do another.
+await ev(`localStorage.setItem('timerConfirmMode','"half"'),
+  localStorage.setItem('timerDontAskAgain','[]'),
+  localStorage.setItem('timerWebsiteLinkHidden','false'),
+  localStorage.setItem('timerAppState', JSON.stringify({seconds:600,isPaused:false,isRunning:false,hours:0,minutes:10,timerSeconds:0})), 'ok'`);
+await send('Page.reload', {});
+await sleep(3500);
+const LINK = `!!document.querySelector('a[href="https://ruinan-ding.com/"]')`;
+check('the link is on the page', await ev(LINK), 'true');
+await clickEl(`document.querySelector('[aria-label="Hide website link"]')`, 'the link X');
+check('hiding asks', await dialogTitle(), 'HIDE LINK');
+check('with no keep-asking box', await ev(`!!document.querySelector('[role="alertdialog"][data-dont-ask]')`), 'false');
+await confirmDialog();
+await sleep(400);
+check('confirming takes the link away', await ev(LINK), 'false');
+check('and clears its row', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('"hideWebsiteLink"')`), 'true');
+await hoverConfirm();
+await clickRow('Show the website link');
+await sleep(500);
+check('ticking the row brings it back', await ev(LINK), 'true');
+await moveTo(700, 500);
+
+// Confirmations off, so the X asks nothing — and nothing was answered,
+// so the row still says the link is wanted. Switching back to a mode
+// that reads it settles the two.
+await ev(`localStorage.setItem('timerConfirmMode','"none"'), 'ok'`);
+await send('Page.reload', {});
+await sleep(3500);
+await clickEl(`document.querySelector('[aria-label="Hide website link"]')`, 'the link X with nothing asking');
+await sleep(500);
+check('none hides it without asking', await ev(LINK), 'false');
+check('and leaves the row ticked', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('"hideWebsiteLink"')`), 'false');
+await ev(`localStorage.setItem('timerConfirmMode','"half"'), 'ok'`);
+await send('Page.reload', {});
+await sleep(3500);
+check('so half brings it back', await ev(LINK), 'true');
 
 const width = Math.max(...out.map((r) => r.name.length));
 out.forEach((r) => console.log(`${r.pass ? 'ok  ' : 'FAIL'}  ${r.name.padEnd(width)}  got=${r.got.padEnd(24)} want=${r.want}`));

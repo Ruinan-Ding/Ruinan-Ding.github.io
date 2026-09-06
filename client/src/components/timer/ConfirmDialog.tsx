@@ -113,7 +113,7 @@ const getCopy = (dialog: DialogState) => {
     case 'hideWebsiteLink':
       return {
         title: 'HIDE LINK',
-        description: 'Hide the "Check Out My Website!" link? :-( You can bring it back by resetting the website to defaults.',
+        description: 'Hide the "Check Out My Website!" link? :-( Its row in the confirmations list brings it back.',
         action: 'HIDE',
       };
     case 'clearHistory':
@@ -237,8 +237,12 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   }, [question]);
   // A dialog that can never be silenced renders without the row. Held
   // through the exit animation like the copy above.
+  //
+  // The website link is the other kind: its key is live, but it records
+  // whether the link is on the page rather than whether this asks, so a
+  // "keep asking this" box here would read as one thing and do another.
   const suppressibleRef = useRef(false);
-  if (dialog.type !== null) suppressibleRef.current = key !== null;
+  if (dialog.type !== null) suppressibleRef.current = key !== null && dialog.type !== 'hideWebsiteLink';
   // What this box is called in the list the confirm button drops down.
   // The tick and the row there are one answer written to one key, and
   // nothing said so: from here it looked like a per-dialog setting, and
