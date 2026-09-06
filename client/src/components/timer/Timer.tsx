@@ -498,8 +498,19 @@ export default function Timer() {
   // Crossing zero is one of those changes and moves neither flag, so the
   // alarm is watched in its own right — and pausing while it rings moves
   // isPaused, which makes that a fourth state to be asked in.
+  //
+  // Compared here rather than in an effect. timeRef is written in render
+  // and timerStateKind reads it, so an effect running after the commit
+  // left a window where a click read the new state off the ref with the
+  // flag from the old one still set, and the first adjustment in the new
+  // state applied without asking.
   const askedAdjustRef = useRef(false);
-  useEffect(() => { askedAdjustRef.current = false; }, [isRunning, isPaused, seconds < 0]);
+  const adjustStateRef = useRef<string | null>(null);
+  const adjustState = `${isRunning}:${isPaused}:${seconds < 0}`;
+  if (adjustStateRef.current !== adjustState) {
+    adjustStateRef.current = adjustState;
+    askedAdjustRef.current = false;
+  }
   // Radix fires onClick and onOpenChange for the same click, so the
   // dismiss handler needs this to tell a confirm from a cancel.
   const justConfirmedRef = useRef(false);
@@ -576,6 +587,16 @@ export default function Timer() {
   // count the box shows and the write it makes read this, so they agree:
   // those two rows are not what the heading governs, and they are ticked
   // one at a time or from their own dialog like anything else.
+  // What clearing a row does. Two things vary: the one row that is not a
+  // question takes the link off the page rather than quietening anything,
+  // and a row the mode in front of you doesn't read changes nothing until
+  // you come back to a mode that does.
+  const rowTitle = (key: string, live: boolean) => {
+    const what = key === 'hideWebsiteLink' ? 'take the website link off the page' : 'stop it asking';
+    return live
+      ? `Clear this to ${what}`
+      : `Clear this to ${what}. The confirm mode you're in doesn't read this row, so nothing changes until you cycle back to one that does`;
+  };
   const sectionKeys = (tier: 'half' | 'full') =>
     QUESTIONS.filter((q) => q.tier === tier && !BULK_KEYS.includes(q.key)).map((q) => q.key);
   const sectionTicked = (tier: 'half' | 'full') => sectionKeys(tier).filter((k) => suppressedKeys.includes(k)).length;
@@ -2228,12 +2249,7 @@ export default function Timer() {
                           // already decided.
                           className="w-full flex items-center gap-2 px-2 py-1 text-left hover:opacity-70 transition-opacity"
                           style={{ fontSize: CONFIRM_LIST_FONT_SIZE, color: live ? 'var(--app-ink)' : '#6b7280' }}
-                          title={(() => {
-                            const what = question.key === 'hideWebsiteLink' ? 'take the website link off the page' : 'stop it asking';
-                            return live
-                              ? `Clear this to ${what}`
-                              : `Clear this to ${what}. The confirm mode you're in doesn't read this row, so nothing changes until you cycle back to one that does`;
-                          })()}
+                          title={rowTitle(question.key, live)}
                         >
                           <DotCheckbox checked={!silenced} fontSize={CONFIRM_LIST_FONT_SIZE} />
                           <span className="flex-1">{question.label}</span>

@@ -213,11 +213,18 @@ const getCopy = (dialog: DialogState) => {
 
 export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmDialogProps) {
   // dialog.type resets the instant a choice is made, but Radix keeps the
-  // dialog mounted through its exit animation, so the last real copy is
-  // held to stop the text blanking out mid-fade.
+  // dialog mounted through its exit animation, so the last real dialog is
+  // held to stop everything it renders blanking out mid-fade. Everything
+  // below reads `shown` rather than the live prop, which is what keeps
+  // this to one held value instead of one per thing rendered.
+  const lastDialogRef = useRef<DialogState | null>(null);
   const lastCopyRef = useRef<ReturnType<typeof getCopy>>(null);
   const currentCopy = getCopy(dialog);
-  if (currentCopy) lastCopyRef.current = currentCopy;
+  if (currentCopy) {
+    lastDialogRef.current = dialog;
+    lastCopyRef.current = currentCopy;
+  }
+  const shown = lastDialogRef.current;
   const copy = currentCopy ?? lastCopyRef.current;
 
   // Unticked whenever a dialog opens: one dialog's ticked box must never
@@ -263,30 +270,23 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
     if (question !== null) chainedRef.current = questionSinceRef.current - answeredAtRef.current < 100;
     prevQuestionRef.current = question;
   }
-  // A dialog that can never be silenced renders without the row. Held
-  // through the exit animation like the copy above.
+  const shownKey = shown === null ? null : dialogKey(shown);
+  // A dialog that can never be silenced renders without the row.
   //
   // The website link is the other kind: its key is live, but it records
   // whether the link is on the page rather than whether this asks, so a
   // "keep asking this" box here would read as one thing and do another.
-  const suppressibleRef = useRef(false);
-  if (dialog.type !== null) suppressibleRef.current = key !== null && dialog.type !== 'hideWebsiteLink';
+  const suppressible = shownKey !== null && shown?.type !== 'hideWebsiteLink';
   // What clearing that box does, which is not the same on the one dialog
-  // whose box governs a cadence rather than a question. Held through the
-  // exit animation like the copy above.
-  const dontAskHintRef = useRef('');
-  if (dialog.type !== null) {
-    dontAskHintRef.current = dialog.type === 'adjust' && dialog.data.everyTime
-      ? 'Clear this to stop it asking every time. It still asks once each time the timer changes state. Resetting the website to defaults brings it back.'
-      : 'Clear this to stop this particular question asking. Resetting the website to defaults brings it back.';
-  }
+  // whose box governs a cadence rather than a question.
+  const dontAskHint = shown?.type === 'adjust' && shown.data.everyTime
+    ? 'Clear this to stop it asking every time. It still asks once each time the timer changes state. Resetting the website to defaults brings it back.'
+    : 'Clear this to stop this particular question asking. Resetting the website to defaults brings it back.';
   // What this box is called in the list the confirm button drops down.
   // The tick and the row there are one answer written to one key, and
   // nothing said so: from here it looked like a per-dialog setting, and
-  // from the list it looked like a separate one. Held through the exit
-  // animation, like everything else the fade would otherwise blank.
-  const listLabelRef = useRef<string | null>(null);
-  if (dialog.type !== null) listLabelRef.current = QUESTIONS.find((q) => q.key === key)?.label ?? null;
+  // from the list it looked like a separate one.
+  const listLabel = QUESTIONS.find((q) => q.key === shownKey)?.label ?? null;
   // What the confirm key is called on the keyboard actually plugged in.
   // The handler matches the physical position, and on a layout where that
   // position is not a backquote the printed hint would name a glyph the
@@ -304,8 +304,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
       .then((map) => { const label = map.get('Backquote'); if (label?.length === 1 && label.trim()) setKeyLabel(label); })
       .catch(() => { /* no layout to read; the guess stands */ });
   }, []);
-  const acknowledgeRef = useRef(false);
-  if (dialog.type !== null) acknowledgeRef.current = isAcknowledgement(dialog);
+  const acknowledge = shown !== null && isAcknowledgement(shown);
 
   return (
     <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && answer(() => onDismiss(dontAskAgain))}>
@@ -359,7 +358,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           // so does the "keep asking this" box, which is the only way a
           // keyboard reaches either.
           if (e.key !== 'Enter' && e.key !== ' ') return;
-          if (acknowledgeRef.current || e.target !== actionRef.current) return;
+          if (acknowledge || e.target !== actionRef.current) return;
           e.preventDefault();
           e.stopPropagation();
         }}
@@ -371,7 +370,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
         {/* Its own row: beside CANCEL/CONFIRM it pushed one of them onto a
             second line. Worded as this one question rather than all of
             them, which is what the confirmations toggle is for. */}
-        {suppressibleRef.current && (
+        {suppressible && (
           <button
             type="button"
             data-dont-ask
@@ -381,7 +380,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // stops this one question.
             aria-pressed={!dontAskAgain}
             className="flex items-center gap-2 text-white text-sm font-bold self-start transition-opacity duration-200 hover:opacity-80"
-            title={dontAskHintRef.current}
+            title={dontAskHint}
           >
             <DotCheckbox checked={!dontAskAgain} />
             {/* One flex item, not two: the row's gap-2 sits between items,
@@ -390,8 +389,8 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
                 under the words rather than stretching the dialog. */}
             <span className="text-left">
               Keep asking this
-              {listLabelRef.current && (
-                <span className="opacity-60 font-normal"> ({listLabelRef.current})</span>
+              {listLabel && (
+                <span className="opacity-60 font-normal"> ({listLabel})</span>
               )}
             </span>
           </button>
@@ -399,7 +398,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
         {/* Held through the exit animation like the copy, or the buttons
             would swap over mid-fade. */}
         <div className="flex gap-3 justify-end items-center">
-          {acknowledgeRef.current ? (
+          {acknowledge ? (
             // One button, and it's the Cancel element rather than the
             // Action on purpose: Radix wants a Cancel in an AlertDialog,
             // and an acknowledgement has nothing to decline, ENTER, ESC
