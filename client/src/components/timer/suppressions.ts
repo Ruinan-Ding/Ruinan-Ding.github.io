@@ -52,8 +52,14 @@ export const dialogKey = (dialog: DialogState): string | null => {
     // One question per timer state, not per field. HOURS, MINUTES and
     // SECONDS do the same thing, so answering for one answers for all
     // three, but only in the state it was answered in.
+    // While full mode is asking every time, the box governs that rule
+    // instead: clearing it drops back to one question per state, which is
+    // still a question. Silencing the state outright is what the row in
+    // the list is for. The two never overlap — everyTime is only set while
+    // the rule is unsilenced, so a suppressed 'adjustAgain' always reads
+    // through the per-state key below.
     case 'adjust':
-      return `adjust:${dialog.data.state}`;
+      return dialog.data.everyTime ? 'adjustAgain' : `adjust:${dialog.data.state}`;
     // One key per direction, not one per heading: which section it was
     // asked from doesn't change the question, but which way it is going
     // does. Sharing a key meant answering "yes, silence them" also

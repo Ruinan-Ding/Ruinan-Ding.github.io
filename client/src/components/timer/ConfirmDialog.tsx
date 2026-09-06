@@ -87,7 +87,7 @@ const getCopy = (dialog: DialogState) => {
       };
     }
     case 'adjust': {
-      const { totalSeconds, state, corrected } = dialog.data;
+      const { totalSeconds, state, corrected, everyTime } = dialog.data;
       // The resulting time, not the unit that was touched: a step carries
       // across units, so 59 seconds up is 1:00 and naming a unit would
       // describe neither box correctly.
@@ -97,6 +97,12 @@ const getCopy = (dialog: DialogState) => {
       // dialogs for one click is a click that answers a question it
       // hasn't read yet.
       const note = corrected ? ` ${corrected.typed} is past the longest time this can hold, so it stops there.` : '';
+      // The box below this one silences its question everywhere else, so
+      // the one dialog where it doesn't has to say so before it is
+      // cleared rather than after.
+      const cadence = everyTime
+        ? ' Clearing the box below does not silence this: it drops to one question each time the timer changes state, the way half mode asks.'
+        : '';
       return {
         title: 'ADJUST TIME',
         // Two different acts under one title. Idle, these fields are the
@@ -106,7 +112,7 @@ const getCopy = (dialog: DialogState) => {
         // and what the bar is drawn against.
         description: (state === 'unstarted'
           ? `Change the time to ${label}? That's what the timer will start from.`
-          : `Change the remaining time to ${label}? The configured time stays the same.`) + note,
+          : `Change the remaining time to ${label}? The configured time stays the same.`) + note + cadence,
         action: 'CONFIRM',
       };
     }
@@ -256,6 +262,15 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   // The website link is the other kind: its key is live, but it records
   // whether the link is on the page rather than whether this asks, so a
   // "keep asking this" box here would read as one thing and do another.
+  // What clearing the box does, which is not the same on the one dialog
+  // whose box governs a cadence rather than a question. Held through the
+  // exit animation like the copy above.
+  const dontAskHintRef = useRef('');
+  if (dialog.type !== null) {
+    dontAskHintRef.current = dialog.type === 'adjust' && dialog.data.everyTime
+      ? 'Clear this to stop it asking every time. It still asks once each time the timer changes state. Resetting the website to defaults brings it back.'
+      : 'Clear this to stop this particular question asking. Resetting the website to defaults brings it back.';
+  }
   const suppressibleRef = useRef(false);
   if (dialog.type !== null) suppressibleRef.current = key !== null && dialog.type !== 'hideWebsiteLink';
   // What this box is called in the list the confirm button drops down.
@@ -355,7 +370,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // stops this one question.
             aria-pressed={!dontAskAgain}
             className="flex items-center gap-2 text-white text-sm font-bold self-start transition-opacity duration-200 hover:opacity-80"
-            title="Clear this to stop this particular question asking. Resetting the website to defaults brings it back."
+            title={dontAskHintRef.current}
           >
             <DotCheckbox checked={!dontAskAgain} />
             {/* One flex item, not two: the row's gap-2 sits between items,

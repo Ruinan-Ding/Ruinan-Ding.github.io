@@ -490,12 +490,16 @@ export default function Timer() {
   // moment ago", which shouldn't outlive the session. The dialog's "don't
   // ask again" is what makes an answer permanent.
   //
-  // Re-armed by every pause and every resume, since that's what makes it a
+  // Re-armed by every change of state, since that's what makes it a
   // different question: the run you're editing is not the one you okayed.
   // Keyed by state kind instead, pausing after having answered while
   // paused earlier was silently waved through.
+  //
+  // Crossing zero is one of those changes and moves neither flag, so the
+  // alarm is watched in its own right — and pausing while it rings moves
+  // isPaused, which makes that a fourth state to be asked in.
   const askedAdjustRef = useRef(false);
-  useEffect(() => { askedAdjustRef.current = false; }, [isRunning, isPaused]);
+  useEffect(() => { askedAdjustRef.current = false; }, [isRunning, isPaused, seconds < 0]);
   // Radix fires onClick and onOpenChange for the same click, so the
   // dismiss handler needs this to tell a confirm from a cancel.
   const justConfirmedRef = useRef(false);
@@ -1381,7 +1385,11 @@ export default function Timer() {
       // it as a second dialog: the click that confirms is also the click
       // that closes, so one opened from the confirm handler is shut by the
       // event that opened it.
-      const dialog: DialogState = { type: 'adjust', data: { totalSeconds: Math.trunc(next), previousTotal, unit, state, corrected } };
+      // Carried into the dialog because its "keep asking this" box reads
+      // it: asking every time is a rule of its own, and the box on a
+      // dialog that is asking every time turns off the rule rather than
+      // the question. See dialogKey.
+      const dialog: DialogState = { type: 'adjust', data: { totalSeconds: Math.trunc(next), previousTotal, unit, state, corrected, everyTime: asksEveryTime } };
       // Marked before asking, and the dismiss handler clears it again, so
       // only an answered question counts: cancelling doesn't hand the next
       // adjustment a free pass.

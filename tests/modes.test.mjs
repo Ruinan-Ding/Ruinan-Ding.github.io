@@ -465,6 +465,56 @@ await clickEl(ARROW, 'second step after the tick');
 check('the next one in the same stretch is silent', await dialogTitle(), 'null');
 check('but still applied', (await ev(FIELDS)) !== oncePer, true);
 
+// --- the every-time box turns off the rule, not the question -----------
+// Every other dialog's box silences its own question. This one sits on
+// the dialog that is asking every time, so clearing it turns off "every
+// time" and leaves the once-per-state question standing — which is what
+// the copy says and what the key it writes means.
+await ev(`localStorage.setItem('timerDontAskAgain','[]'),
+  localStorage.setItem('timerAppState', JSON.stringify({seconds:600,isPaused:false,isRunning:false,hours:0,minutes:10,timerSeconds:0})), 'ok'`);
+await send('Page.reload', {});
+await sleep(3000);
+await ev(`document.activeElement?.blur?.(), 'ok'`);
+await clickEl(ARROW, 'a step with the rule back on');
+check('the every-time dialog asks', await dialogTitle(), 'ADJUST TIME');
+check('and says the box will not silence it', await ev(`/does not silence this/.test(document.querySelector('[role="alertdialog"]')?.textContent ?? '')`), 'true');
+check('the box names the cadence rule', await ev(`document.querySelector('[role="alertdialog"] [data-dont-ask]')?.textContent ?? null`), 'Keep asking this (Change the time again in the same run)');
+await ev(`document.querySelector('[role="alertdialog"] [data-dont-ask]')?.click(), 'ok'`);
+await confirmDialog();
+await sleep(400);
+check('clearing it writes the rule', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('"adjustAgain"')`), 'true');
+check('and not the one state it was asked in', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('adjust:')`), 'false');
+
+// Then once per state, and every state counts. Crossing zero into the
+// alarm moves neither the running flag nor the paused one, so a step
+// taken while it rings used to ride on the answer given while it was
+// still counting down. The other full-mode acts are silenced here so the
+// only thing that can open a dialog is the one under test.
+await ev(`localStorage.setItem('timerDontAskAgain','["adjustAgain","start","pause","resume","stopRinging","resetRinging"]'),
+  localStorage.setItem('timerAppState', JSON.stringify({seconds:3,isPaused:false,isRunning:false,hours:0,minutes:0,timerSeconds:3})), 'ok'`);
+await send('Page.reload', {});
+await sleep(3000);
+await ev(`document.activeElement?.blur?.(), 'ok'`);
+const UP = `document.querySelector('[aria-label="Increase seconds"]')`;
+const DOWN = `document.querySelector('[aria-label="Decrease seconds"]')`;
+await clickEl(CONTROL('START'), 'START');
+await clickEl(UP, 'a step while it runs');
+check('the run asks once', await dialogTitle(), 'ADJUST TIME');
+await confirmDialog();
+await clickEl(UP, 'another step in the same run');
+check('and not twice', await dialogTitle(), 'null');
+await sleep(7000);
+check('past zero and ringing', await status(), 'FINISHED');
+await clickEl(DOWN, 'a step while it rings');
+check('the alarm is a state of its own', await dialogTitle(), 'ADJUST TIME');
+await confirmDialog();
+await clickEl(DOWN, 'another step while it rings');
+check('asked once there too', await dialogTitle(), 'null');
+await press('Tab', 'Tab', 9);
+await clickEl(DOWN, 'a step with the alarm paused');
+check('and pausing the alarm is a fourth state', await dialogTitle(), 'ADJUST TIME');
+await press('Escape', 'Escape', 27);
+
 // --- HALF: one adjustment question per stretch of the run --------------
 // Half's rule is unchanged in shape — the three boxes share one prompt,
 // and only where there's a run to lose — but the stretch it covers is a
