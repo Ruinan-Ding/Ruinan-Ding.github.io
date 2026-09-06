@@ -1470,7 +1470,15 @@ export default function Timer() {
     justConfirmedRef.current = true;
     // Recorded before the switch runs, since some of these actions clear
     // the dialog state they close over.
-    if (dontAskAgain) suppressDialog(dialog);
+    if (dontAskAgain) {
+      // Into the state as well as storage. asksEveryTime reads the state,
+      // so a box cleared on an every-time ADJUST TIME left it saying the
+      // rule was still on while storage said otherwise — and the next
+      // adjustment took the every-time key, found it silenced, and asked
+      // nothing at all instead of dropping to once per state.
+      const next = suppressDialog(dialog);
+      if (next) setSuppressedKeys(next);
+    }
     switch (dialog.type) {
       case 'stop':
         handleConfirmStop();
@@ -1906,7 +1914,12 @@ export default function Timer() {
             max={1}
             step={0.01}
             value={shownVolume}
-            onPointerDown={() => { isDraggingVolumeRef.current = true; }}
+            // The primary button only: a right-click gets no pointerup,
+            // and the flag it left set made every later arrow key move the
+            // thumb without applying anything. Focus leaving clears it for
+            // whatever else strands a pointer.
+            onPointerDown={(e) => { if (e.button === 0) isDraggingVolumeRef.current = true; }}
+            onBlur={() => { isDraggingVolumeRef.current = false; }}
             onChange={(e) => {
               const value = Number(e.target.value);
               if (isDraggingVolumeRef.current) setDragVolume(value);

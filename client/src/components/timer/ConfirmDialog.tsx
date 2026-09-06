@@ -241,19 +241,26 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   useEffect(() => {
     if (question !== null) actionRef.current?.focus();
   }, [question]);
-  // Whether this question arrived on the heels of the last one rather
-  // than opening on its own. Saving a preset queues the next dialog a
+  // Whether this question arrived on the heels of an answer rather than
+  // opening on its own. Saving a preset queues the next dialog a
   // microtask after this one is answered, so it takes the screen with no
   // fade and no re-open, and the confirm key below has to know it is
-  // looking at something nobody has read yet. Measured rather than
-  // matched on the two acts by name: any chain has the same problem.
+  // looking at something nobody has read yet. Measured off the answer,
+  // not off a render with no dialog in it: whether React commits one
+  // between the two is an ordering detail, and this does not turn on it.
+  // Measured rather than matched on the two acts by name, too — any chain
+  // has the same problem.
+  const answeredAtRef = useRef(-Infinity);
+  const answer = (run: () => void) => {
+    answeredAtRef.current = performance.now();
+    run();
+  };
   const prevQuestionRef = useRef<string | null>(null);
-  const questionSinceRef = useRef(0);
+  const questionSinceRef = useRef(-Infinity);
   const chainedRef = useRef(false);
   if (question !== prevQuestionRef.current) {
-    const now = performance.now();
-    if (question !== null) chainedRef.current = now - questionSinceRef.current < 100;
-    questionSinceRef.current = now;
+    questionSinceRef.current = performance.now();
+    if (question !== null) chainedRef.current = questionSinceRef.current - answeredAtRef.current < 100;
     prevQuestionRef.current = question;
   }
   // A dialog that can never be silenced renders without the row. Held
@@ -262,7 +269,9 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   // The website link is the other kind: its key is live, but it records
   // whether the link is on the page rather than whether this asks, so a
   // "keep asking this" box here would read as one thing and do another.
-  // What clearing the box does, which is not the same on the one dialog
+  const suppressibleRef = useRef(false);
+  if (dialog.type !== null) suppressibleRef.current = key !== null && dialog.type !== 'hideWebsiteLink';
+  // What clearing that box does, which is not the same on the one dialog
   // whose box governs a cadence rather than a question. Held through the
   // exit animation like the copy above.
   const dontAskHintRef = useRef('');
@@ -271,8 +280,6 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
       ? 'Clear this to stop it asking every time. It still asks once each time the timer changes state. Resetting the website to defaults brings it back.'
       : 'Clear this to stop this particular question asking. Resetting the website to defaults brings it back.';
   }
-  const suppressibleRef = useRef(false);
-  if (dialog.type !== null) suppressibleRef.current = key !== null && dialog.type !== 'hideWebsiteLink';
   // What this box is called in the list the confirm button drops down.
   // The tick and the row there are one answer written to one key, and
   // nothing said so: from here it looked like a per-dialog setting, and
@@ -290,14 +297,18 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
     // Not in the DOM lib yet, so the shape it is called with is spelled out.
     const keyboard = (navigator as { keyboard?: { getLayoutMap?: () => Promise<Map<string, string>> } }).keyboard;
     keyboard?.getLayoutMap?.()
-      .then((map) => { const label = map.get('Backquote'); if (label) setKeyLabel(label); })
+      // One printable character or nothing: this is drawn inside the
+      // button and handed to aria-keyshortcuts, where a label with a space
+      // in it is announced as two shortcuts and a long one (JIS names this
+      // key) stretches the hint.
+      .then((map) => { const label = map.get('Backquote'); if (label?.length === 1 && label.trim()) setKeyLabel(label); })
       .catch(() => { /* no layout to read; the guess stands */ });
   }, []);
   const acknowledgeRef = useRef(false);
   if (dialog.type !== null) acknowledgeRef.current = isAcknowledgement(dialog);
 
   return (
-    <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && onDismiss(dontAskAgain)}>
+    <AlertDialog open={dialog.type !== null} onOpenChange={(open) => !open && answer(() => onDismiss(dontAskAgain))}>
       <AlertDialogContent
         className="bg-black border-4 border-white p-4 gap-3"
         // Radix opens an AlertDialog with CANCEL focused, which points the
@@ -401,7 +412,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
               // position the handler matches: aria-keyshortcuts is spoken,
               // and "Backquote" is not a name anything announces.
               aria-keyshortcuts={keyLabel}
-              onClick={() => onConfirm(dontAskAgain)}
+              onClick={() => answer(() => onConfirm(dontAskAgain))}
               className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
             >
               {copy?.action} <span className="opacity-60 font-normal">({keyLabel} / ESC)</span>
@@ -409,7 +420,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
           ) : (
             <>
               <AlertDialogCancel
-                onClick={() => onDismiss(false)}
+                onClick={() => answer(() => onDismiss(false))}
                 className="border-4 border-white text-white text-xs font-bold h-auto px-3 py-1 hover:bg-white hover:text-black"
               >
                 CANCEL <span className="opacity-60 font-normal">(ESC)</span>
@@ -417,7 +428,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
               <AlertDialogAction
                 ref={actionRef}
                 aria-keyshortcuts={keyLabel}
-                onClick={() => onConfirm(dontAskAgain)}
+                onClick={() => answer(() => onConfirm(dontAskAgain))}
                 className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
               >
                 {copy?.action} <span className="opacity-60 font-normal">({keyLabel})</span>

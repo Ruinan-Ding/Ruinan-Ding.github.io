@@ -484,6 +484,19 @@ await confirmDialog();
 await sleep(400);
 check('clearing it writes the rule', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('"adjustAgain"')`), 'true');
 check('and not the one state it was asked in', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('adjust:')`), 'false');
+// And it takes effect on this page, not on the next load. The list is
+// React state as well as storage, and a copy only storage knew about
+// still read as "asking every time": the next adjustment took the
+// every-time key, found it silenced, and asked nothing at all in any
+// state.
+await press('Tab', 'Tab', 9);
+check('starting asks in full mode', await dialogTitle(), 'START TIMER');
+await confirmDialog();
+await clickEl(ARROW, 'a step in the state that just began');
+check('the new state asks once', await dialogTitle(), 'ADJUST TIME');
+await confirmDialog();
+await clickEl(ARROW, 'another step in the same state');
+check('once there, not every time', await dialogTitle(), 'null');
 
 // Then once per state, and every state counts. Crossing zero into the
 // alarm moves neither the running flag nor the paused one, so a step

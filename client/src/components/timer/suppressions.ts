@@ -360,8 +360,11 @@ export const readConfirmMode = (): ConfirmMode => {
   return readBoolean(STORAGE_KEYS.skipConfirmations, false) ? 'none' : 'half';
 };
 
-export const suppressDialog = (dialog: DialogState) => {
+// Hands the new list back, like setSuppressedKey itself: the caller keeps
+// a copy in React state, and a copy that only storage knows about is one
+// the next render reads wrong.
+export const suppressDialog = (dialog: DialogState): string[] | null => {
   const key = dialogKey(dialog);
-  if (key === null) return;
-  setSuppressedKey(key, true);
+  if (key === null) return null;
+  return setSuppressedKey(key, true);
 };
