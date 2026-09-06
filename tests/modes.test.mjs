@@ -361,22 +361,36 @@ await confirmDialog();
 await sleep(400);
 check('confirming applies it', (await ev(FIELDS)) !== before, true);
 
-// The slider asks at every point it is dragged to, not once for the
-// drag. Asking on the first step and waving the other ninety-nine
-// through left one control whose row in the list stopped meaning
-// anything after a single answer. Dispatched rather than dragged: the
-// popup only shows on hover, and what is under test is the handler.
+// The slider asks where the pointer lets go, not at every point it
+// passes over. Asking on the way put a dialog under a pointer still
+// holding the thumb, which killed the drag and left the volume
+// unchangeable. Dispatched rather than dragged: the popup only shows on
+// hover, and what is under test is the handler.
 const SLIDER = `document.querySelector('input[type=range]')`;
-const dragVolume = async (value) => {
+const slide = async (value) => {
   await ev(`(()=>{const el=${SLIDER};const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(el,'${value}');el.dispatchEvent(new Event('input',{bubbles:true}));return 'ok'})()`);
-  await sleep(500);
+  await sleep(200);
 };
-await dragVolume(0.4);
-check('the first point asks', await dialogTitle(), 'CHANGE VOLUME');
-await confirmDialog();
-await dragVolume(0.7);
-check('and so does the next one', await dialogTitle(), 'CHANGE VOLUME');
+const release = async () => {
+  await ev(`(()=>{${SLIDER}.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));return 'ok'})()`);
+  await sleep(400);
+};
+const sliderValue = () => ev(`${SLIDER}.value`);
+await slide(0.4);
+check('mid-drag asks nothing', await dialogTitle(), 'null');
+await slide(0.7);
+check('and the thumb goes where it is dragged', await sliderValue(), '0.7');
+await release();
+check('letting go is what asks', await dialogTitle(), 'CHANGE VOLUME');
 await press('Escape', 'Escape', 27);
+await sleep(300);
+check('saying no puts the thumb back', await sliderValue(), '0.5');
+await slide(0.7);
+await release();
+await confirmDialog();
+await sleep(300);
+check('saying yes keeps it', await sliderValue(), '0.7');
+check('and the volume took it', await ev(`localStorage.getItem('timerVolume')`), '0.7');
 
 // --- the one thing full mode does with no dialog to silence -------------
 // Asking on every adjustment, where half asks once per pause or resume,

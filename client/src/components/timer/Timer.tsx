@@ -149,6 +149,11 @@ export default function Timer() {
     const saved = readJSON<unknown>(STORAGE_KEYS.volume, null);
     return typeof saved === 'number' && Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : DEFAULT_VOLUME;
   });
+  // Where the thumb sits mid-drag, before any of it has been applied.
+  // Null means it sits on the volume itself, which is every moment except
+  // a drag in progress or a question about one still open.
+  const [dragVolume, setDragVolume] = useState<number | null>(null);
+  const shownVolume = dragVolume ?? volume;
   // On, the alarm repeats until stopped; off, it rings one burst and goes
   // quiet. Off by default, which is also what makes 00:00:00 usable as a
   // count-up stopwatch.
@@ -506,7 +511,13 @@ export default function Timer() {
   // or RESET to act on.
   const isIdleAtConfigured = !isRunning && seconds === configuredTotalSeconds;
 
-  const closeDialog = () => setDialog({ type: null });
+  const closeDialog = () => {
+    setDialog({ type: null });
+    // Whatever the answer was, the drag it belonged to is over: confirming
+    // has just set the volume and dismissing left the old one standing, so
+    // either way the thumb goes back to reading it.
+    setDragVolume(null);
+  };
 
   // Re-read on the way open rather than kept in sync, for the reason the
   // state itself gives: every dialog's own tick box writes the same store.
@@ -882,14 +893,18 @@ export default function Timer() {
     closeDialog();
   };
 
-  // Every landing point, not once for the drag. It used to ask on the
-  // first step and wave the other ninety-nine through, which left the
-  // one control in full mode that stopped asking after it had been
-  // answered once — the same thing the mute button above spells out.
-  // Dragging on past the dialog keeps moving what it is about to apply,
-  // and one answer settles wherever the slider came to rest.
+  // On release, not at every point on the way there. Asking at the first
+  // step put a dialog under a pointer that was still holding the thumb,
+  // which took the drag with it and left the volume unchangeable in full
+  // mode. The thumb follows the pointer on its own through dragVolume,
+  // and one question settles wherever it stopped. The preview burst rides
+  // with the change rather than the release, so a level nobody agreed to
+  // is never played.
   const requestVolumeChange = (value: number) =>
-    askFull('volume', () => handleVolumeChange(value));
+    askFull('volume', () => {
+      handleVolumeChange(value);
+      playVolumePreview(value);
+    });
   // Dragging the slider to 0 mutes; dragging back off 0 unmutes.
   const handleVolumeChange = (value: number) => {
     setVolume(value);
@@ -1850,18 +1865,18 @@ export default function Timer() {
             min={0}
             max={1}
             step={0.01}
-            value={volume}
-            onChange={(e) => requestVolumeChange(Number(e.target.value))}
-            onPointerUp={(e) => playVolumePreview(Number((e.target as HTMLInputElement).value))}
+            value={shownVolume}
+            onChange={(e) => setDragVolume(Number(e.target.value))}
+            onPointerUp={(e) => requestVolumeChange(Number((e.target as HTMLInputElement).value))}
             onKeyUp={(e) => {
               if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
-                playVolumePreview(Number((e.target as HTMLInputElement).value));
+                requestVolumeChange(Number((e.target as HTMLInputElement).value));
               }
             }}
             className="block"
             style={{ width: '6rem', accentColor: isSilentMode ? 'var(--app-ink)' : '#22c55e' }}
             aria-label="Volume"
-            title={`Volume: ${Math.round(volume * 100)}%`}
+            title={`Volume: ${Math.round(shownVolume * 100)}%`}
           />
           {/* The title above says this on hover, but a tooltip over a
               control you're already hovering is easy to miss. */}
@@ -1869,7 +1884,7 @@ export default function Timer() {
             className="text-white font-bold flex-shrink-0"
             style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: shrinkClamp(0.6, 1, 1.1, 0.75), minWidth: '2.75em', textAlign: 'right' }}
           >
-            {Math.round(volume * 100)}%
+            {Math.round(shownVolume * 100)}%
           </span>
         </div>
       </div>
