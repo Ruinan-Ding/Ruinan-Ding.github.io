@@ -235,6 +235,21 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
   useEffect(() => {
     if (question !== null) actionRef.current?.focus();
   }, [question]);
+  // Whether this question arrived on the heels of the last one rather
+  // than opening on its own. Saving a preset queues the next dialog a
+  // microtask after this one is answered, so it takes the screen with no
+  // fade and no re-open, and the confirm key below has to know it is
+  // looking at something nobody has read yet. Measured rather than
+  // matched on the two acts by name: any chain has the same problem.
+  const prevQuestionRef = useRef<string | null>(null);
+  const questionSinceRef = useRef(0);
+  const chainedRef = useRef(false);
+  if (question !== prevQuestionRef.current) {
+    const now = performance.now();
+    if (question !== null) chainedRef.current = now - questionSinceRef.current < 100;
+    questionSinceRef.current = now;
+    prevQuestionRef.current = question;
+  }
   // A dialog that can never be silenced renders without the row. Held
   // through the exit animation like the copy above.
   //
@@ -302,6 +317,12 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // Stops here rather than carrying on to the window's own
             // shortcuts behind the dialog.
             e.stopPropagation();
+            // Held down, the key repeats about thirty times a second, and
+            // !e.repeat above is what stops that. It does nothing about a
+            // double-tap, which is two real presses — so a question that
+            // took the screen off another one waits for a press aimed at
+            // it. The key still goes no further than here.
+            if (chainedRef.current && performance.now() - questionSinceRef.current < 400) return;
             actionRef.current?.click();
             return;
           }
@@ -361,7 +382,10 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
             // two-button case, so the dialog opens pointed at it either way.
             <AlertDialogCancel
               ref={actionRef}
-              aria-keyshortcuts="Backquote"
+              // The key value the layout produces, not the physical
+              // position the handler matches: aria-keyshortcuts is spoken,
+              // and "Backquote" is not a name anything announces.
+              aria-keyshortcuts={keyLabel}
               onClick={() => onConfirm(dontAskAgain)}
               className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
             >
@@ -377,7 +401,7 @@ export default function ConfirmDialog({ dialog, onDismiss, onConfirm }: ConfirmD
               </AlertDialogCancel>
               <AlertDialogAction
                 ref={actionRef}
-                aria-keyshortcuts="Backquote"
+                aria-keyshortcuts={keyLabel}
                 onClick={() => onConfirm(dontAskAgain)}
                 className="border-4 border-white bg-white text-black text-xs font-bold h-auto px-3 py-1 hover:bg-black hover:text-white hover:border-white"
               >

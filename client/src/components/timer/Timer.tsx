@@ -154,6 +154,11 @@ export default function Timer() {
   // a drag in progress or a question about one still open.
   const [dragVolume, setDragVolume] = useState<number | null>(null);
   const shownVolume = dragVolume ?? volume;
+  // Whether a pointer is holding the thumb. A drag is the one case where
+  // the value moving is not a decision yet; a value that arrives any other
+  // way — an arrow key, a screen reader's own increment — is one already
+  // made, and applies where it lands.
+  const isDraggingVolumeRef = useRef(false);
   // On, the alarm repeats until stopped; off, it rings one burst and goes
   // quiet. Off by default, which is also what makes 00:00:00 usable as a
   // count-up stopwatch.
@@ -538,6 +543,18 @@ export default function Timer() {
     setSuppressedKeys(next);
     if (key === 'hideWebsiteLink' && confirmMode !== 'none') setIsWebsiteLinkHidden(next.includes(key));
   };
+  // The row is the link's switch now, but the same key used to mean "stop
+  // asking before hiding it" — so a browser that answered that question,
+  // or swept it up with the section heading, carries an entry that would
+  // read here as "the link is hidden". Once per browser the stored
+  // visibility wins and the row is rewritten from it; after that the row
+  // is the truth and this never runs again.
+  useEffect(() => {
+    if (readBoolean(STORAGE_KEYS.linkRowMigrated, false)) return;
+    setSuppressedKeys(setSuppressedKey('hideWebsiteLink', isWebsiteLinkHidden));
+    writeJSON(STORAGE_KEYS.linkRowMigrated, true);
+    // Mount only: the row means what it says from here on.
+  }, []);
   // Both ways round, and on mount as well: a link hidden with
   // confirmations off left the row saying it should be on the page, and
   // this is where that gets settled.
@@ -893,20 +910,32 @@ export default function Timer() {
     closeDialog();
   };
 
-  // On release, not at every point on the way there. Asking at the first
-  // step put a dialog under a pointer that was still holding the thumb,
-  // which took the drag with it and left the volume unchangeable in full
-  // mode. The thumb follows the pointer on its own through dragVolume,
-  // and one question settles wherever it stopped. The preview burst rides
-  // with the change rather than the release, so a level nobody agreed to
-  // is never played.
-  const requestVolumeChange = (value: number) =>
+  // Where a drag let go, not at every point on the way there. Asking at
+  // the first step put a dialog under a pointer that was still holding the
+  // thumb, which took the drag with it and left the volume unchangeable in
+  // full mode. The thumb follows the pointer on its own through dragVolume,
+  // and one question settles wherever it stopped. A value that arrived
+  // with no drag behind it is already a decision and comes straight here.
+  // The preview burst rides with the change rather than the release, so a
+  // level nobody agreed to is never played.
+  const requestVolumeChange = (value: number) => {
+    // A pointer that came up where it went down, or an arrow key at the
+    // end of the slider's travel: nothing moved, so there is nothing to
+    // ask about and nothing to preview.
+    if (value === volume) {
+      setDragVolume(null);
+      return;
+    }
     askFull('volume', () => {
       handleVolumeChange(value);
       playVolumePreview(value);
     });
+  };
   // Dragging the slider to 0 mutes; dragging back off 0 unmutes.
   const handleVolumeChange = (value: number) => {
+    // The drag this came from is spent. closeDialog clears it on the paths
+    // that asked; this is the one that ran straight through.
+    setDragVolume(null);
     setVolume(value);
     if (value === 0) {
       setIsSilentMode(true);
@@ -1447,7 +1476,10 @@ export default function Timer() {
         // confirmed, and challenging it would empty the storage behind a
         // page that never went anywhere.
         isSelfReloadingRef.current = true;
-        wipeStorage(Object.values(STORAGE_KEYS));
+        // timerHasMutedBefore is retired rather than live — muting asks
+        // every time now — but it is still in the browsers that had it,
+        // and "all settings will be erased" has to be true for them too.
+        wipeStorage([...Object.values(STORAGE_KEYS), 'timerHasMutedBefore']);
         window.location.reload();
         break;
       case 'reset':
@@ -1837,7 +1869,7 @@ export default function Timer() {
           ...HEADER_BUTTON_SIZE,
           // Red for muted, matching the slash inside; grey for a slider at
           // 0, which is silent but not switched off; green otherwise.
-          borderColor: isSilentMode ? '#ef4444' : volume === 0 ? 'var(--app-ink)' : '#22c55e',
+          borderColor: isSilentMode ? '#ef4444' : shownVolume === 0 ? 'var(--app-ink)' : '#22c55e',
           backgroundColor: 'var(--app-surface)',
           fontFamily: "'IBM Plex Mono', monospace",
         }}
@@ -1846,12 +1878,12 @@ export default function Timer() {
         // button promising something it doesn't do.
         title={isSilentMode
           ? 'Muted — click to unmute'
-          : volume === 0
+          : shownVolume === 0
             ? 'Volume is 0% — raise the slider to hear the alarm'
             : 'Click to mute'}
         aria-label={isSilentMode ? 'Unmute' : 'Mute'}
       >
-        <SpeakerIcon volume={volume} muted={isSilentMode} color={isSilentMode ? '#ef4444' : volume === 0 ? 'var(--app-ink)' : '#22c55e'} />
+        <SpeakerIcon volume={shownVolume} muted={isSilentMode} color={isSilentMode ? '#ef4444' : shownVolume === 0 ? 'var(--app-ink)' : '#22c55e'} />
       </button>
 
       {/* Volume slider: revealed on hover/focus; releasing it previews
@@ -1866,12 +1898,22 @@ export default function Timer() {
             max={1}
             step={0.01}
             value={shownVolume}
-            onChange={(e) => setDragVolume(Number(e.target.value))}
-            onPointerUp={(e) => requestVolumeChange(Number((e.target as HTMLInputElement).value))}
-            onKeyUp={(e) => {
-              if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown') {
-                requestVolumeChange(Number((e.target as HTMLInputElement).value));
-              }
+            onPointerDown={() => { isDraggingVolumeRef.current = true; }}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              if (isDraggingVolumeRef.current) setDragVolume(value);
+              else requestVolumeChange(value);
+            }}
+            onPointerUp={(e) => {
+              isDraggingVolumeRef.current = false;
+              requestVolumeChange(Number((e.target as HTMLInputElement).value));
+            }}
+            // A touch drag the browser takes back as a scroll ends here
+            // instead, with nothing chosen. Without this the thumb and the
+            // readout would sit on a level the alarm never got.
+            onPointerCancel={() => {
+              isDraggingVolumeRef.current = false;
+              setDragVolume(null);
             }}
             className="block"
             style={{ width: '6rem', accentColor: isSilentMode ? 'var(--app-ink)' : '#22c55e' }}
@@ -2209,7 +2251,9 @@ export default function Timer() {
         onClick={handleHideWebsiteLinkClick}
         className="flex items-center justify-center border-3 border-white text-white hover:opacity-80 transition-all duration-200 flex-shrink-0"
         style={{ width: shrinkClamp(1.4, 2, 2.2, 1.8), height: shrinkClamp(1.4, 2, 2.2, 1.8), backgroundColor: 'var(--app-surface)' }}
-        title="Hide this link — its row in the confirmations list brings it back"
+        title={confirmMode === 'none'
+          ? 'Hide this link — with confirmations off, its row in the list brings it back only once you switch to a mode that reads it'
+          : 'Hide this link — its row in the confirmations list brings it back'}
         aria-label="Hide website link"
       >
         <X style={{ width: shrinkClamp(0.8, 1.3, 1.4, 1.1), height: shrinkClamp(0.8, 1.3, 1.4, 1.1) }} />

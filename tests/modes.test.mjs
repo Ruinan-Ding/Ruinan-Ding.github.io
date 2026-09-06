@@ -371,11 +371,14 @@ const slide = async (value) => {
   await ev(`(()=>{const el=${SLIDER};const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;set.call(el,'${value}');el.dispatchEvent(new Event('input',{bubbles:true}));return 'ok'})()`);
   await sleep(200);
 };
-const release = async () => {
-  await ev(`(()=>{${SLIDER}.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));return 'ok'})()`);
+const pointer = async (type) => {
+  await ev(`(()=>{${SLIDER}.dispatchEvent(new PointerEvent('${type}',{bubbles:true}));return 'ok'})()`);
   await sleep(400);
 };
+const grab = () => pointer('pointerdown');
+const release = () => pointer('pointerup');
 const sliderValue = () => ev(`${SLIDER}.value`);
+await grab();
 await slide(0.4);
 check('mid-drag asks nothing', await dialogTitle(), 'null');
 await slide(0.7);
@@ -391,6 +394,50 @@ await confirmDialog();
 await sleep(300);
 check('saying yes keeps it', await sliderValue(), '0.7');
 check('and the volume took it', await ev(`localStorage.getItem('timerVolume')`), '0.7');
+
+// Nothing moved, so there is nothing to ask about: a click on the thumb
+// that goes nowhere used to raise a dialog for a change of zero, and
+// confirming it played the preview burst.
+await grab();
+await release();
+check('a release that moved nothing asks nothing', await dialogTitle(), 'null');
+// A value that arrives with no pointer behind it is a finished change,
+// not a drag in progress — a screen reader's own increment reaches the
+// slider this way, and would otherwise move the thumb and nothing else.
+await slide(0.3);
+check('a change with no drag behind it asks at once', await dialogTitle(), 'CHANGE VOLUME');
+await press('Escape', 'Escape', 27);
+await sleep(300);
+// A drag the browser takes back is not an answer either.
+await grab();
+await slide(0.9);
+await pointer('pointercancel');
+check('a cancelled drag puts the thumb back', await sliderValue(), '0.7');
+
+// A question that replaced another one has not been read yet. Saving a
+// preset queues RUN IT NOW a microtask after SAVE PRESET is answered, so
+// it arrives with no fade and no re-open — and a double-tap on the
+// confirm key is two real presses, which the auto-repeat guard does not
+// catch. Tapped through raw key events: the helper above waits long
+// enough between presses to be a considered second answer.
+const ADD = `document.querySelector('input[aria-label="New preset time"]')`;
+const tap = async () => {
+  await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: '`', code: 'Backquote', windowsVirtualKeyCode: 192 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: '`', code: 'Backquote', windowsVirtualKeyCode: 192 });
+};
+await clickEl(ADD, 'the new preset box');
+for (let i = 0; i < 8; i++) await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+await sleep(200);
+for (const ch of '25') await press(ch, `Digit${ch}`, 48 + Number(ch), ch);
+await press('Enter', 'Enter', 13, String.fromCharCode(13));
+check('saving a preset asks', await dialogTitle(), 'SAVE PRESET');
+await tap();
+await tap();
+await sleep(400);
+check('and the tap that answered it does not answer the next one', await dialogTitle(), 'RUN IT NOW');
+await sleep(600);
+await confirmDialog();
+check('which answers to a press aimed at it', await dialogTitle(), 'null');
 
 // --- the one thing full mode does with no dialog to silence -------------
 // Asking on every adjustment, where half asks once per pause or resume,
@@ -501,7 +548,7 @@ const LINK = `!!document.querySelector('a[href="https://ruinan-ding.com/"]')`;
 check('the link is on the page', await ev(LINK), 'true');
 await clickEl(`document.querySelector('[aria-label="Hide website link"]')`, 'the link X');
 check('hiding asks', await dialogTitle(), 'HIDE LINK');
-check('with no keep-asking box', await ev(`!!document.querySelector('[role="alertdialog"][data-dont-ask]')`), 'false');
+check('with no keep-asking box', await ev(`!!document.querySelector('[role="alertdialog"] [data-dont-ask]')`), 'false');
 await confirmDialog();
 await sleep(400);
 check('confirming takes the link away', await ev(LINK), 'false');
@@ -526,6 +573,18 @@ await ev(`localStorage.setItem('timerConfirmMode','"half"'), 'ok'`);
 await send('Page.reload', {});
 await sleep(3500);
 check('so half brings it back', await ev(LINK), 'true');
+
+// The row used to be an ordinary "stop asking this" box, so a browser
+// that answered it — or swept it up with the section heading — carries an
+// entry that would now read as "the link is hidden". The stored
+// visibility wins once, and the row is rewritten from it.
+await ev(`localStorage.setItem('timerDontAskAgain','["hideWebsiteLink"]'),
+  localStorage.setItem('timerWebsiteLinkHidden','false'),
+  localStorage.removeItem('timerLinkRowMigrated'), 'ok'`);
+await send('Page.reload', {});
+await sleep(3500);
+check('an old silenced question does not hide the link', await ev(LINK), 'true');
+check('and the stale row goes with it', await ev(`(localStorage.getItem('timerDontAskAgain')||'').includes('hideWebsiteLink')`), 'false');
 
 const width = Math.max(...out.map((r) => r.name.length));
 out.forEach((r) => console.log(`${r.pass ? 'ok  ' : 'FAIL'}  ${r.name.padEnd(width)}  got=${r.got.padEnd(24)} want=${r.want}`));

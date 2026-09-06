@@ -137,6 +137,9 @@ export const STORAGE_KEYS = {
   skipConfirmations: 'timerSkipConfirmations',
   confirmMode: 'timerConfirmMode',
   websiteLinkHidden: 'timerWebsiteLinkHidden',
+  // Set once the link's row has been read off the stored visibility
+  // rather than off what the key used to mean. See Timer.tsx.
+  linkRowMigrated: 'timerLinkRowMigrated',
   sidebarHidden: 'timerSidebarHidden',
   timeFieldsHidden: 'timerTimeFieldsHidden',
   wordCounterCollapsed: 'wordCounterCollapsed',
