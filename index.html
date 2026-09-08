@@ -10,7 +10,24 @@
     <title>Write Timer</title>
     <meta
       name="description"
-      content="A minimal countdown timer that keeps counting past zero, with presets, run history, and a word counter for timed writing sessions." />
+      content="A countdown timer that keeps counting past zero, with presets, run history, a wall clock, and a word counter for timed writing sessions." />
+    <!-- The share card. Absolute URLs because a scraper resolves nothing
+         relative, and og:image is the one asset on this page that is a real
+         file rather than a data URI: client/public/og.png, which is why that
+         folder exists. Twitter falls back to the og: pair when the
+         twitter:-prefixed ones are missing, so only the card type is worth
+         restating. No theme-color here: it follows the theme, which is a
+         stored setting rather than a fact about the document, so Timer.tsx
+         writes it from the same CSS variable everything else reads. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ruinan-ding.com/" />
+    <meta property="og:title" content="Write Timer" />
+    <meta property="og:description" content="A countdown timer that keeps counting past zero, with presets, run history, a wall clock, and a word counter for timed writing sessions." />
+    <meta property="og:image" content="https://ruinan-ding.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Write Timer, its countdown reading -00:01:23 in green on black." />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -36,8 +53,8 @@
         /* storage blocked: the dark default stands, same as any first visit */
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-DNsW9XZ0.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BBKCSo7X.css">
+    <script type="module" crossorigin src="/assets/index-Dyk-IiWm.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DCORrsrf.css">
   </head>
 
   <body>
