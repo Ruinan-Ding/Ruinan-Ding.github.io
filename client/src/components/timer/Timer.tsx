@@ -1,5 +1,5 @@
 import { Bell, ChevronsLeft, ChevronsRight, ExternalLink, Moon, Repeat, Sun, Trash2, X } from 'lucide-react';
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
 import { useLeaveGuard } from '@/hooks/useLeaveGuard';
@@ -8,6 +8,7 @@ import { readBoolean, readJSON, wipeStorage, writeJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
 import ClockCluster from './ClockCluster';
 import ConfirmDialog from './ConfirmDialog';
+import ConfirmList from './ConfirmList';
 import DotCheckbox from './DotCheckbox';
 import HeaderToggleButton from './HeaderToggleButton';
 import HistoryPanel from './HistoryPanel';
@@ -15,18 +16,19 @@ import PresetsPanel from './PresetsPanel';
 import SpeakerIcon from './SpeakerIcon';
 import TimeField from './TimeField';
 import WordCounter from './WordCounter';
-import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HEADER_ICON_SIZE_LG, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TIME_ZONES, TONES, TYPES_INTO } from './constants';
+import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HEADER_ICON_SIZE_LG, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { readSavedHistory, readSavedPresets } from './entries';
-import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, toSignedTotal, toTotalSeconds } from './format';
+import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, timeFormatter, toSignedTotal, toTotalSeconds } from './format';
 import { BELOW_DIGITS, compactControlButtonStyle, CONTROL_FILL, CONTROL_HINT, CONTROL_PAD_X, controlButtonStyle, HINT_CLEARANCE, KEY_LINE_HEIGHT, KEY_SCALE, STATUS_FONT_SIZE } from './controlSizes';
 import { boxCap, fitClamp, shrinkClamp } from './responsive';
-import { BULK_KEYS, isQuestionLive, isAcknowledgement, nextConfirmMode, QUESTIONS, readConfirmMode, readSuppressedKeys, setSuppressedKey, setSuppressedKeys as writeSuppressedKeys, shouldAsk, suppressDialog } from './suppressions';
+import { isAcknowledgement, nextConfirmMode, readConfirmMode, readSuppressedKeys, setSuppressedKey, sectionKeys, setSuppressedKeys as writeSuppressedKeys, shouldAsk, suppressDialog } from './suppressions';
 import type { ConfirmMode, DialogState, FlashTarget, FullAct, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
-import { FLASH_DURATION_MS, useFlashOnToken } from './useFlashOnToken';
+import { useFlashOnToken } from './useFlashOnToken';
+import { useTimerKeys } from './useTimerKeys';
 import { useAlarm } from './useAlarm';
 import { useTimeFieldsTuck } from './useTimeFieldsTuck';
 import { gapBetween, gapWhenLevel, useTightFit } from './useTightFit';
-import { useZoneOffsets } from './useZoneOffsets';
+import { useClockSettings } from './useClockSettings';
 
 const RINGER_BELL_SIZE = { width: shrinkClamp(1.8, 4.2, 4.2, 2.9), height: shrinkClamp(1.8, 4.2, 4.2, 2.9) };
 
@@ -39,55 +41,9 @@ const CONFIRM_MODE_TITLE: Record<ConfirmMode, string> = {
   none: 'Confirmations are off — everything happens the moment you click (the site RESET still always asks). Click to go back to confirming what matters',
 };
 
-// The list names the mode it is showing, since a row greyed out has no
-// other way to say why.
-// Ticked means asks. Written the other way round it read as a list of
-// negatives to switch on — an empty box meaning "you will be asked" is a
-// double negative to hold in your head, and everything arrived unticked
-// so the default looked like nothing was set. Every box starts full, and
-// clearing one is what stops that question.
-//
-// Only the wording turns over: what is stored is still the questions that
-// have been silenced, which is the short list.
-const CONFIRM_LIST_HEADING: Record<ConfirmMode, string> = {
-  half: 'ASK ME ABOUT',
-  full: 'ASK ME ABOUT — EVERYTHING',
-  none: 'ASK ME ABOUT — NOTHING ASKS',
-};
-
-// The list runs half-tier questions first and full-tier ones after, and
-// each group is headed. Without them the greying is the only thing saying
-// which is which, and grey against grey says nothing at all: in half mode
-// the second group is grey, and with confirmations off both are, so a
-// reader has no way to tell a question their mode skips from one nothing
-// asks.
-//
-// Both worded as what makes the group active, since that is the thing
-// being read off the greying.
-const CONFIRM_LIST_SECTION: Record<'half' | 'full', string> = {
-  half: 'ACTIVE CONFIRMATIONS',
-  full: 'ACTIVE IN FULL CONFIRMATION ONLY',
-};
-
-const CONFIRM_LIST_FONT_SIZE = shrinkClamp(0.6, 1, 1.1, 0.72);
-// The section headings, a little over the rows they head. Not much over:
-// The longer of the two is thirty-two characters, and the
-// panel is 22rem less its padding, its border and the heading's own box.
-const CONFIRM_SECTION_FONT_SIZE = `calc(${CONFIRM_LIST_FONT_SIZE} * 1.15)`;
-
 // The whole tip is nine lines in the width of the two buttons it sits
 // under; ten is "no clamp".
 const TIP_MAX_LINES = 10;
-
-// How long a control button stays lit after its key. Short on purpose:
-// TAB is the start/pause key and comes round often enough that a flash of
-// the length the list rows use would still be on when the next one lands.
-// It lands at once and fades out over the 200ms the buttons carry, so
-// this is how long it holds at full white before that starts.
-const KEY_PRESS_MS = 320;
-
-// The three keys that work the controls, and the buttons they belong to.
-type KeyCode = 'Tab' | 'KeyR' | 'KeyS';
 
 
 // Clears the header buttons in the same corner. Derived from the button so
@@ -201,42 +157,6 @@ export default function Timer() {
   // in across a reload. Only the site RESET brings them back.
   const [isSidebarHidden, setIsSidebarHidden] = useState(() => readBoolean(STORAGE_KEYS.sidebarHidden, false));
   const [isWebsiteLinkHidden, setIsWebsiteLinkHidden] = useState(() => readBoolean(STORAGE_KEYS.websiteLinkHidden, false));
-  // The whole theme is one attribute on <html>: index.css swaps
-  // --app-surface and --app-ink off it and every colour resolves through
-  // that pair. Layout effect so the attribute and its paint land together.
-  const [isLightTheme, setIsLightTheme] = useState(() => readBoolean(STORAGE_KEYS.lightTheme, false));
-  useLayoutEffect(() => {
-    document.documentElement.dataset.theme = isLightTheme ? 'light' : 'dark';
-  }, [isLightTheme]);
-  // Checked against the list the browser knows before it's trusted: Intl
-  // throws on an unknown zone, and on every format call, so a hand-edited
-  // value takes the page down rather than showing the wrong time.
-  const [timeZone, setTimeZone] = useState(() => {
-    const saved = readJSON<unknown>(STORAGE_KEYS.clockTimeZone, null);
-    return typeof saved === 'string' && TIME_ZONES.includes(saved) ? saved : DEFAULT_TIME_ZONE;
-  });
-  const [is24Hour, setIs24Hour] = useState(() => readBoolean(STORAGE_KEYS.clock24Hour, false));
-  // Clicking the time switches 12/24, and "24H" or "12H" fades off it to
-  // say so (hourFormatFizz in index.css). Set straight from the click
-  // rather than through useFlashOnToken, which turns on a tick later and
-  // would show a frame of the new time before the label announcing it.
-  //
-  // Here rather than in ClockCluster: both copies of the clock have to
-  // agree, and it persists. The tick itself lives down there.
-  const [isHourFormatFlashing, setIsHourFormatFlashing] = useState(false);
-  const [hourFormatFlashToken, setHourFormatFlashToken] = useState(0);
-  const hourFormatFlashRef = useRef(0);
-  useEffect(() => () => window.clearTimeout(hourFormatFlashRef.current), []);
-  // useCallback: this is what the clock hangs its memo on, and a new
-  // function every tick means memo() can never bail out.
-  const runHourFormatChange = useCallback(() => {
-    setIs24Hour((prev) => !prev);
-    setIsHourFormatFlashing(true);
-    setHourFormatFlashToken((n) => n + 1);
-    window.clearTimeout(hourFormatFlashRef.current);
-    hourFormatFlashRef.current = window.setTimeout(() => setIsHourFormatFlashing(false), FLASH_DURATION_MS);
-  }, [setIs24Hour]);
-  const zoneOffsets = useZoneOffsets();
   // How much room the floating top-right corner takes. The word counter's
   // fullscreen row has to stop before it, and HEADER_CORNER_RESERVE is
   // only an estimate of the same thing.
@@ -583,22 +503,6 @@ export default function Timer() {
   // silences it. Behind a question of its own, since it answers up to
   // twenty-two of them in one click — and that question carries a tick
   // like every other, so anyone who does this often can stop being asked.
-  // Every row in the section except the two about this box. Both the
-  // count the box shows and the write it makes read this, so they agree:
-  // those two rows are not what the heading governs, and they are ticked
-  // one at a time or from their own dialog like anything else.
-  // What clearing a row does. Two things vary: the one row that is not a
-  // question takes the link off the page rather than quietening anything,
-  // and a row the mode in front of you doesn't read changes nothing until
-  // you come back to a mode that does.
-  const rowTitle = (key: string, live: boolean) => {
-    const what = key === 'hideWebsiteLink' ? 'take the website link off the page' : 'stop it asking';
-    return live
-      ? `Clear this to ${what}`
-      : `Clear this to ${what}. The confirm mode you're in doesn't read this row, so nothing changes until you cycle back to one that does`;
-  };
-  const sectionKeys = (tier: 'half' | 'full') =>
-    QUESTIONS.filter((q) => q.tier === tier && !BULK_KEYS.includes(q.key)).map((q) => q.key);
   const sectionTicked = (tier: 'half' | 'full') => sectionKeys(tier).filter((k) => suppressedKeys.includes(k)).length;
   const toggleSection = (tier: 'half' | 'full') => {
     const keys = sectionKeys(tier);
@@ -631,17 +535,11 @@ export default function Timer() {
     [askThenRun]
   );
 
-  // The clock's two settings. Down here rather than beside the flash they
-  // drive, since askFull isn't in scope up there; useCallback because the
-  // clock hangs its memo() on both.
-  const handleHourFormatClick = useCallback(
-    () => askFull('hourFormat', runHourFormatChange),
-    [askFull, runHourFormatChange]
-  );
-  const handleTimeZoneChange = useCallback(
-    (zone: string) => askFull('timeZone', () => setTimeZone(zone)),
-    [askFull]
-  );
+  const {
+    isLightTheme, setIsLightTheme, timeZone, is24Hour,
+    isHourFormatFlashing, hourFormatFlashToken,
+    handleHourFormatClick, handleTimeZoneChange, zoneOffsets,
+  } = useClockSettings(askFull);
 
   // Read off timeRef rather than `seconds` so a caller mid-click sees the
   // live value, like every other check here.
@@ -695,9 +593,6 @@ export default function Timer() {
   usePersisted(STORAGE_KEYS.confirmMode, confirmMode);
   usePersisted(STORAGE_KEYS.websiteLinkHidden, isWebsiteLinkHidden);
   usePersisted(STORAGE_KEYS.sidebarHidden, isSidebarHidden);
-  usePersisted(STORAGE_KEYS.lightTheme, isLightTheme);
-  usePersisted(STORAGE_KEYS.clockTimeZone, timeZone);
-  usePersisted(STORAGE_KEYS.clock24Hour, is24Hour);
 
   // timerState only writes on whole-second changes, so it can't capture
   // where inside a second a reload lands. Flushed separately as the page
@@ -808,100 +703,6 @@ export default function Timer() {
   // actions this app takes on your behalf, and closing the tab is one the
   // browser takes, with nothing to undo it.
   const isSelfReloadingRef = useLeaveGuard(isRunning || isPaused || isAlarmRinging);
-
-  // Tab/S/R mirror the on-screen controls. The ref lets the listeners
-  // register once instead of rebinding every tick.
-  //
-  // Whether the key would do anything, asked before the button lights up,
-  // so a refused one lights nothing: S and R are refused on an untouched
-  // timer, and the dialog owns the keyboard while it is open.
-  const keyLiveRef = useRef<(code: KeyCode) => boolean>(() => false);
-  keyLiveRef.current = (code) => {
-    if (dialog.type !== null) return false;
-    if (code === 'Tab') return true;
-    return !isIdleAtConfigured;
-  };
-  // Reports whether it did anything: a key can be refused between going
-  // down and coming up, and one that did nothing must not flash as though
-  // it worked.
-  const keyActionRef = useRef<(code: KeyCode) => boolean>(() => false);
-  keyActionRef.current = (code) => {
-    if (!keyLiveRef.current(code)) return false;
-    if (code === 'Tab') {
-      if (isRunning) togglePause();
-      else handleStart();
-      return true;
-    }
-    if (code === 'KeyS') handleStopClick();
-    if (code === 'KeyR') handleResetClick();
-    return true;
-  };
-
-  // Which key is down, and which one just came up. Down colours the
-  // button and does nothing else; up moves the run and holds the colour a
-  // beat longer, so a tap too quick to see held still reads as a press.
-  //
-  // Set straight rather than through useFlashOnToken, which turns on a
-  // tick later: batched with the release that clears heldKey, that tick
-  // is a frame of the armed white between the two colours.
-  const [heldKey, setHeldKey] = useState<KeyCode | null>(null);
-  const [firedKey, setFiredKey] = useState<KeyCode | null>(null);
-  const heldKeyRef = useRef<KeyCode | null>(null);
-  heldKeyRef.current = heldKey;
-  const firedTimerRef = useRef(0);
-  const markFired = (code: KeyCode) => {
-    window.clearTimeout(firedTimerRef.current);
-    setFiredKey(code);
-    firedTimerRef.current = window.setTimeout(() => setFiredKey(null), KEY_PRESS_MS);
-  };
-  useEffect(() => () => window.clearTimeout(firedTimerRef.current), []);
-  // The window going away takes the keyup with it, and the button would
-  // hold its colour for good. Off the focus this component already
-  // tracks rather than a listener of its own.
-  useEffect(() => {
-    if (!isWindowFocused) setHeldKey(null);
-  }, [isWindowFocused]);
-
-  useEffect(() => {
-    const codeOf = (e: KeyboardEvent): KeyCode | null =>
-      (e.key === 'Tab' ? 'Tab' : e.code === 'KeyS' || e.code === 'KeyR' ? e.code : null);
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const action = codeOf(e);
-      if (!action) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // A text field keeps its own keys: TAB moves out of one, and S and R
-      // are letters someone is typing. Everywhere else these three are the
-      // timer's, which for TAB means the page gives up focus stepping
-      // outside its fields — the trade the shortcut is worth having.
-      // Buttons are deliberately not exempt: blocking S and R there would
-      // kill both shortcuts for anyone who had just clicked something.
-      if ((e.target as HTMLElement | null)?.closest?.(TYPES_INTO)) return;
-      if (!keyLiveRef.current(action)) return;
-      // Every repeat too, or the browser takes the held TAB and walks the
-      // focus ring with it.
-      e.preventDefault();
-      // Autorepeat is not three hundred presses. Nothing here acts on the
-      // way down any more, but the state still shouldn't churn at ~30Hz.
-      if (e.repeat) return;
-      setHeldKey(action);
-    };
-    // Where the run actually moves. Guarded on this key having been the
-    // one taken on the way down, so a TAB released over the page after
-    // being pressed inside a text field isn't the timer's to act on.
-    const handleKeyUp = (e: KeyboardEvent) => {
-      const action = codeOf(e);
-      if (!action || heldKeyRef.current !== action) return;
-      setHeldKey(null);
-      if (keyActionRef.current(action)) markFired(action);
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, []);
 
   const playTone = (tone: keyof typeof TONES) => {
     if (!isSilentMode) {
@@ -1091,6 +892,17 @@ export default function Timer() {
     setIsPaused(false);
     closeDialog();
   };
+  // Below the handlers it runs rather than beside the rest of the state:
+  // they are consts declared down here, and the listeners reach them
+  // through a ref rather than by being rebound every tick.
+  const { heldKey, firedKey } = useTimerKeys({
+    isDialogOpen: dialog.type !== null,
+    isIdleAtConfigured,
+    isWindowFocused,
+    onTab: () => (isRunning ? togglePause() : handleStart()),
+    onStop: handleStopClick,
+    onReset: handleResetClick,
+  });
 
   const loadEntry = useCallback((parts: TimeParts, negative = false) => {
     setHours(parts.hours);
@@ -1269,13 +1081,7 @@ export default function Timer() {
   // The zero guard is for a corrupt or hand-edited store; recordHistory
   // always stamps Date.now(), so a real run can't produce one.
   const formatHistoryStamp = useMemo(() => {
-    const time = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour12: !is24Hour,
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    const time = timeFormatter(timeZone, is24Hour);
     // No weekday here, unlike the wall clock's own date. A history stamp is
     // one line inside a sidebar row, and "Thu, " is five characters of the
     // twenty-six it has to fit: with it the date never fits beside the time
@@ -2162,103 +1968,13 @@ export default function Timer() {
                 />
               </button>
               {isConfirmListOpen && (
-                // Right-aligned and dropped straight out of the button with
-                // no gap: a gap is a strip the pointer has to cross on the
-                // way down, and crossing it closes the thing it was heading
-                // for. z-[95] clears the header strip and the website link,
-                // both of which this hangs over.
-                <div
-                  data-confirm-list
-                  className="absolute top-full right-0 z-[95] flex flex-col border-3 text-left"
-                  style={{
-                    width: 'min(22rem, calc(100vw - 1rem))',
-                    maxHeight: 'min(24rem, 60vh)',
-                    borderColor: 'var(--app-ink)',
-                    backgroundColor: 'var(--app-surface)',
-                    color: 'var(--app-ink)',
-                  }}
-                >
-                  <div
-                    className="px-2 py-1 font-bold border-b-3 flex-shrink-0"
-                    style={{ fontSize: CONFIRM_LIST_FONT_SIZE, borderColor: 'var(--app-ink)' }}
-                  >
-                    {CONFIRM_LIST_HEADING[confirmMode]}
-                  </div>
-                  {/* The one scrolling list in the app. Thirty-odd
-                      questions fit no window this button floats over, and
-                      a list cut to fit is questions with no way to answer
-                      them. */}
-                  <div data-confirm-scroll className="overflow-y-auto">
-                    {QUESTIONS.map((question, i) => {
-                      const live = isQuestionLive(question.tier, confirmMode);
-                      const silenced = suppressedKeys.includes(question.key);
-                      // The first row of each group. Read off the row
-                      // before rather than an index, so reordering the
-                      // list can't leave a heading in the wrong place.
-                      const opensTier = i === 0 || QUESTIONS[i - 1].tier !== question.tier;
-                      return (
-                        <Fragment key={question.key}>
-                        {opensTier && (
-                          <button
-                            type="button"
-                            data-confirm-section={question.tier}
-                            onClick={() => toggleSection(question.tier)}
-                            aria-pressed={sectionTicked(question.tier) === 0}
-                            title={sectionTicked(question.tier) === 0
-                              ? 'Stop every question in this section asking'
-                              : 'Let every question in this section ask again'}
-                            // Ruled off the group above as well, except at
-                            // the top, where the panel's own heading has
-                            // already drawn that line and a second one
-                            // beside it is 6px of border.
-                            className={`w-full flex items-center gap-2 px-2 py-1 font-bold text-left border-b-3 hover:opacity-70 transition-opacity ${i > 0 ? 'border-t-3' : ''}`}
-                            style={{
-                              fontSize: CONFIRM_SECTION_FONT_SIZE,
-                              borderColor: 'var(--app-ink)',
-                              // Green while the section is asking, red
-                              // while it isn't. Its rows grey out, which
-                              // says "not in play"; the heading says
-                              // whether the group is on or off, and those
-                              // are the two colours this app already uses
-                              // for that everywhere else.
-                              color: live ? '#22c55e' : '#ef4444',
-                            }}
-                          >
-                            {/* Full when every question below asks, the
-                                diagonal when some do: the same three
-                                positions the confirm button itself uses. */}
-                            <DotCheckbox
-                              checked={(() => {
-                                const total = sectionKeys(question.tier).length;
-                                const silenced = sectionTicked(question.tier);
-                                return silenced === 0 ? true : silenced === total ? false : 'half';
-                              })()}
-                              fontSize={CONFIRM_SECTION_FONT_SIZE}
-                            />
-                            <span className="flex-1">{CONFIRM_LIST_SECTION[question.tier]}</span>
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => toggleSuppressedKey(question.key)}
-                          aria-pressed={!silenced}
-                          // Greyed rather than disabled: a question the
-                          // current mode never asks is still one that can
-                          // be answered ahead of time, and clearing it here
-                          // is what makes switching modes later do what was
-                          // already decided.
-                          className="w-full flex items-center gap-2 px-2 py-1 text-left hover:opacity-70 transition-opacity"
-                          style={{ fontSize: CONFIRM_LIST_FONT_SIZE, color: live ? 'var(--app-ink)' : '#6b7280' }}
-                          title={rowTitle(question.key, live)}
-                        >
-                          <DotCheckbox checked={!silenced} fontSize={CONFIRM_LIST_FONT_SIZE} />
-                          <span className="flex-1">{question.label}</span>
-                        </button>
-                        </Fragment>
-                      );
-                    })}
-                  </div>
-                </div>
+                <ConfirmList
+                  confirmMode={confirmMode}
+                  suppressedKeys={suppressedKeys}
+                  sectionTicked={sectionTicked}
+                  onToggleSection={toggleSection}
+                  onToggleKey={toggleSuppressedKey}
+                />
               )}
             </div>
 

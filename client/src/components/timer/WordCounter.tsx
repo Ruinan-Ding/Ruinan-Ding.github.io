@@ -195,6 +195,16 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
     isCollapsed
       ? askFull('untuckWordCounter', toggleCollapsed)
       : askFull('tuckWordCounter', toggleCollapsed);
+  // Drawn once and placed twice: the fullscreen row and the windowed
+  // heading show the same button, and the other buttons up there already
+  // arrive as one node each.
+  const collapseButton = isAutoCollapsed ? null : (
+    <HeaderToggleButton
+      onClick={handleToggleCollapsed}
+      icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
+      label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
+    />
+  );
   const handleToggleFullscreen = () =>
     isFullscreen
       ? askFull('exitFullscreen', () => setIsFullscreen(false))
@@ -407,13 +417,7 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
                 spread than the same three buttons have when they float,
                 which is the only other place anyone sees them. */}
             <div className="flex items-center flex-1 min-w-min fs-row-icons" style={{ gap: boxCap('0.5rem', 1.5) }}>
-              {!isAutoCollapsed && (
-                <HeaderToggleButton
-                  onClick={handleToggleCollapsed}
-                  icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
-                  label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
-                />
-              )}
+              {collapseButton}
               {ringerButton}
               {speakerButton}
             </div>
@@ -442,13 +446,7 @@ function WordCounter({ onFocusChange, confirmMode, onFullscreenChange, speakerBu
           </>
         ) : (
           <>
-            {!isAutoCollapsed && (
-              <HeaderToggleButton
-                onClick={handleToggleCollapsed}
-                icon={isCollapsed ? <ChevronsUp style={HEADER_ICON_SIZE} /> : <ChevronsDown style={HEADER_ICON_SIZE} />}
-                label={isCollapsed ? 'Show word counter' : 'Hide word counter'}
-              />
-            )}
+            {collapseButton}
             <label
               // Its own two colours, and not the window's green: a running
               // timer used to fade this heading green along with everything

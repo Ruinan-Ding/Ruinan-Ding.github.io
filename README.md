@@ -1,6 +1,6 @@
 # Write Timer
 
-A minimal countdown timer. Set a time, hit start, and it counts down. When it hits zero it keeps going into negative time, beeping until you stop it. There's also a word counter scratchpad below the clock for timed writing sessions.
+A countdown timer. Set a time, hit start, and it counts down. When it hits zero it keeps going into negative time, beeping until you stop it. There's also a word counter scratchpad below the clock for timed writing sessions.
 
 ## Features
 
@@ -14,7 +14,8 @@ A minimal countdown timer. Set a time, hit start, and it counts down. When it hi
 - Arrow keys move the whole time by one of that box's units, the same as the chevrons beside it; the preset box takes them too
 - Mute toggle with a volume slider, plus an alarm repeat toggle (ring forever or ring once)
 - Light and dark themes
-- Confirmations before anything destructive, each with its own "don't ask this again", plus one switch to turn the lot off. Loading a preset or setting the time asks only while a run is on the clock to lose; stopping an alarm that's already going off never does
+- Confirmations in three settings, cycled from the one button: confirm what matters (stopping, resetting, deleting), confirm everything (starting, pausing, tucking a panel away and changing the clock ask too), or confirm nothing. The site RESET asks whatever the setting. Loading a preset or setting the time asks only while a run is on the clock to lose; stopping an alarm that's already going off never does
+- The button drops down the list of every question, each with its own tick for whether it keeps asking. In full confirmation the time boxes ask every time, and clearing that row drops them to one question per state change rather than silencing them. The same list carries the switch for the website link in the corner
 - Live favicon and tab title showing timer state
 
 ## Usage
@@ -36,10 +37,12 @@ pnpm run build
 
 `pnpm run test:ui` drives a real headless Chrome through the DevTools
 protocol: keyboard shortcuts, confirmation dialogs, signed-time entry,
-preset and history rows, and a layout sweep over 22 viewports. It uses a
-dev server if one is already on port 5199 and otherwise builds and serves
-one itself. Pass suite names to run a few (`pnpm run test:ui keys signed`),
-and set `CHROME` if the browser isn't where `tests/chrome.mjs` looks.
+preset and history rows, the theme, the one route, and five layout sweeps
+between them covering a few hundred viewport sizes. It uses a dev server if
+one is already on port 5199 and otherwise builds and serves one itself,
+which is also the way to run several batches without a rebuild each time.
+Pass suite names to run a few (`pnpm run test:ui keys signed`), and set
+`CHROME` if the browser isn't where `tests/chrome.mjs` looks.
 
 Built with React 19, TypeScript, Tailwind CSS 4, and the Web Audio API. Deploys to GitHub Pages via GitHub Actions on push to `main`.
 

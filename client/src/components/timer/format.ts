@@ -1,4 +1,3 @@
-import {  } from './constants';
 import type { TimeParts, TimerEntry } from './types';
 
 // Takes the half-typed string as well as the number, since a box mid-entry
@@ -12,6 +11,18 @@ export const offsetLabel = (shortOffset: string) => {
   const offset = shortOffset.replace('GMT', '');
   return offset === '' ? '+0' : offset;
 };
+
+// The wall clock and a history stamp are the same time of day, in
+// whatever zone and 12/24 setting the clock is set to. One builder so
+// the two can't drift apart; the dates around them differ on purpose.
+export const timeFormatter = (timeZone: string, is24Hour: boolean) =>
+  new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: !is24Hour,
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 
 // mm/dd/yyyy, assembled from parts rather than left to the locale, so the
 // order is the app's own decision and not whatever pattern an ICU build

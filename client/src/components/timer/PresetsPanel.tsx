@@ -1,12 +1,12 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { countColor, LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, PRESETS_WARN, SIDEBAR_COUNT_FONT_SIZE, SIDEBAR_COUNT_FONT_SIZE_SOLO, SIDEBAR_HEADING_FONT_SIZE } from './constants';
+import { LIST_ROW_BUTTON_STYLE, LIST_ROW_REMOVE_BUTTON_STYLE, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, PRESETS_WARN, SIDEBAR_ROW_GAP } from './constants';
 import { formatEntryLabel, fromTotalSeconds, isPresetInvalid, pad, parsePresetDigits, presetDigitsFromParts, presetTotalFromDigits, rawPresetDigits } from './format';
 import { shrinkClamp } from './responsive';
 import type { FlashTarget, TimeParts, TimerEntry } from './types';
+import SidebarHeading from './SidebarHeading';
 import { useDigitEntry } from './useDigitEntry';
 import { useEntryFlash, useFizzRemove } from './useDomFlash';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
-import { gapBetween, useTightFit } from './useTightFit';
 
 type CorrectedUnits = { hours: boolean; minutes: boolean; seconds: boolean };
 
@@ -51,7 +51,7 @@ function PresetRow({ preset, onRequestRemove, onRemove, isRemoving, onSelect, in
     // rather than its own smaller font. flex-shrink-0 because the sidebar
     // scrolls: without it a full list squashes every row flat instead of
     // overflowing into that scroll.
-    <div className="flex items-stretch flex-shrink-0" style={{ gap: shrinkClamp(0.25, 0.45, 0.5, 0.5) }}>
+    <div className="flex items-stretch flex-shrink-0" style={{ gap: SIDEBAR_ROW_GAP }}>
       <button
         onClick={() => onRequestRemove(preset.id)}
         disabled={fizz.isRemoving}
@@ -122,15 +122,6 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
   const [negative, setNegative] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const atCapacity = presets.length >= MAX_PRESETS;
-  // Once, not once per style property: the colour and the opacity beside it
-  // are the same decision and have to stay the same answer.
-  const warnColor = countColor(presets.length, PRESETS_WARN, MAX_PRESETS);
-  // Same as the history heading: the denominator goes when the count
-  // reaches Clear.
-  const headingRef = useRef<HTMLDivElement>(null);
-  const countRef = useRef<HTMLSpanElement>(null);
-  const clearRef = useRef<HTMLButtonElement>(null);
-  const isCountTight = useTightFit(gapBetween(countRef, clearRef), headingRef, 6, presets.length);
 
   // Shows exactly what was typed, out of range and all. Correcting happens
   // once, at commit, and only after asking.
@@ -243,44 +234,15 @@ function PresetsPanel({ presets, onAdd, onRequestRemove, onRemove, removingId, o
     // it. The sidebar is the one scroll region, so a long list scrolls the
     // pair rather than shortening this box.
     <div className="flex flex-col flex-shrink-0">
-      {/* Spacing on shrinkClamp rather than fixed Tailwind steps, which
-          don't move at all as the window shrinks.
-          Clear sits in the heading rule, and only when there's something
-          to clear. */}
-      <div
-        ref={headingRef}
-        // One line at every width, like the history heading: see the note
-        // there for why the count is what gives when they can't all fit.
-        className="flex justify-between items-center gap-x-2 border-b-2 border-white flex-shrink-0"
-        style={{ marginBottom: shrinkClamp(0.5, 0.9, 1, 1), paddingBottom: shrinkClamp(0.25, 0.45, 0.5, 0.5), containerType: 'inline-size', containerName: 'sidebar-heading' }}
-      >
-        <span className="flex items-baseline gap-1.5 min-w-0 overflow-hidden">
-          <h2 className="text-white font-bold flex-shrink-0" style={{ fontSize: SIDEBAR_HEADING_FONT_SIZE }}>PRESETS</h2>
-          <span
-            ref={countRef}
-            className="sidebar-count text-white font-bold whitespace-nowrap"
-            style={{
-              fontSize: isCountTight ? SIDEBAR_COUNT_FONT_SIZE_SOLO : SIDEBAR_COUNT_FONT_SIZE,
-              color: warnColor,
-              opacity: warnColor ? 1 : 0.6,
-            }}
-            title={presets.length >= MAX_PRESETS ? `Preset limit reached (${MAX_PRESETS})` : undefined}
-          >
-            {presets.length}{!isCountTight && <span>/{MAX_PRESETS}</span>}
-          </span>
-        </span>
-        {presets.length > 0 && (
-          <button
-            ref={clearRef}
-            onClick={onClear}
-            title="Delete every preset — asks first"
-            className="text-white border border-white hover:bg-white hover:text-black transition-colors flex-shrink-0"
-            style={{ fontSize: shrinkClamp(0.55, 0.8, 0.85, 0.7), padding: shrinkClamp(0.25, 0.4, 0.45, 0.375) }}
-          >
-            Clear
-          </button>
-        )}
-      </div>
+      <SidebarHeading
+        label="PRESETS"
+        count={presets.length}
+        max={MAX_PRESETS}
+        warn={PRESETS_WARN}
+        countTitle={`Preset limit reached (${MAX_PRESETS})`}
+        clearTitle="Delete every preset — asks first"
+        onClear={onClear}
+      />
       {/* No scrolling of its own; the sidebar scrolls the pair. The add row
           below stays directly under the list it adds to and travels with
           it. */}

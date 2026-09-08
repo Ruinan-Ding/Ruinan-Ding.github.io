@@ -319,6 +319,13 @@ export const QUESTIONS: { key: string; label: string; tier: 'half' | 'full' }[] 
   ...FULL_RULES.map(([key, label]) => ({ key, label, tier: 'full' as const })),
 ];
 
+// Every row in the section except the two about this box. Both the
+// count the box shows and the write it makes read this, so they agree:
+// those two rows are not what the heading governs, and they are ticked
+// one at a time or from their own dialog like anything else.
+export const sectionKeys = (tier: 'half' | 'full') =>
+  QUESTIONS.filter((q) => q.tier === tier && !BULK_KEYS.includes(q.key)).map((q) => q.key);
+
 // Dialogs that report what happened rather than ask whether it should.
 // They get one OK and no CANCEL, and dismissing lands on the same result
 // as OK does, since there's nothing there to decline.

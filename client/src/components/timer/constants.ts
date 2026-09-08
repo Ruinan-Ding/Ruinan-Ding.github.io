@@ -95,7 +95,10 @@ export const LIST_ROW_BUTTON_STYLE = {
 // border-r-4 (4px), and 16px of scrollbar gutter, reserved once because
 // presets and history share the one scrollbar.
 export const SIDEBAR_PADDING = shrinkClamp(0.5, 1, 1.1, 1);
-const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
+// The gap between a row's label box and its − button. Exported because
+// SIDEBAR_WIDTH below is solved against it: a panel that spaced its rows
+// on a number of its own would make that sum wrong without saying so.
+export const SIDEBAR_ROW_GAP = shrinkClamp(0.25, 0.45, 0.5, 0.5);
 export const LIST_ROW_REMOVE_FONT_SIZE = shrinkClamp(0.7, 1.4, 1.6, 1.1);
 export const SIDEBAR_WIDTH = `calc(${LIST_ROW_LABEL_EM} * ${LIST_ROW_FONT_SIZE} + 1.3 * ${LIST_ROW_REMOVE_FONT_SIZE} + ${SIDEBAR_ROW_GAP} + 2 * ${SIDEBAR_PADDING} + 34px)`;
 

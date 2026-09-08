@@ -17,16 +17,11 @@
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
-  --color-input: var(--input);
   --color-ring: var(--ring);
   /* Overrides Tailwind's own --color-black/--color-white, so every
      bg-black, text-white and border-white utility follows these two
@@ -56,16 +51,11 @@
   --radius: 0;
   --background: var(--app-surface);
   --foreground: var(--app-ink);
-  --secondary: oklch(0.5 0 0);
-  --secondary-foreground: var(--app-ink);
   --muted: oklch(0.3 0 0);
   --muted-foreground: var(--app-ink);
   --accent: var(--app-surface);
-  --accent-foreground: var(--app-ink);
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: var(--app-ink);
   --border: var(--app-ink);
-  --input: var(--app-surface);
   --ring: var(--app-ink);
 }
 
@@ -714,14 +704,11 @@
 
    The denominator goes first and the number stays: "2" places a list in its
    range as well as "2/1000" does once you know the cap, and dropping five
-   characters buys the count another ~35px of life. Only when even the bare
-   number can't sit beside the heading and Clear does the whole thing go. */
-@container sidebar-heading (max-width: 137px) {
-  .sidebar-count-max {
-    display: none;
-  }
-}
-
+   characters buys the count another ~35px of life. That half is measured
+   rather than queried, since the count's own text is part of what has to
+   fit: see isCountTight in SidebarHeading. Only when even the bare number
+   can't sit beside the heading and Clear does the whole thing go, and that
+   is this rule. */
 @container sidebar-heading (max-width: 110px) {
   .sidebar-count {
     display: none;

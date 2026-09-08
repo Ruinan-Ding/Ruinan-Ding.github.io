@@ -1,9 +1,6 @@
 import { AlertCircle, Home } from 'lucide-react';
-import { useLocation } from 'wouter';
 
 export default function NotFound() {
-  const [, setLocation] = useLocation();
-
   return (
     <div
       className="min-h-dvh w-full flex items-center justify-center bg-black"
@@ -24,13 +21,13 @@ export default function NotFound() {
           It may have been moved or deleted.
         </p>
 
-        <button
-          onClick={() => setLocation('/')}
+        <a
+          href={import.meta.env.BASE_URL}
           className="inline-flex items-center gap-2 border-4 border-green-500 text-green-500 font-bold px-6 py-3 hover:bg-green-500 hover:text-black transition-colors"
         >
           <Home className="w-4 h-4" />
           GO HOME
-        </button>
+        </a>
       </div>
     </div>
   );

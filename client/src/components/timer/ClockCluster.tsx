@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState } from 'react';
 import { TIME_ZONES, ZONES_BY_REGION } from './constants';
-import { formatDateParts, offsetLabel } from './format';
+import { formatDateParts, offsetLabel, timeFormatter } from './format';
 
 // The select's own text is transparent, so its options carry their colors
 // themselves: the popup is the browser's, drawn from these.
@@ -90,13 +90,7 @@ function ClockCluster({
   // The date is 2-digit day and month so formatDateParts lays it out as
   // mm/dd/yyyy with both halves the same width.
   const clock = useMemo(() => ({
-    time: new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour12: !is24Hour,
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-    }),
+    time: timeFormatter(timeZone, is24Hour),
     date: new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }),
     zone: zoneFormatter(timeZone),
   }), [timeZone, is24Hour]);
