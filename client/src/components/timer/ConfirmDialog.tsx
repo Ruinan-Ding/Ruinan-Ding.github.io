@@ -184,7 +184,7 @@ const getCopy = (dialog: DialogState) => {
       return {
         title: 'CONFIRM EVERYTHING',
         description:
-          "Ask about everything from now on? On top of what already asks, starting the timer, pausing and resuming it, stopping or resetting it while the alarm is ringing, deleting a history entry, tucking a panel away, going full screen and changing the clock's zone or its 12/24 setting will each ask first. The same button carries on round to turning confirmations off altogether. To leave one of these out, clear its box in the list that button drops down.",
+          "Ask about everything from now on? On top of what already asks, starting the timer, pausing and resuming it, stopping or resetting it once it has run out, deleting a history entry, tucking a panel away, going full screen and changing the clock's zone or its 12/24 setting will each ask first. The same button carries on round to turning confirmations off altogether. To leave one of these out, clear its box in the list that button drops down.",
         action: 'CONFIRM ALL',
       };
     // Only reachable on the way from FULL to none, which is the one step

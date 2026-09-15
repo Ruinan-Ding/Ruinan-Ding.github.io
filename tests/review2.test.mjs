@@ -1,5 +1,5 @@
 // The findings from the second review, as behaviour: a paused overtime
-// timer keeps its confirmations and its configured total, an edit past
+// timer stops without asking and keeps its configured total, an edit past
 // zero moves the run rather than rewriting the setup, seeking always asks,
 // and ENTER lands on the action button rather than being intercepted.
 import { spawn } from 'node:child_process';
@@ -90,15 +90,19 @@ await send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, dev
 await send('Page.navigate', { url: 'http://localhost:5199/' });
 await sleep(2500);
 
-// 1. A paused overtime timer still asks before STOP throws its reading away.
+// 1. Half mode: past zero, paused is as finished as ringing. STOP and
+// RESET go straight through, the same as they do while it rings.
 await pausedOvertime();
 check('paused mid-overtime', await status(), 'PAUSED');
 const held = await digits();
 check('holding a count-up', /^-/.test(held), 'true');
 await clickEl(btn('STOP'), 'STOP');
-check('paused overtime STOP asks', await dialogTitle(), 'CONFIRM STOP');
-await press('Escape', 'Escape', 27);
-check('reading survived the cancel', /^-/.test(await digits()), 'true');
+check('paused overtime STOP: no dialog', await dialogTitle(), 'null');
+check('paused overtime STOP: stopped', await status(), 'READY');
+await pausedOvertime();
+await clickEl(btn('RESET'), 'RESET');
+check('paused overtime RESET: no dialog', await dialogTitle(), 'null');
+check('paused overtime RESET: running', await status(), 'RUNNING');
 
 // 2. An edit past zero moves the run and leaves the configured total alone.
 // The boxes are a signed view now, so stepping up past zero walks the

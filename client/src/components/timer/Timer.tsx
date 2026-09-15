@@ -852,18 +852,15 @@ export default function Timer() {
     setIsPaused(false);
   };
 
-  // An alarm actually going off goes straight through: it's something
-  // you're trying to make stop, and a dialog between the button and the
-  // silence is the wrong thing to meet. Paused mid-overtime is not that.
-  // It's silent, there's nothing to escape, and the count-up on screen is
-  // real elapsed time one stray click would take. A reloaded run comes
-  // back paused, which is where a finished stopwatch usually sits.
-  const isRingingNow = isOvertime && !isPaused;
+  // Past zero, ringing or paused, STOP and RESET go straight through: the
+  // run is over, and it's the same state the arrows and presets already
+  // treat as nothing left to lose (timerStateKind calls both 'ringing').
+  // Asking only once it was paused made the quieter of the two the one
+  // that got in the way.
   const handleStopClick = () => {
-    // Ringing, this is the FULL-tier question: half mode waves it through
-    // exactly as it always has, and shouldAsk is what decides that rather
-    // than a branch here.
-    if (isRingingNow) {
+    // Past zero, this is the FULL-tier question: half mode waves it through
+    // and shouldAsk is what decides that rather than a branch here.
+    if (isOvertime) {
       askFull('stopRinging', handleConfirmStop);
       return;
     }
@@ -877,7 +874,7 @@ export default function Timer() {
   };
 
   const handleResetClick = () => {
-    if (isRingingNow) {
+    if (isOvertime) {
       askFull('resetRinging', handleConfirmReset);
       return;
     }

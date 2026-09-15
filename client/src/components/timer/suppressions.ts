@@ -102,19 +102,19 @@ export const FULL_ACTS: Record<FullAct, { label: string; title: string; descript
     description: 'Resume the timer from where it is paused?',
     action: 'RESUME',
   },
-  // The two an alarm normally waves straight through: ringing, a dialog
-  // between the button and the silence is the wrong thing to meet. FULL
-  // is the mode where someone has asked for one anyway.
+  // The two a finished timer normally waves straight through, ringing or
+  // paused: the run is over. FULL is the mode where someone has asked for
+  // one anyway. The keys still say Ringing so saved answers carry over.
   stopRinging: {
-    label: 'Stop while the alarm is ringing',
+    label: 'Stop once the timer has run out',
     title: 'CONFIRM STOP',
-    description: 'Stop the ringing timer? This will silence it and reset it to the initial time.',
+    description: 'Stop the finished timer? This will silence it and reset it to the initial time.',
     action: 'CONFIRM',
   },
   resetRinging: {
-    label: 'Reset while the alarm is ringing',
+    label: 'Reset once the timer has run out',
     title: 'CONFIRM RESET',
-    description: 'Reset the ringing timer? This will silence it and restart it from the beginning.',
+    description: 'Reset the finished timer? This will silence it and restart it from the beginning.',
     action: 'CONFIRM',
   },
   removeHistory: {
