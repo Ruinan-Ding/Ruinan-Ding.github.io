@@ -55,6 +55,13 @@ export const FULLSCREEN_CLOCK_FONT_SIZE = COMPACT_CLOCK_FONT_SIZE;
 // rather than a vw guess, since that clamp bottoms out on a rem floor and
 // a vw reserve wouldn't. The word counter's fullscreen row measures the
 // corner directly; this is what the website link sizes against.
+//
+// Three, though the corner holds four since import/export joined it.
+// Counted in, the fourth shrank the link on every phone to an unreadable
+// 2-4px, and on a phone the link sits on a row of its own below the
+// corner with nothing in its way. Where the two do meet, on a short
+// window, the link is dropped by measurement instead: see
+// isLinkCrowdedRight in Timer.tsx.
 export const HEADER_CORNER_RESERVE = `calc(3 * ${HEADER_BUTTON_SIZE.width} + 48px)`;
 
 // One width for every box in the sidebar: each preset, each history entry,

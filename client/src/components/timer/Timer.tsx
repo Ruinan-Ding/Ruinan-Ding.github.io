@@ -1,10 +1,10 @@
-import { Bell, ChevronsLeft, ChevronsRight, ExternalLink, Moon, Repeat, Sun, Trash2, X } from 'lucide-react';
+import { ArrowDownUp, Bell, ChevronsLeft, ChevronsRight, ExternalLink, Moon, Repeat, Sun, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBeep } from '@/hooks/useBeep';
 import { useFavicon } from '@/hooks/useFavicon';
 import { useLeaveGuard } from '@/hooks/useLeaveGuard';
 import { usePersisted } from '@/hooks/usePersisted';
-import { readBoolean, readJSON, wipeStorage, writeJSON } from '@/lib/storage';
+import { readBoolean, readJSON, replaceStorage, wipeStorage, writeJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
 import ClockCluster from './ClockCluster';
 import ConfirmDialog from './ConfirmDialog';
@@ -15,12 +15,14 @@ import HistoryPanel from './HistoryPanel';
 import PresetsPanel from './PresetsPanel';
 import SpeakerIcon from './SpeakerIcon';
 import TimeField from './TimeField';
+import TransferDialog from './TransferDialog';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HEADER_ICON_SIZE_LG, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TONES } from './constants';
 import { readSavedHistory, readSavedPresets } from './entries';
 import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, timeFormatter, toSignedTotal, toTotalSeconds } from './format';
 import { BELOW_DIGITS, compactControlButtonStyle, CONTROL_FILL, CONTROL_HINT, CONTROL_PAD_X, controlButtonStyle, HINT_CLEARANCE, KEY_LINE_HEIGHT, KEY_SCALE, STATUS_FONT_SIZE } from './controlSizes';
 import { boxCap, fitClamp, shrinkClamp } from './responsive';
+import { exportState } from './stateFile';
 import { isAcknowledgement, nextConfirmMode, readConfirmMode, readSuppressedKeys, setSuppressedKey, sectionKeys, setSuppressedKeys as writeSuppressedKeys, shouldAsk, suppressDialog } from './suppressions';
 import type { ConfirmMode, DialogState, FlashTarget, FullAct, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { useFlashOnToken } from './useFlashOnToken';
@@ -64,6 +66,12 @@ const liveSeconds = ({ seconds, milliseconds }: { seconds: number; milliseconds:
 // agrees with formatTime past zero. Floored, -2.38s reads as -3 and a step
 // up to -2 floors straight back, leaving the boxes still.
 const liveShownSeconds = (time: { seconds: number; milliseconds: number }) => Math.trunc(liveSeconds(time));
+
+// Every key the site RESET clears and an import replaces.
+// timerHasMutedBefore is retired rather than live — muting asks every
+// time now — but it is still in the browsers that had it, and "all
+// settings will be erased" has to be true for them too.
+const ALL_STORED_KEYS = [...Object.values(STORAGE_KEYS), 'timerHasMutedBefore'];
 
 
 export default function Timer() {
@@ -151,6 +159,10 @@ export default function Timer() {
   const [presets, setPresets] = useState<TimerEntry[]>(readSavedPresets);
 
   const [dialog, setDialog] = useState<DialogState>({ type: null });
+  // The import/export dialog. Its own flag rather than a DialogState: it
+  // isn't a question, nothing can silence it, and it has to stay open
+  // while it asks one of its own.
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isWordCounterFocused, setIsWordCounterFocused] = useState(false);
   const [isWordCounterFullscreen, setIsWordCounterFullscreen] = useState(false);
   // Manual hide toggles, all persisted, so a tucked-in panel stays tucked
@@ -212,6 +224,11 @@ export default function Timer() {
     setHidden: setTimeFieldsHidden,
   } = useTimeFieldsTuck(isRowLayout, isWideLayout);
   const isLinkCrowded = useTightFit(gapBetween(headerLeftRef, linkBandRef), timerRowRef, 8);
+  // The corner on the other side, and only where the two are level. With
+  // four buttons in it that corner is the wider one, so on a short window
+  // it's the one the link reaches first; on a phone the link sits on a
+  // row of its own below it and passes under without touching.
+  const isLinkCrowdedRight = useTightFit(gapWhenLevel(linkBandRef, headerCornerRef), timerRowRef, 8);
   // How many lines of the alarm tip fit before it reaches the readout.
   //
   // Not a height media query: the two only collide where they share
@@ -704,6 +721,28 @@ export default function Timer() {
   // browser takes, with nothing to undo it.
   const isSelfReloadingRef = useLeaveGuard(isRunning || isPaused || isAlarmRinging);
 
+  // The timer as it stands this instant, for the export. Everything else
+  // the file holds is read from the store, which the persistence effects
+  // keep level with the page; the countdown is the one thing that runs
+  // ahead of it.
+  const snapshotState = () => exportState({
+    ...timeRef.current,
+    isRunning,
+    isPaused,
+    configured: { hours, minutes, seconds: timerSeconds },
+    negative: isConfiguredNegative,
+  });
+  // Writes the imported file over the store and reloads onto it, the same
+  // way the site RESET reloads onto an empty one, and for the same reason:
+  // every piece of state then comes back through its own reader. The
+  // leave guard stands down only once the write has held.
+  const handleImportState = (entries: Record<string, string>) => {
+    if (!replaceStorage(ALL_STORED_KEYS, entries)) return false;
+    isSelfReloadingRef.current = true;
+    window.location.reload();
+    return true;
+  };
+
   const playTone = (tone: keyof typeof TONES) => {
     if (!isSilentMode) {
       beep(...TONES[tone]);
@@ -893,7 +932,7 @@ export default function Timer() {
   // they are consts declared down here, and the listeners reach them
   // through a ref rather than by being rebound every tick.
   const { heldKey, firedKey } = useTimerKeys({
-    isDialogOpen: dialog.type !== null,
+    isDialogOpen: dialog.type !== null || isTransferOpen,
     isIdleAtConfigured,
     isWindowFocused,
     onTab: () => (isRunning ? togglePause() : handleStart()),
@@ -1316,10 +1355,7 @@ export default function Timer() {
         // confirmed, and challenging it would empty the storage behind a
         // page that never went anywhere.
         isSelfReloadingRef.current = true;
-        // timerHasMutedBefore is retired rather than live — muting asks
-        // every time now — but it is still in the browsers that had it,
-        // and "all settings will be erased" has to be true for them too.
-        wipeStorage([...Object.values(STORAGE_KEYS), 'timerHasMutedBefore']);
+        wipeStorage(ALL_STORED_KEYS);
         window.location.reload();
         break;
       case 'reset':
@@ -1891,7 +1927,7 @@ export default function Timer() {
       hideTime={measured && isClockTimeCrowded}
     />
   );
-  // The three floating-corner controls. Held as a value because they
+  // The four floating-corner controls. Held as a value because they
   // render in two places: their own corner normally, and inside the word
   // counter's fullscreen row when there is one, so that row can centre
   // what it holds instead of padding around an absolute corner.
@@ -1974,6 +2010,15 @@ export default function Timer() {
                 />
               )}
             </div>
+
+            {/* Everything the page remembers, out as JSON or back in. The
+                import asks inside its own dialog, whatever the
+                confirmations are set to, like the bin beside it. */}
+            <HeaderToggleButton
+              onClick={() => setIsTransferOpen(true)}
+              icon={<ArrowDownUp style={HEADER_ICON_SIZE_LG} />}
+              label="Import or export the website's state as JSON"
+            />
 
             {/* Resets the whole site. Asks even with confirmations off. */}
             <button
@@ -2365,7 +2410,7 @@ export default function Timer() {
         {/* Measured rather than estimated; see headerCornerRef.
 
             Only while the word counter is not fullscreen. In fullscreen
-            these three move into the counter's own row, where they sit in
+            these four move into the counter's own row, where they sit in
             the same band as the icons facing them and the row stops
             reserving a corner it then has to leave empty. */}
         {!isWordCounterFullscreen && (
@@ -2426,7 +2471,7 @@ export default function Timer() {
                 so it never blends into the window's green run flash, and
                 the glow is suppressed during pause and alarm so it doesn't
                 compete with those. */}
-            {!isWebsiteLinkHidden && !isWordCounterFullscreen && !isLinkCrowded && websiteLinkButton}
+            {!isWebsiteLinkHidden && !isWordCounterFullscreen && !isLinkCrowded && !isLinkCrowdedRight && websiteLinkButton}
 
             {/* container-type: size turns this box's resolved height, the
                 real leftover after the word counter and the link take
@@ -2599,6 +2644,12 @@ export default function Timer() {
         dialog={dialog}
         onDismiss={handleDialogDismiss}
         onConfirm={handleDialogConfirm}
+      />
+      <TransferDialog
+        open={isTransferOpen}
+        onClose={() => setIsTransferOpen(false)}
+        snapshot={snapshotState}
+        onImport={handleImportState}
       />
     </div>
   );

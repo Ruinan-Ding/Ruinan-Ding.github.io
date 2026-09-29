@@ -55,6 +55,34 @@ export function wipeStorage(keys: readonly string[]) {
   }
 }
 
+// wipeStorage with something put back in its place, for an import: the
+// keys are cleared, the new values written, and the store sealed against
+// the page being left, for the same reason as above.
+//
+// All or nothing. A full store refuses a write partway through, and a
+// reload onto half an import is neither the old state nor the new one, so
+// a failure puts back what was there and leaves the store open, and the
+// caller stays on the page to say so.
+export function replaceStorage(keys: readonly string[], entries: Record<string, string>): boolean {
+  if (sealed) return false;
+  const before = new Map<string, string | null>();
+  try {
+    keys.concat(Object.keys(entries)).forEach((key) => before.set(key, localStorage.getItem(key)));
+    keys.forEach((key) => localStorage.removeItem(key));
+    Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+  } catch (e) {
+    console.error('Failed to replace storage:', e);
+    try {
+      before.forEach((value, key) => (value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value)));
+    } catch (restoreError) {
+      console.error('Failed to restore storage:', restoreError);
+    }
+    return false;
+  }
+  sealed = true;
+  return true;
+}
+
 export function writeRaw(key: string, value: string) {
   if (sealed) return;
   try {
