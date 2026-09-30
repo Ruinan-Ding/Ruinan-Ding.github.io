@@ -327,6 +327,12 @@ export default function Timer() {
   // runs under them. The date is what goes: it is the half of the clock
   // that isn't the time, and losing it pulls the centred cluster clear.
   const isMainClockCrowded = useTightFit(gapWhenLevel(headerButtonsRef, mainClockRef), timerRowRef, 8);
+  // The same clock against the corner on the right, which is the wider of
+  // the two now that it holds four buttons. Level with it, the date ran
+  // under the theme button: at 660x480 on its own, and below sm once the
+  // website link had gone and the clock rode up into the link's place.
+  const isMainClockCrowdedRight = useTightFit(gapWhenLevel(mainClockRef, headerCornerRef), timerRowRef, 8);
+  const isMainClockTight = isMainClockCrowded || isMainClockCrowdedRight;
 
   // Whether a keypress would reach the timer at all. The hints name keys,
   // and a key named where it does nothing is worse than no hint: in a
@@ -1923,7 +1929,7 @@ export default function Timer() {
       onHourFormatClick={handleHourFormatClick}
       onTimeZoneChange={handleTimeZoneChange}
       rootRef={rootRef}
-      hideDate={measured ? isClockDateCrowded : isMainClockCrowded}
+      hideDate={measured ? isClockDateCrowded : isMainClockTight}
       hideTime={measured && isClockTimeCrowded}
     />
   );
@@ -2524,7 +2530,7 @@ export default function Timer() {
                   gives up is all that moves its left edge. */}
               <div className="flex justify-center">
                 {renderClockCluster(
-                  isMainClockCrowded ? `calc(${CLOCK_FONT_SIZE} * 0.7)` : CLOCK_FONT_SIZE,
+                  isMainClockTight ? `calc(${CLOCK_FONT_SIZE} * 0.7)` : CLOCK_FONT_SIZE,
                   false,
                   mainClockRef
                 )}
