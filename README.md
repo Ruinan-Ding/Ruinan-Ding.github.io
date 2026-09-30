@@ -39,7 +39,8 @@ pnpm run build
 `pnpm run test:ui` drives a real headless Chrome through the DevTools
 protocol: keyboard shortcuts, confirmation dialogs, signed-time entry,
 preset and history rows, the theme, the one route, and five layout sweeps
-between them covering a few hundred viewport sizes. It uses a dev server if
+between them covering a few hundred viewport sizes, plus one journey through
+the whole app in a single session, import/export round trip included. It uses a dev server if
 one is already on port 5199 and otherwise builds and serves one itself,
 which is also the way to run several batches without a rebuild each time.
 Pass suite names to run a few (`pnpm run test:ui keys signed`), and set
