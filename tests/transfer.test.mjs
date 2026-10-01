@@ -278,6 +278,70 @@ check('negative one millisecond survives the zero crossing', crossingZero?.timer
 check('count-up configuration keeps its sign', crossingZero?.timer.configured.negative, true);
 await press('Escape', 'Escape', 27);
 
+// 6. Both boxes take typing and are checked against the schema as it
+// goes. IMPORT stays greyed out until the text passes; an export that
+// fails can still leave, but asks first, with what's wrong, and that
+// question is a row in the confirmations list. Last, since an edited
+// export and a silenced question both outlive the dialog.
+const EXPORT_BOX = `document.querySelector('[data-transfer-text="export"]')`;
+const IMPORT_BOX = `document.querySelector('[data-transfer-text="import"]')`;
+const footer = (pattern) => `[...document.querySelectorAll('[role="alertdialog"] button')].find(b=>${pattern}.test(b.textContent.trim()))`;
+const typeInto = async (box, text) => {
+  await ev(`(()=>{const t=${box};t.focus();t.select();return 'ok'})()`);
+  await send('Input.insertText', { text });
+  await sleep(200);
+};
+await clickEl(OPEN, 'import/export button');
+check('a fresh export passes its own checks', await errorsShown(), '');
+check('and has nothing to REVERT', await ev(`!!(${footer(/^REVERT$/)})`), 'false');
+const good = JSON.parse(await ev(`${EXPORT_BOX}.value`));
+await typeInto(EXPORT_BOX, JSON.stringify({ ...good, theme: 'blue' }, null, 2));
+check('the export box takes typing', /"theme": "blue"/.test(await ev(`${EXPORT_BOX}.value`)), 'true');
+check('a schema problem is named as it is typed', /doesn’t match the schema[\s\S]*theme must be one of/.test(await errorsShown()), 'true');
+await typeInto(EXPORT_BOX, '{ "format": ');
+check('and broken JSON too', /isn't valid JSON/.test(await errorsShown()), 'true');
+check('REVERT shows once edited', await ev(`!!(${footer(/^REVERT$/)})`), 'true');
+// Copied into the page rather than onto the machine's own clipboard.
+await ev(`(navigator.clipboard.writeText=async(t)=>{window.copied=t},'ok')`);
+await clickEl(footer(/^COPY$/), 'COPY');
+check('COPY asks first', await dialogTitle(), 'COPY IT ANYWAY?');
+check('with what is wrong', /isn't valid JSON/.test(await errorsShown()), 'true');
+check('and its row in the list named', /Keep asking this \(Export JSON that fails its checks\)/.test(await ev(`document.querySelector('[data-dont-ask]')?.textContent ?? ''`)), 'true');
+await press('Escape', 'Escape', 27);
+check('ESC backs out to the text', await dialogTitle(), 'IMPORT / EXPORT');
+check('with the edit still there and nothing copied', `${await ev(`${EXPORT_BOX}.value`)}|${await ev(`window.copied ?? 'none'`)}`, '{ "format": |none');
+await clickEl(footer(/^DOWNLOAD$/), 'DOWNLOAD');
+check('DOWNLOAD asks too', await dialogTitle(), 'DOWNLOAD IT ANYWAY?');
+await press('Escape', 'Escape', 27);
+await clickEl(footer(/^COPY$/), 'COPY again');
+await clickEl(`document.querySelector('[data-dont-ask]')`, 'keep asking box');
+check('the box clears', await ev(`document.querySelector('[data-dont-ask]').getAttribute('aria-pressed')`), 'false');
+await press('`', 'Backquote', 192, '`');
+check('COPY ANYWAY copies it as typed', await ev(`window.copied ?? null`), '{ "format": ');
+check('and the question is silenced in the list', JSON.parse(await ev(`localStorage.getItem('timerDontAskAgain') ?? '[]'`)).includes('exportInvalid'), 'true');
+await ev(`(window.copied=null,'ok')`);
+await sleep(1500);
+await clickEl(footer(/^COPY$/), 'COPY once silenced');
+check('silenced, it copies without asking', `${await dialogTitle()}|${await ev(`window.copied ?? null`)}`, 'IMPORT / EXPORT|{ "format": ');
+await press('Escape', 'Escape', 27);
+await clickEl(OPEN, 'import/export button');
+check('an edited export survives closing', await ev(`${EXPORT_BOX}.value`), '{ "format": ');
+await clickEl(footer(/^REVERT$/), 'REVERT');
+check('REVERT puts the page back', /"format": "write-timer-state"/.test(await ev(`${EXPORT_BOX}.value`)), 'true');
+check('which passes again', await errorsShown(), '');
+check('and REVERT goes', await ev(`!!(${footer(/^REVERT$/)})`), 'false');
+
+const IMPORT_BUTTON = dialogButton('IMPORT', false);
+await clickEl(dialogButton('IMPORT', true), 'IMPORT tab');
+await typeInto(IMPORT_BOX, 'not json');
+check('IMPORT greys out on broken JSON', await ev(`${IMPORT_BUTTON}.disabled`), 'true');
+await typeInto(IMPORT_BOX, JSON.stringify({ format: 'write-timer-state', version: 1, theme: 'blue' }));
+check('and on a schema problem', await ev(`${IMPORT_BUTTON}.disabled`), 'true');
+check('which is named as it is typed', /theme must be one of/.test(await errorsShown()), 'true');
+await typeInto(IMPORT_BOX, JSON.stringify({ format: 'write-timer-state', version: 1 }));
+check('and lights once the text passes', `${await ev(`${IMPORT_BUTTON}.disabled`)}|${await errorsShown()}`, 'false|');
+await press('Escape', 'Escape', 27);
+
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(40)} got=${r.got.slice(0, 60).padEnd(16)} want=${r.want.slice(0, 60)}`);
 console.log(`\n${out.filter((r) => r.pass).length}/${out.length} passed`);
 

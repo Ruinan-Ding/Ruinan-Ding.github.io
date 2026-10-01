@@ -287,6 +287,9 @@ const HALF_QUESTIONS: [string, string][] = [
   ['correctPreset', 'Report a preset corrected to fit'],
   ['correctTime', 'Report a time corrected to fit'],
   ['duplicatePreset', 'Report a preset you already have'],
+  // Asked from inside the import/export dialog rather than through
+  // dialogKey: it is one of that dialog's own steps, not a ConfirmDialog.
+  ['exportInvalid', 'Export JSON that fails its checks'],
   ['bulkSilence', 'Silence a whole section at once'],
   ['bulkRestore', 'Bring a whole section back at once'],
   ['fullConfirmations', 'Warn before confirming everything'],

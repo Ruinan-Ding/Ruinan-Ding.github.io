@@ -227,26 +227,50 @@ type Parsed = Partial<Omit<StateFile, 'timer' | 'layout' | 'presets' | 'history'
   layout?: Partial<Omit<StateFile['layout'], 'wordCounter'>> & { wordCounter?: Partial<StateFile['layout']['wordCounter']> };
 };
 
-export function readStateFile(json: string): ReadResult {
+// What's wrong with a file, by kind: text that isn't JSON at all, and JSON
+// that isn't a state file. The dialog shows them as they're typed, on both
+// sides, and readStateFile refuses on either.
+export interface StateProblems {
+  syntax: string | null;
+  schema: string[];
+}
+
+type Checked = { syntax: string } | { data: unknown; schema: string[] };
+
+function check(json: string): Checked {
   let data: unknown;
   try {
     data = JSON.parse(json);
   } catch (e) {
-    return { ok: false, errors: [`That isn't valid JSON: ${e instanceof Error ? e.message : String(e)}`] };
+    return { syntax: `That isn't valid JSON: ${e instanceof Error ? e.message : String(e)}` };
   }
   // Ahead of the schema, which would only say the version must be 1.
   if (isRecord(data) && data.format === STATE_FORMAT && typeof data.version === 'number' && data.version > STATE_VERSION) {
-    return { ok: false, errors: [`This file is version ${data.version}, from a newer copy of this page than the one open here (version ${STATE_VERSION}). Reload to pick up the newer page, then import it again.`] };
+    return { data, schema: [`This file is version ${data.version}, from a newer copy of this page than the one open here (version ${STATE_VERSION}). Reload to pick up the newer page, then import it again.`] };
   }
-  const errors: string[] = [];
-  validate(data, SCHEMA, '', errors);
-  if (errors.length) return { ok: false, errors };
-  const file = data as Parsed;
+  const schema: string[] = [];
+  validate(data, SCHEMA, '', schema);
   // The one limit the schema can't say: it counts words and lines, not
   // characters, and it's the counter's own rule.
-  if (file.wordCounter?.text !== undefined && !isWithinCap(file.wordCounter.text)) {
-    return { ok: false, errors: [`wordCounter.text is over the word counter's limit of ${countLabel(COUNTER_MAX)} lines, words or characters`] };
+  const text = isRecord(data) && isRecord(data.wordCounter) ? data.wordCounter.text : undefined;
+  if (!schema.length && typeof text === 'string' && !isWithinCap(text)) {
+    schema.push(`wordCounter.text is over the word counter's limit of ${countLabel(COUNTER_MAX)} lines, words or characters`);
   }
+  return { data, schema };
+}
+
+// null for a file the page would take as it is.
+export function checkStateText(json: string): StateProblems | null {
+  const checked = check(json);
+  if ('syntax' in checked) return { syntax: checked.syntax, schema: [] };
+  return checked.schema.length ? { syntax: null, schema: checked.schema } : null;
+}
+
+export function readStateFile(json: string): ReadResult {
+  const checked = check(json);
+  if ('syntax' in checked) return { ok: false, errors: [checked.syntax] };
+  if (checked.schema.length) return { ok: false, errors: checked.schema };
+  const file = checked.data as Parsed;
 
   // Everything the file leaves out is left out of the store too, and the
   // reload reads that key's default. That's what makes an import a

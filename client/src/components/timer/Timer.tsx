@@ -2656,6 +2656,10 @@ export default function Timer() {
         onClose={() => setIsTransferOpen(false)}
         snapshot={snapshotState}
         onImport={handleImportState}
+        // shouldAsk's rule for a half-tier question, which this is: off
+        // asks nothing, and otherwise it asks until silenced.
+        askBeforeInvalidExport={confirmMode !== 'none' && !suppressedKeys.includes('exportInvalid')}
+        onSilenceInvalidExport={() => setSuppressedKeys(setSuppressedKey('exportInvalid', true))}
       />
     </div>
   );

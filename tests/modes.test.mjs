@@ -150,7 +150,7 @@ const hoverConfirm = async () => {
 };
 await hoverConfirm();
 check('hovering opens the list', await ev(`!!(${LIST})`), 'true');
-check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button:not([data-confirm-section])').length ?? 0`), 54);
+check('every question has a row', await ev(`(${LIST})?.querySelectorAll('button:not([data-confirm-section])').length ?? 0`), 55);
 check('the list scrolls', await ev(`(()=>{const l=document.querySelector('[data-confirm-scroll]');return !!l && l.scrollHeight > l.clientHeight})()`), 'true');
 // In full mode nothing is greyed: every row is a question being asked.
 check('full greys nothing', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 0);
@@ -165,7 +165,7 @@ const rowsAbove = (tier) => ev(`(()=>{const d=${SECTION(tier)};if(!d)return -1;r
 check('the half group is headed', await ev(`${SECTION('half')}?.textContent ?? null`), 'ACTIVE CONFIRMATIONS');
 check('and it opens the list', await rowsAbove('half'), 0);
 check('the full group is headed', await ev(`${SECTION('full')}?.textContent ?? null`), 'ACTIVE IN FULL CONFIRMATION ONLY');
-check('and it sits on the turn', await rowsAbove('full'), 24);
+check('and it sits on the turn', await rowsAbove('full'), 25);
 check('both lit in full', await ev(`[...document.querySelectorAll('[data-confirm-section]')].map(d=>getComputedStyle(d).color).join('|')`), 'rgb(34, 197, 94)|rgb(34, 197, 94)');
 // One line, not two, where the panel's own heading already drew one.
 check('the top heading is not double-ruled', await ev(`getComputedStyle(${SECTION('half')}).borderTopWidth`), '0px');
@@ -230,7 +230,7 @@ await clickSection('half', 'half heading');
 check('the half section asks going out', await dialogTitle(), 'SILENCE THE SECTION');
 await confirmDialog();
 await sleep(400);
-check('and leaves the three it must not touch alone', await ticks(), 21);
+check('and leaves the three it must not touch alone', await ticks(), 22);
 await hoverConfirm();
 await clickSection('half', 'half heading again');
 check('so the way back still asks', await dialogTitle(), 'BRING THE SECTION BACK');
@@ -267,7 +267,7 @@ check('none asks nothing', await dialogTitle(), 'null');
 check('and the stop went through', await status(), 'READY');
 
 await hoverConfirm();
-check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 54);
+check('none greys every row', await ev(`[...(${LIST}).querySelectorAll('button:not([data-confirm-section])')].filter(b=>b.style.color==='rgb(107, 114, 128)').length`), 55);
 // The rows grey, the headings go red: grey says "not in play", red says
 // the group is off.
 check('and both headings go red', await ev(`[...document.querySelectorAll('[data-confirm-section]')].map(d=>getComputedStyle(d).color).join('|')`), 'rgb(239, 68, 68)|rgb(239, 68, 68)');
