@@ -1,0 +1,5 @@
+# LF everywhere, in the repo and in every checkout. eol=lf overrides a
+# Windows git's core.autocrlf=true, so WSL and Windows see the same bytes.
+* text=auto eol=lf
+
+*.png binary
