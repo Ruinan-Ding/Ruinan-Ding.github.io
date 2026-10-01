@@ -37,6 +37,11 @@ function AlertDialogOverlay({
         'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[80] bg-[rgba(0,0,0,0.5)]',
         className
       )}
+      // A press on the scrim leaves the focus where it was. Left to the
+      // browser, a click on this div moves it to <body>, outside the
+      // dialog, and the confirm key, which listens on the dialog's
+      // content, stops answering until TAB brings the focus back.
+      onMouseDown={(e) => e.preventDefault()}
       {...props}
     />
   );

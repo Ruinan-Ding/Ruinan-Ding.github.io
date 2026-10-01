@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ruinan-ding.com/timer-state.schema.json",
+  "title": "Write Timer state",
+  "description": "Everything the timer at ruinan-ding.com remembers, as its import/export button writes it. Importing a file replaces all of it and reloads the page; anything the file leaves out goes back to its default.",
+  "type": "object",
+  "required": ["format", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "format": {
+      "const": "write-timer-state"
+    },
+    "version": {
+      "const": 1
+    },
+    "exportedAt": {
+      "type": "string",
+      "description": "When the file was written, as an ISO 8601 timestamp. Informational; importing ignores it."
+    },
+    "timer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": ["idle", "running", "paused"],
+          "default": "idle",
+          "description": "Whether a run was on the clock. A running timer imports paused, the same way it comes back from a reload: the time between the export and the import isn't counted."
+        },
+        "remainingMs": {
+          "type": "integer",
+          "minimum": -359999000,
+          "maximum": 359999999,
+          "description": "Time on the clock in milliseconds, negative once it has run past zero. Defaults to the configured time."
+        },
+        "configured": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The time the fields are set to, which STOP returns to. Defaults to 00:01:05.",
+          "properties": {
+            "hours": { "type": "integer", "minimum": 0, "maximum": 99, "default": 0 },
+            "minutes": { "type": "integer", "minimum": 0, "maximum": 59, "default": 0 },
+            "seconds": { "type": "integer", "minimum": 0, "maximum": 59, "default": 0 },
+            "negative": {
+              "type": "boolean",
+              "default": false,
+              "description": "A time that starts already past zero, counting up."
+            }
+          }
+        }
+      }
+    },
+    "presets": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/entry" },
+      "description": "The PRESETS list, top to bottom. Defaults to 00:01:05, 00:30:35 and 00:05:35."
+    },
+    "history": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": { "$ref": "#/$defs/entry" },
+      "description": "The HISTORY list, newest first. Defaults to empty."
+    },
+    "sound": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "muted": { "type": "boolean", "default": false },
+        "volume": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.5 },
+        "alarmRepeats": {
+          "type": "boolean",
+          "default": false,
+          "description": "On, the alarm rings until stopped; off, it rings one burst."
+        }
+      }
+    },
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeZone": {
+          "type": "string",
+          "default": "America/New_York",
+          "description": "An IANA zone id. One the importing browser doesn't know falls back to the default."
+        },
+        "hour24": { "type": "boolean", "default": false }
+      }
+    },
+    "theme": {
+      "enum": ["dark", "light"],
+      "default": "dark"
+    },
+    "confirmations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": ["half", "full", "none"],
+          "default": "half",
+          "description": "half confirms what matters, full confirms everything, none confirms nothing but the site RESET."
+        },
+        "dontAskAgain": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "The questions whose box has been cleared in the confirmations list, by key."
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sidebarTucked": { "type": "boolean", "default": false },
+        "timeFieldsTucked": { "type": "boolean", "default": false },
+        "websiteLinkHidden": { "type": "boolean", "default": false },
+        "wordCounter": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "view": { "enum": ["open", "tucked", "fullscreen"], "default": "open" },
+            "restoreFullscreen": {
+              "type": "boolean",
+              "default": false,
+              "description": "While tucked: whether un-tucking goes back to fullscreen."
+            },
+            "autoTuckedAt": {
+              "type": ["object", "null"],
+              "default": null,
+              "description": "While tucked: set when the counter tucked itself away for lack of room, and it opens again once the window is at least this big. null for a tuck made by hand.",
+              "additionalProperties": false,
+              "required": ["width", "height"],
+              "properties": {
+                "width": { "type": "number", "minimum": 0 },
+                "height": { "type": "number", "minimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "wordCounter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "default": "",
+          "description": "Held to the counter's own limit of 999,999 lines, words and characters."
+        },
+        "alphanumericWordsOnly": { "type": "boolean", "default": true },
+        "alphanumericCharsOnly": { "type": "boolean", "default": true }
+      }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["minutes", "seconds"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "Generated when missing or repeated." },
+        "hours": { "type": "integer", "minimum": 0, "maximum": 99, "default": 0 },
+        "minutes": { "type": "integer", "minimum": 0, "maximum": 59 },
+        "seconds": { "type": "integer", "minimum": 0, "maximum": 59 },
+        "negative": { "type": "boolean", "default": false },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8640000000000000,
+          "default": 0,
+          "description": "Milliseconds since 1970: when a history row was run, or when a preset was added."
+        }
+      }
+    }
+  }
+}
