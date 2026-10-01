@@ -1,0 +1,7 @@
+# Line-ending-only commits, skipped by blame. GitHub reads this file on its
+# own; locally, `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
+
+# Normalize tracked files to CRLF
+f0116aaf4930b745f222fd3245b009986ac503c8
+# Normalize line endings to LF and pin them with .gitattributes
+bfe32420d5570ea2e06c400796cf75fd1a7dcd50
