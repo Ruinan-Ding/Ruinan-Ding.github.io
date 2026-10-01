@@ -3,10 +3,13 @@
 //
 //   node client/src/components/timer/wordCount.check.mjs
 //
-// It imports the .ts beside it directly, since node strips the types
-// itself, so it checks the shipped source rather than a copy.
+// TypeScript transpiles the source for Node, so the check exercises the
+// shipped implementation rather than a copy or a browser bundle.
 import assert from 'node:assert/strict';
-import { countStats, capInsertion, isWithinCap, countLabel, COUNTER_MAX, COUNTER_WARN } from './wordCount.ts';
+import { importTypeScript } from '../../../../tests/import-ts.mjs';
+
+const { countStats, capInsertion, isWithinCap, countLabel, COUNTER_MAX, COUNTER_WARN } =
+  await importTypeScript(new URL('./wordCount.ts', import.meta.url));
 
 // The numbers as the boxes print them. How far they then shrink to fit is
 // countFontSize in WordCounter, which is layout.

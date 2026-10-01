@@ -142,17 +142,42 @@ await paste('not json');
 check('invalid JSON is refused', /isn't valid JSON/.test(await errorsShown()), 'true');
 check('and stays on the text', await dialogTitle(), 'IMPORT / EXPORT');
 await press('Escape', 'Escape', 27);
+const rejected = async (name, file, error) => {
+  await paste(JSON.stringify(file));
+  check(`${name} is refused`, error.test(await errorsShown()), 'true');
+  check(`${name} leaves the current state alone`, await ev(`JSON.stringify(Object.entries(localStorage).sort())`) === before, 'true');
+  await press('Escape', 'Escape', 27);
+};
 await paste(JSON.stringify({ format: 'write-timer-state', version: 1, presets: [{ minutes: 75, seconds: 0 }], theme: 'blue' }));
 const rangeErrors = await errorsShown();
 check('out-of-range field is named', /presets\[0\]\.minutes must be at most 59/.test(rangeErrors), 'true');
 check('bad enum is named', /theme must be one of "dark", "light"/.test(rangeErrors), 'true');
 await press('Escape', 'Escape', 27);
-await paste(JSON.stringify({ format: 'write-timer-state', version: 2 }));
-check('newer version is refused', /newer copy of this page/.test(await errorsShown()), 'true');
-await press('Escape', 'Escape', 27);
-await paste(JSON.stringify({ format: 'write-timer-state', version: 1, sound: { volume: 0.5, loud: true } }));
-check('unknown field is refused', /sound\.loud isn't something this file can hold/.test(await errorsShown()), 'true');
-await press('Escape', 'Escape', 27);
+await rejected('unknown format', { format: 'other-timer', version: 1 }, /format must be "write-timer-state"/);
+await rejected('missing version', { format: 'write-timer-state' }, /version is missing/);
+await rejected('newer version', { format: 'write-timer-state', version: 2 }, /newer copy of this page/);
+await rejected('fractional remaining time', { format: 'write-timer-state', version: 1, timer: { remainingMs: 1.5 } }, /timer\.remainingMs must be a whole number/);
+await rejected('remaining time over maximum', { format: 'write-timer-state', version: 1, timer: { remainingMs: 360000000 } }, /timer\.remainingMs must be at most 359999999/);
+await rejected('remaining time below minimum', { format: 'write-timer-state', version: 1, timer: { remainingMs: -359999001 } }, /timer\.remainingMs must be at least -359999000/);
+await rejected('volume below minimum', { format: 'write-timer-state', version: 1, sound: { volume: -0.01 } }, /sound\.volume must be at least 0/);
+await rejected('volume above maximum', { format: 'write-timer-state', version: 1, sound: { volume: 1.01 } }, /sound\.volume must be at most 1/);
+await rejected('required entry field', { format: 'write-timer-state', version: 1, presets: [{ minutes: 1 }] }, /presets\[0\]\.seconds is missing/);
+await rejected('unsupported time zone type', { format: 'write-timer-state', version: 1, clock: { timeZone: 3 } }, /clock\.timeZone must be string/);
+await rejected('timestamp over maximum', { format: 'write-timer-state', version: 1, history: [{ minutes: 0, seconds: 1, timestamp: 8640000000000001 }] }, /history\[0\]\.timestamp must be at most 8640000000000000/);
+await rejected('unknown field', { format: 'write-timer-state', version: 1, sound: { volume: 0.5, loud: true } }, /sound\.loud isn't something this file can hold/);
+const tooManyPresets = Array.from({ length: 101 }, () => ({ minutes: 0, seconds: 1 }));
+await rejected('preset count over maximum', { format: 'write-timer-state', version: 1, presets: tooManyPresets }, /presets can hold at most 100/);
+
+// Force one mid-transaction quota error. replaceStorage must restore the
+// complete previous store, remain on the page, and give the user a reason.
+await paste(JSON.stringify({ format: 'write-timer-state', version: 1, presets: [] }));
+await ev(`(()=>{const original=Storage.prototype.setItem;let fail=true;Storage.prototype.setItem=function(key,value){if(fail&&key==='timerAppPresets'){fail=false;throw new DOMException('quota','QuotaExceededError')}return original.call(this,key,value)};return 'armed'})()`);
+await press('`', 'Backquote', 192, '`');
+await sleep(500);
+check('storage failure is explained', /wouldn’t store all of it/.test(await errorsShown()), 'true');
+check('storage failure returns to import editing', await dialogTitle(), 'IMPORT / EXPORT');
+check('failed import rolls back every stored key', await ev(`JSON.stringify(Object.entries(localStorage).sort())`), before);
+
 check('nothing was written', await ev(`JSON.stringify(Object.entries(localStorage).sort())`) === before, 'true');
 
 // 3. Into an empty browser and back out again: the same file.
@@ -202,6 +227,56 @@ const partial = await exported();
 check('its one preset', JSON.stringify(partial?.presets.map(({ hours, minutes, seconds, negative }) => [hours, minutes, seconds, negative])), '[[0,5,0,false]]');
 check('given an id', typeof partial?.presets[0].id === 'string' && partial.presets[0].id !== '', 'true');
 check('the rest at defaults', `${partial?.theme} ${partial?.history.length} ${partial?.sound.volume} ${partial?.timer.status}`, 'dark 0 0.5 idle');
+
+// Exact representable bounds matter: the upper edge carries milliseconds
+// and the lower edge remains negative instead of flooring past the schema.
+await paste(JSON.stringify({
+  format: 'write-timer-state',
+  version: 1,
+  timer: { status: 'paused', remainingMs: 359999999 },
+  clock: { timeZone: 'Mars/Olympus_Mons' },
+  presets: [
+    { id: 'duplicate', minutes: 59, seconds: 59, timestamp: 8640000000000000 },
+    { id: 'duplicate', minutes: 0, seconds: 0 },
+  ],
+  history: [{ id: 'duplicate', minutes: 0, seconds: 1 }],
+}));
+check('unavailable zone warning is shown', /Mars\/Olympus_Mons/.test(await ev(`document.querySelector('[data-transfer-summary]')?.textContent ?? ''`)), 'true');
+await press('`', 'Backquote', 192, '`');
+await sleep(2800);
+const bounded = await exported();
+check('upper timer bound survives import/export', bounded?.timer.remainingMs, 359999999);
+check('unknown zone falls back to default', bounded?.clock.timeZone, 'America/New_York');
+const ids = [...bounded.presets, ...bounded.history].map((entry) => entry.id);
+check('duplicate identifiers are repaired across lists', new Set(ids).size, ids.length);
+check('presets preserve their upper time and timestamp bounds', `${bounded.presets[0].minutes}:${bounded.presets[0].seconds} ${bounded.presets[0].timestamp}`, '59:59 8640000000000000');
+await press('Escape', 'Escape', 27);
+
+await paste(JSON.stringify({
+  format: 'write-timer-state',
+  version: 1,
+  timer: { status: 'paused', remainingMs: -359999000 },
+}));
+await press('`', 'Backquote', 192, '`');
+await sleep(2800);
+check('lower timer bound survives import/export', (await exported())?.timer.remainingMs, -359999000);
+await press('Escape', 'Escape', 27);
+
+await paste(JSON.stringify({
+  format: 'write-timer-state',
+  version: 1,
+  timer: {
+    status: 'paused',
+    remainingMs: -1,
+    configured: { hours: 0, minutes: 0, seconds: 1, negative: true },
+  },
+}));
+await press('`', 'Backquote', 192, '`');
+await sleep(2800);
+const crossingZero = await exported();
+check('negative one millisecond survives the zero crossing', crossingZero?.timer.remainingMs, -1);
+check('count-up configuration keeps its sign', crossingZero?.timer.configured.negative, true);
+await press('Escape', 'Escape', 27);
 
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(40)} got=${r.got.slice(0, 60).padEnd(16)} want=${r.want.slice(0, 60)}`);
 console.log(`\n${out.filter((r) => r.pass).length}/${out.length} passed`);

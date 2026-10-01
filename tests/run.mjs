@@ -73,7 +73,8 @@ for (const suite of suites) {
   const line = out.split('\n').reverse().find((l) => VERDICT.test(l))?.trim();
   const m = line?.match(VERDICT);
   const counted = m?.[1] !== undefined;
-  const ok = res.status === 0 && !!m && !SHORTFALL.test(line ?? '') && (!counted || m[1] === m[2]);
+  const hasFailedCheck = /^\s*FAIL\b/m.test(out);
+  const ok = res.status === 0 && !!m && !hasFailedCheck && !SHORTFALL.test(line ?? '') && (!counted || m[1] === m[2]);
   if (!ok) {
     failed++;
     console.log(`FAIL  ${label.padEnd(12)} ${line ?? 'no verdict — see below'}`);

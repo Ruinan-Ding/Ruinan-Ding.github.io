@@ -31,7 +31,7 @@ Tip: for a stopwatch, turn off the alarm repeat toggle and set the time to 00:00
 pnpm install
 pnpm run dev
 pnpm run check   # tsc
-pnpm test        # counting and capping self-check
+pnpm test        # word-count and time-format unit checks
 pnpm run test:ui # the browser suites in tests/ — needs Chrome
 pnpm run build
 ```
@@ -40,9 +40,11 @@ pnpm run build
 protocol: keyboard shortcuts, confirmation dialogs, signed-time entry,
 preset and history rows, the theme, the one route, and five layout sweeps
 between them covering a few hundred viewport sizes, plus one journey through
-the whole app in a single session, import/export round trip included. It uses a dev server if
-one is already on port 5199 and otherwise builds and serves one itself,
-which is also the way to run several batches without a rebuild each time.
+the whole app in a single session, import/export round trip included. It uses
+a dev server if one is already on port 5199 and otherwise builds and serves
+one itself, which is also the way to run several batches without a rebuild
+each time. The transfer suite checks invalid and out-of-range files,
+transaction rollback, duplicate IDs, unknown time zones and timer limits.
 Pass suite names to run a few (`pnpm run test:ui keys signed`), and set
 `CHROME` if the browser isn't where `tests/chrome.mjs` looks.
 
