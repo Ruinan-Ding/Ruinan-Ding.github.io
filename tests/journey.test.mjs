@@ -569,6 +569,10 @@ check('confirmations', exported.confirmations.mode, 'none');
 check('layout', JSON.stringify(exported.layout), JSON.stringify({ sidebarTucked: false, timeFieldsTucked: true, websiteLinkHidden: true, wordCounter: { view: 'tucked', restoreFullscreen: false, autoTuckedAt: null } }));
 check('word counter', JSON.stringify(exported.wordCounter), JSON.stringify({ text: `${TEXT} $$`, alphanumericWordsOnly: true, alphanumericCharsOnly: false }));
 await shot('14-export');
+const NAME_BOX = `document.querySelector('[data-transfer-filename]')`;
+const shownName = await ev(`${NAME_BOX}.placeholder`);
+await sleep(1100);
+ok('the empty name box ticks with the clock', (await ev(`${NAME_BOX}.placeholder`)) !== shownName, shownName);
 await clickEl(CTRL('DOWNLOAD'), 'DOWNLOAD');
 let file = null;
 for (let i = 0; i < 40 && !file; i++) {
@@ -578,10 +582,14 @@ for (let i = 0; i < 40 && !file; i++) {
 ok('DOWNLOAD saves a .json file', !!file, readdirSync(DL).join(','));
 const fileText = file ? readFileSync(join(DL, file), 'utf8') : '';
 ok('named write-timer-state-<date>_<time>.json', /^write-timer-state-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.json$/.test(file ?? ''), file);
-check('the empty name box showed that name', await ev(`document.querySelector('[data-transfer-filename]').placeholder`), file);
-check('the file is the JSON on screen', fileText, await ev(`document.querySelector('[data-transfer-text="export"]').value`));
+// Stamped at the click: the name is the exportedAt inside the file, in
+// local time, and that's later than the snapshot the dialog opened on.
+const savedAt = file ? JSON.parse(fileText).exportedAt : '';
+check('the name is the moment inside the file', file, await ev(`(()=>{const d=new Date(${JSON.stringify(savedAt)});const p=(n)=>String(n).padStart(2,'0');return 'write-timer-state-'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'_'+p(d.getHours())+'-'+p(d.getMinutes())+'-'+p(d.getSeconds())+'.json'})()`));
+ok('taken at the click, not at opening', savedAt > exported.exportedAt, `${savedAt} vs ${exported.exportedAt}`);
+check('the box shows what was saved', fileText, await ev(`document.querySelector('[data-transfer-text="export"]').value`));
 // A typed name instead, with .json added and ENTER from the box saving it.
-await clickEl(`document.querySelector('[data-transfer-filename]')`, 'file name box');
+await clickEl(NAME_BOX, 'file name box');
 await page.send('Input.insertText', { text: 'my backup' });
 await KEY.enter();
 let named = null;
@@ -590,7 +598,8 @@ for (let i = 0; i < 40 && !named; i++) {
   if (!named) await sleep(150);
 }
 ok('a typed name is the file name', !!named, readdirSync(DL).join(','));
-check('and the same JSON is in it', named ? readFileSync(join(DL, named), 'utf8') : '', fileText);
+const sansStamp = (text) => JSON.stringify({ ...JSON.parse(text), exportedAt: 0 });
+check('and the same state is in it', named ? sansStamp(readFileSync(join(DL, named), 'utf8')) : '', file ? sansStamp(fileText) : 'no first file');
 await KEY.esc();
 check('ESC closes it', await dialogTitle(), 'null');
 

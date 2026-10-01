@@ -33,9 +33,9 @@ const FIELD = 'bg-black text-white border-2 border-white rounded-md font-mono te
 export default function TransferDialog({ open, onClose, snapshot, onImport }: TransferDialogProps) {
   const [tab, setTab] = useState<'export' | 'import'>('export');
   const [exportText, setExportText] = useState('');
-  // The snapshot's own exportedAt, so the default name's stamp and the one
-  // inside the file are the same moment.
-  const [exportedAt, setExportedAt] = useState(() => new Date());
+  // What the empty name box shows: the name DOWNLOAD would give the file
+  // this second.
+  const [now, setNow] = useState(() => new Date());
   const [nameText, setNameText] = useState('');
   const [importText, setImportText] = useState('');
   const [result, setResult] = useState<ReadResult | null>(null);
@@ -49,8 +49,9 @@ export default function TransferDialog({ open, onClose, snapshot, onImport }: Tr
 
   const takeSnapshot = () => {
     const file = snapshot();
-    setExportText(JSON.stringify(file, null, 2));
-    setExportedAt(new Date(file.exportedAt));
+    const text = JSON.stringify(file, null, 2);
+    setExportText(text);
+    return { text, at: new Date(file.exportedAt) };
   };
 
   // Reset on the way in rather than on the way out. Radix keeps the
@@ -68,6 +69,21 @@ export default function TransferDialog({ open, onClose, snapshot, onImport }: Tr
     // Only on opening: a snapshot per render would rewrite the box every
     // tick of a running timer.
   }, [open]);
+
+  // Ticks while the empty box is on screen, timed to land on each new
+  // second rather than every 1000ms from whenever the dialog opened, so the
+  // second it shows is the second a click gets.
+  const isNameEmpty = nameText === '';
+  useEffect(() => {
+    if (!open || tab !== 'export' || !isNameEmpty) return;
+    let id: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      setNow(new Date());
+      id = setTimeout(tick, 1000 - (Date.now() % 1000));
+    };
+    tick();
+    return () => clearTimeout(id);
+  }, [open, tab, isNameEmpty]);
 
   useEffect(() => {
     if (copyState === 'idle') return;
@@ -95,9 +111,13 @@ export default function TransferDialog({ open, onClose, snapshot, onImport }: Tr
     }
   };
 
+  // A fresh snapshot, so the file holds the moment of the click and its
+  // name says so. The box above shows it from then on: what's on screen
+  // is what was saved.
   const download = () => {
-    const url = URL.createObjectURL(new Blob([exportText], { type: 'application/json' }));
-    const link = Object.assign(document.createElement('a'), { href: url, download: exportFileName(nameText, exportedAt) });
+    const { text, at } = takeSnapshot();
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const link = Object.assign(document.createElement('a'), { href: url, download: exportFileName(nameText, at) });
     link.click();
     // After the click has had its turn, or some browsers cancel the
     // download along with the URL.
@@ -212,8 +232,8 @@ export default function TransferDialog({ open, onClose, snapshot, onImport }: Tr
               className={`${FIELD} w-full p-2 resize-none`}
               style={{ height: 'min(45vh, 24rem)' }}
             />
-            {/* The placeholder is the name an empty box downloads as, and
-                ENTER in the box is DOWNLOAD. */}
+            {/* The placeholder is the name an empty box would download as
+                this second, and ENTER in the box is DOWNLOAD. */}
             {tab === 'export' && (
               <label className="flex items-center gap-2 text-white text-xs font-bold">
                 FILE NAME
@@ -227,7 +247,7 @@ export default function TransferDialog({ open, onClose, snapshot, onImport }: Tr
                     e.preventDefault();
                     download();
                   }}
-                  placeholder={exportFileName('', exportedAt)}
+                  placeholder={exportFileName('', now)}
                   spellCheck={false}
                   autoComplete="off"
                   className={`${FIELD} zoom-safe-text flex-1 min-w-0 px-2 py-1 font-normal text-ellipsis`}
