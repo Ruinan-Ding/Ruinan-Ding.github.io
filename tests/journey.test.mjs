@@ -430,7 +430,9 @@ await clickEl(byLabel('Enable alphanumeric-only word counting'), 'words filter b
 check('and not with it on', await totals(), '2/5/30');
 await clickEl(byLabel('Copy text to clipboard'), 'copy');
 check('copy reports on its button', await ev(`${byLabel('Copy text to clipboard')}.textContent.trim()`), 'Copied');
-check('the clipboard holds the text', await ev(`navigator.clipboard.readText()`), `${TEXT} $$`);
+// The Windows clipboard keeps text with CRLF, so the \n the page wrote
+// reads back as \r\n there. The same text either way.
+check('the clipboard holds the text', await ev(`navigator.clipboard.readText().then((t)=>t.replace(/\\r\\n/g,'\\n'))`), `${TEXT} $$`);
 await clickEl(byLabel('Full screen'), 'full screen');
 ok('full screen row is up', await ev(`!!document.querySelector('.fs-header-row')`));
 ok('the corner buttons ride along, import/export included', await ev(`!!document.querySelector('.fs-header-row ' + ${JSON.stringify(`[aria-label="Import or export the website's state as JSON"]`)})`));
