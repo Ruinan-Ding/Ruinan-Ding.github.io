@@ -577,8 +577,20 @@ for (let i = 0; i < 40 && !file; i++) {
 }
 ok('DOWNLOAD saves a .json file', !!file, readdirSync(DL).join(','));
 const fileText = file ? readFileSync(join(DL, file), 'utf8') : '';
-ok('named write-timer-state-<date>.json', /^write-timer-state-\d{4}-\d{2}-\d{2}\.json$/.test(file ?? ''), file);
+ok('named write-timer-state-<date>_<time>.json', /^write-timer-state-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.json$/.test(file ?? ''), file);
+check('the empty name box showed that name', await ev(`document.querySelector('[data-transfer-filename]').placeholder`), file);
 check('the file is the JSON on screen', fileText, await ev(`document.querySelector('[data-transfer-text="export"]').value`));
+// A typed name instead, with .json added and ENTER from the box saving it.
+await clickEl(`document.querySelector('[data-transfer-filename]')`, 'file name box');
+await page.send('Input.insertText', { text: 'my backup' });
+await KEY.enter();
+let named = null;
+for (let i = 0; i < 40 && !named; i++) {
+  named = readdirSync(DL).find((f) => f === 'my backup.json');
+  if (!named) await sleep(150);
+}
+ok('a typed name is the file name', !!named, readdirSync(DL).join(','));
+check('and the same JSON is in it', named ? readFileSync(join(DL, named), 'utf8') : '', fileText);
 await KEY.esc();
 check('ESC closes it', await dialogTitle(), 'null');
 

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { importTypeScript } from '../../../../tests/import-ts.mjs';
 
 const {
+  exportFileName,
   formatDateParts,
   formatEntryLabel,
   formatSignedLabel,
@@ -66,5 +67,14 @@ const utcDate = new Intl.DateTimeFormat('en-US', {
 assert.equal(formatDateParts(utcDate, stamp), 'Tue, 01/02/2024');
 assert.equal(timeFormatter('UTC', true).format(stamp), '15:04:05');
 assert.equal(timeFormatter('UTC', false).format(stamp), '3:04:05 PM');
+
+// Local time, since that is the clock the person saving the file reads.
+const local = new Date(2024, 0, 2, 3, 4, 5);
+assert.equal(exportFileName('', local), 'write-timer-state-2024-01-02_03-04-05.json');
+assert.equal(exportFileName(' . ', local), 'write-timer-state-2024-01-02_03-04-05.json');
+assert.equal(exportFileName('backup', local), 'backup.json');
+assert.equal(exportFileName('  backup.JSON  ', local), 'backup.JSON');
+assert.equal(exportFileName('my backup.json.', local), 'my backup.json');
+assert.equal(exportFileName('a/b\\c:d*e?f"g<h>i|j', local), 'a-b-c-d-e-f-g-h-i-j.json');
 
 console.log('format: all checks passed');

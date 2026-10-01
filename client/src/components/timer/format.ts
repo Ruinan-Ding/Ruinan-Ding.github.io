@@ -160,3 +160,18 @@ export const isPresetInvalid = (digits: string) => {
   const raw = rawPresetDigits(digits);
   return raw.minutes > 59 || raw.seconds > 59;
 };
+
+// The name DOWNLOAD saves under. A typed name is used as typed, with the
+// characters a file system refuses swapped for dashes and .json added if
+// it isn't there. With nothing typed it's the default, stamped with the
+// export's local date and time to the second, so a second export on the
+// same day is its own file rather than "(1)" of the first.
+export const exportFileName = (typed: string, at: Date) => {
+  const name = typed.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/^[\s.]+|[\s.]+$/g, '');
+  if (name === '') {
+    const date = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+    const time = `${pad(at.getHours())}-${pad(at.getMinutes())}-${pad(at.getSeconds())}`;
+    return `write-timer-state-${date}_${time}.json`;
+  }
+  return /\.json$/i.test(name) ? name : `${name}.json`;
+};

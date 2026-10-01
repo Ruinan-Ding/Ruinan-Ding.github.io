@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { exportFileName } from './format';
 import { readStateFile, type ReadResult, type StateFile } from './stateFile';
 import { useConfirmKeyLabel } from './useConfirmKeyLabel';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
@@ -23,8 +24,7 @@ const PRIMARY = `${BUTTON} border-white bg-white text-black hover:bg-black hover
 // Red like the bin beside it: this one also throws away everything on
 // the page.
 const DANGER = `${BUTTON} border-red-500 bg-red-500 text-white hover:bg-black hover:text-red-500`;
-
-const fileName = () => `write-timer-state-${new Date().toISOString().slice(0, 10)}.json`;
+const FIELD = 'bg-black text-white border-2 border-white rounded-md font-mono text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
 // Export and import in one place, both as the JSON described by
 // timer-state.schema.json. Import is two steps: the file is checked when
@@ -33,6 +33,10 @@ const fileName = () => `write-timer-state-${new Date().toISOString().slice(0, 10
 export default function TransferDialog({ open, onClose, snapshot, onImport }: TransferDialogProps) {
   const [tab, setTab] = useState<'export' | 'import'>('export');
   const [exportText, setExportText] = useState('');
+  // The snapshot's own exportedAt, so the default name's stamp and the one
+  // inside the file are the same moment.
+  const [exportedAt, setExportedAt] = useState(() => new Date());
+  const [nameText, setNameText] = useState('');
   const [importText, setImportText] = useState('');
   const [result, setResult] = useState<ReadResult | null>(null);
   // Set once IMPORT has read a file that passes: the step that asks.
@@ -43,12 +47,16 @@ export default function TransferDialog({ open, onClose, snapshot, onImport }: Tr
   const replaceRef = useRef<HTMLButtonElement>(null);
   const keyLabel = useConfirmKeyLabel();
 
-  const takeSnapshot = () => setExportText(JSON.stringify(snapshot(), null, 2));
+  const takeSnapshot = () => {
+    const file = snapshot();
+    setExportText(JSON.stringify(file, null, 2));
+    setExportedAt(new Date(file.exportedAt));
+  };
 
   // Reset on the way in rather than on the way out. Radix keeps the
   // content mounted through its exit fade, and clearing it on close
-  // swapped the view out from under the fade. The pasted text stays, so
-  // closing by accident doesn't lose it.
+  // swapped the view out from under the fade. The pasted text and the
+  // typed file name stay, so closing by accident doesn't lose them.
   useEffect(() => {
     if (!open) return;
     setTab('export');
@@ -89,7 +97,7 @@ export default function TransferDialog({ open, onClose, snapshot, onImport }: Tr
 
   const download = () => {
     const url = URL.createObjectURL(new Blob([exportText], { type: 'application/json' }));
-    const link = Object.assign(document.createElement('a'), { href: url, download: fileName() });
+    const link = Object.assign(document.createElement('a'), { href: url, download: exportFileName(nameText, exportedAt) });
     link.click();
     // After the click has had its turn, or some browsers cancel the
     // download along with the URL.
@@ -201,9 +209,31 @@ export default function TransferDialog({ open, onClose, snapshot, onImport }: Tr
               placeholder={tab === 'import' ? '{ "format": "write-timer-state", "version": 1, … }' : undefined}
               spellCheck={false}
               aria-label={tab === 'export' ? 'Exported state' : 'State to import'}
-              className="w-full bg-black text-white border-2 border-white rounded-md p-2 font-mono text-xs resize-none outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className={`${FIELD} w-full p-2 resize-none`}
               style={{ height: 'min(45vh, 24rem)' }}
             />
+            {/* The placeholder is the name an empty box downloads as, and
+                ENTER in the box is DOWNLOAD. */}
+            {tab === 'export' && (
+              <label className="flex items-center gap-2 text-white text-xs font-bold">
+                FILE NAME
+                <input
+                  type="text"
+                  data-transfer-filename
+                  value={nameText}
+                  onChange={(e) => setNameText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+                    e.preventDefault();
+                    download();
+                  }}
+                  placeholder={exportFileName('', exportedAt)}
+                  spellCheck={false}
+                  autoComplete="off"
+                  className={`${FIELD} zoom-safe-text flex-1 min-w-0 px-2 py-1 font-normal text-ellipsis`}
+                />
+              </label>
+            )}
             {errors && (
               <ul className="text-red-500 text-sm list-disc pl-5" role="alert" data-transfer-errors>
                 {errors.map((line) => <li key={line}>{line}</li>)}
