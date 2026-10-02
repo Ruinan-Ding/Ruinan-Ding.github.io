@@ -36,7 +36,10 @@ vite.config.ts.timestamp-*
 !.vscode/launch.json
 !.vscode/extensions.json
 .history/
-.claude/
+# Claude Code: the skills and the shared settings are the repo's (AGENTS.md);
+# these two are this machine's own.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # System files
 .DS_Store
