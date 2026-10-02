@@ -3,25 +3,25 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 import DotCheckbox from './DotCheckbox';
 import { exportFileName } from './format';
 import { checkStateText, readStateFile, type ReadResult, type StateFile, type StateProblems } from './stateFile';
-import { QUESTIONS } from './suppressions';
+import { QUESTIONS, type TransferQuestion } from './suppressions';
 import { useConfirmKeyLabel } from './useConfirmKeyLabel';
 import { FLASH_DURATION_MS } from './useFlashOnToken';
 
 interface TransferDialogProps {
   open: boolean;
   onClose: () => void;
-  // Called on open and on each return to EXPORT while the box is
-  // untouched, so a running timer is written as it stands then rather than
-  // as it stood on first open. An edited box is left as it was typed.
+  // Called on every opening, on each return to EXPORT while the box is
+  // untouched, and by REVERT, so the box holds the page as it stands then
+  // rather than as it stood the first time.
   snapshot: () => StateFile;
   // False when the store refused the write. The page stays, and says so.
   onImport: (entries: Record<string, string>) => boolean;
-  // Whether exporting text that fails its checks asks first: the
-  // exportInvalid row in the confirmations list, read through the mode
-  // like every other question.
-  askBeforeInvalidExport: boolean;
+  // Whether one of the questions this dialog asks inside itself still
+  // asks: its row in the confirmations list, read through the mode like
+  // every other question.
+  asks: (key: TransferQuestion) => boolean;
   // That question's "Keep asking this" box, cleared and answered.
-  onSilenceInvalidExport: () => void;
+  onSilence: (key: TransferQuestion) => void;
 }
 
 // The same look as ConfirmDialog's buttons, on plain buttons: only CLOSE
@@ -34,8 +34,6 @@ const PRIMARY = `${BUTTON} border-white bg-white text-black hover:bg-black hover
 // the page.
 const DANGER = `${BUTTON} border-red-500 bg-red-500 text-white hover:bg-black hover:text-red-500`;
 const FIELD = 'bg-black text-white border-2 border-white rounded-md font-mono text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
-
-const INVALID_EXPORT_LABEL = QUESTIONS.find((q) => q.key === 'exportInvalid')?.label ?? null;
 
 // What the checks found, as the box below the text and in the question
 // that asks before exporting it. Text that isn't JSON can't be held up to
@@ -57,28 +55,60 @@ function Problems({ problems, className }: { problems: StateProblems; className:
   );
 }
 
+// The same row ConfirmDialog has, writing the same key the confirmations
+// list shows. Ticked means it keeps asking, which is how it arrives;
+// clearing it is what silences the question.
+function KeepAsking({ question, checked, onToggle }: { question: TransferQuestion; checked: boolean; onToggle: () => void }) {
+  const label = QUESTIONS.find((q) => q.key === question)?.label;
+  return (
+    <button
+      type="button"
+      data-dont-ask
+      onClick={onToggle}
+      aria-pressed={checked}
+      className="flex items-center gap-2 text-white text-sm font-bold self-start transition-opacity duration-200 hover:opacity-80"
+      title="Clear this to stop this particular question asking. Resetting the website to defaults brings it back."
+    >
+      <DotCheckbox checked={checked} />
+      <span className="text-left">
+        Keep asking this
+        {label && <span className="opacity-60 font-normal"> ({label})</span>}
+      </span>
+    </button>
+  );
+}
+
 // Export and import in one place, both as the JSON described by
 // timer-state.schema.json, and both boxes editable and checked against it
 // as they're typed in. Import is two steps: IMPORT stays greyed out until
 // the text passes, and a file that passes gets the question, with what it
 // holds spelled out, before anything is written. An export that fails is
-// the person's to save, but it asks first, with what's wrong.
-export default function TransferDialog({ open, onClose, snapshot, onImport, askBeforeInvalidExport, onSilenceInvalidExport }: TransferDialogProps) {
+// the person's to save, but it asks first, with what's wrong. Closing
+// throws away whatever was typed and not yet saved, so with something to
+// lose it asks first too.
+export default function TransferDialog({ open, onClose, snapshot, onImport, asks, onSilence }: TransferDialogProps) {
   const [tab, setTab] = useState<'export' | 'import'>('export');
   const [exportText, setExportText] = useState('');
-  // Typed in since the last snapshot. Until it is, the box is the page's
-  // own state and is refreshed with it.
-  const [exportEdited, setExportEdited] = useState(false);
-  // What the empty name box shows: the name DOWNLOAD would give the file
-  // this second.
-  const [now, setNow] = useState(() => new Date());
+  // The last snapshot, and the moment it was taken. The moment is the
+  // exportedAt inside it and the stamp the default file name carries, so
+  // the name the empty box shows, the name the file gets and the time in
+  // the file are one time: when the snapshot was taken.
+  const [snapshotText, setSnapshotText] = useState('');
+  const [snapshotAt, setSnapshotAt] = useState(() => new Date());
+  // The export as it was last snapshotted, copied or downloaded. Closing
+  // only loses what differs from it.
+  const [savedText, setSavedText] = useState('');
   const [nameText, setNameText] = useState('');
   const [importText, setImportText] = useState('');
+  // What LOAD FILE last put in the import box. That text is still in the
+  // file it came from, so closing over it loses nothing.
+  const [loadedText, setLoadedText] = useState('');
   const [result, setResult] = useState<ReadResult | null>(null);
   // The step that asks, if one is showing: replacing everything with an
-  // import, or saving an export that fails its checks.
-  const [asking, setAsking] = useState<'replace' | 'copy' | 'download' | null>(null);
-  // The export question's "Keep asking this", ticked each time it opens.
+  // import, saving an export that fails its checks, or closing over
+  // something unsaved.
+  const [asking, setAsking] = useState<'replace' | 'copy' | 'download' | 'close' | null>(null);
+  // The showing question's "Keep asking this", ticked each time one opens.
   const [keepAsking, setKeepAsking] = useState(true);
   const [storageFailed, setStorageFailed] = useState(false);
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -86,29 +116,38 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
   const yesRef = useRef<HTMLButtonElement>(null);
   const keyLabel = useConfirmKeyLabel();
 
-  // Checked on every keystroke, and only then: the tick below re-renders
-  // every second and must not re-validate a text that hasn't changed.
-  // An empty import box is nothing typed yet rather than bad JSON.
+  // Checked on every keystroke, and only then. An empty import box is
+  // nothing typed yet rather than bad JSON.
   const exportProblems = useMemo(() => checkStateText(exportText), [exportText]);
   const importProblems = useMemo(() => (importText.trim() === '' ? null : checkStateText(importText)), [importText]);
+
+  // Typed in since the last snapshot: REVERT shows, and the box is left
+  // alone on a return to EXPORT.
+  const exportEdited = exportText !== snapshotText;
+  // What closing would throw away.
+  const exportUnsaved = exportText !== savedText;
+  const importUnsaved = importText.trim() !== '' && importText !== loadedText;
 
   const takeSnapshot = () => {
     const file = snapshot();
     const text = JSON.stringify(file, null, 2);
     setExportText(text);
-    setExportEdited(false);
-    return { text, at: new Date(file.exportedAt) };
+    setSnapshotText(text);
+    setSavedText(text);
+    setSnapshotAt(new Date(file.exportedAt));
   };
 
   // Reset on the way in rather than on the way out. Radix keeps the
   // content mounted through its exit fade, and clearing it on close
-  // swapped the view out from under the fade. The pasted text, an edited
-  // export and the typed file name stay, so closing by accident doesn't
-  // lose them.
+  // swapped the view out from under the fade. Closing is what throws away
+  // what was typed in either box, so every opening starts from the page
+  // as it is then; only the typed file name carries over.
   useEffect(() => {
     if (!open) return;
     setTab('export');
-    if (!exportEdited) takeSnapshot();
+    takeSnapshot();
+    setImportText('');
+    setLoadedText('');
     setResult(null);
     setAsking(null);
     setStorageFailed(false);
@@ -116,21 +155,6 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
     // Only on opening: a snapshot per render would rewrite the box every
     // tick of a running timer.
   }, [open]);
-
-  // Ticks while the empty box is on screen, timed to land on each new
-  // second rather than every 1000ms from whenever the dialog opened, so the
-  // second it shows is the second a click gets.
-  const isNameEmpty = nameText === '';
-  useEffect(() => {
-    if (!open || tab !== 'export' || !isNameEmpty) return;
-    let id: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      setNow(new Date());
-      id = setTimeout(tick, 1000 - (Date.now() % 1000));
-    };
-    tick();
-    return () => clearTimeout(id);
-  }, [open, tab, isNameEmpty]);
 
   useEffect(() => {
     if (copyState === 'idle') return;
@@ -144,6 +168,11 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
     if (asking) yesRef.current?.focus();
   }, [asking]);
 
+  const ask = (step: 'copy' | 'download' | 'close') => {
+    setKeepAsking(true);
+    setAsking(step);
+  };
+
   const showTab = (next: 'export' | 'import') => {
     if (next === 'export' && !exportEdited) takeSnapshot();
     setTab(next);
@@ -152,21 +181,21 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(exportText);
+      setSavedText(exportText);
       setCopyState('copied');
     } catch {
       setCopyState('failed');
     }
   };
 
-  // Untouched, the box is refreshed first, so the file holds the moment of
-  // the click and its name says so, and the box shows what was saved.
-  // Edited, it is saved as typed: the name still carries the click, and
-  // the file holds whatever was written in it.
+  // The box as it stands, named for the snapshot it came from: the name
+  // the empty box shows is the name the file gets, and an untouched export
+  // carries the same moment as its exportedAt.
   const download = () => {
-    const { text, at } = exportEdited ? { text: exportText, at: new Date() } : takeSnapshot();
-    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-    const link = Object.assign(document.createElement('a'), { href: url, download: exportFileName(nameText, at) });
+    const url = URL.createObjectURL(new Blob([exportText], { type: 'application/json' }));
+    const link = Object.assign(document.createElement('a'), { href: url, download: exportFileName(nameText, snapshotAt) });
     link.click();
+    setSavedText(exportText);
     // After the click has had its turn, or some browsers cancel the
     // download along with the URL.
     setTimeout(() => URL.revokeObjectURL(url), 0);
@@ -176,9 +205,8 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
   // refuse asks first, unless that question has been silenced or
   // confirmations are off.
   const exportVia = (kind: 'copy' | 'download') => {
-    if (exportProblems && askBeforeInvalidExport) {
-      setKeepAsking(true);
-      setAsking(kind);
+    if (exportProblems && asks('exportInvalid')) {
+      ask(kind);
       return;
     }
     if (kind === 'copy') void copy();
@@ -186,16 +214,36 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
   };
 
   const exportAnyway = () => {
-    if (!keepAsking) onSilenceInvalidExport();
+    if (!keepAsking) onSilence('exportInvalid');
     const kind = asking;
     setAsking(null);
     if (kind === 'copy') void copy();
     else download();
   };
 
+  // Every way out comes through here, CLOSE and ESC alike, by way of
+  // Radix's onOpenChange. With nothing unsaved, or the question silenced,
+  // or confirmations off, it just closes.
+  const requestClose = () => {
+    if ((exportUnsaved || importUnsaved) && asks('discardTransfer')) {
+      ask('close');
+      return;
+    }
+    onClose();
+  };
+
+  // The question is left showing through the exit fade rather than
+  // swapped back to the text on the way out; the next opening resets it.
+  const discardAndClose = () => {
+    if (!keepAsking) onSilence('discardTransfer');
+    onClose();
+  };
+
   const loadFile = async (file: File | undefined) => {
     if (!file) return;
-    setImportText(await file.text());
+    const text = await file.text();
+    setImportText(text);
+    setLoadedText(text);
     setResult(null);
   };
 
@@ -218,17 +266,20 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
   const title = asking === 'replace' ? 'REPLACE EVERYTHING?'
     : asking === 'copy' ? 'COPY IT ANYWAY?'
       : asking === 'download' ? 'DOWNLOAD IT ANYWAY?'
-        : 'IMPORT / EXPORT';
+        : asking === 'close' ? 'DISCARD CHANGES?'
+          : 'IMPORT / EXPORT';
   const description = asking === 'replace'
     ? 'The timer, presets, history, word counter text and every setting on this page are replaced by the file’s, and the page reloads. Anything the file leaves out goes back to its default. What’s here now is gone unless you’ve exported it.'
-    : asking !== null
-      ? 'What’s in the box doesn’t pass the checks an import makes, so importing it here would be refused. It can still be saved as it is.'
-      : tab === 'export'
-        ? 'Everything this page remembers, as JSON: the timer and where it is, presets, history, the word counter’s text, and every setting down to which panels are tucked away. Edit it here before saving it if you like.'
-        : 'Paste JSON exported from here, or load the file. It’s checked as you type, and nothing changes until you’ve seen what it holds.';
+    : asking === 'close'
+      ? 'Closing throws away what’s been typed here and not saved. Next time, the export starts again from the page as it is then, and the import box starts empty.'
+      : asking !== null
+        ? 'What’s in the box doesn’t pass the checks an import makes, so importing it here would be refused. It can still be saved as it is.'
+        : tab === 'export'
+          ? 'Everything this page remembers, as JSON: the timer and where it is, presets, history, the word counter’s text, and every setting down to which panels are tucked away. Edit it here before saving it if you like.'
+          : 'Paste JSON exported from here, or load the file. It’s checked as you type, and nothing changes until you’ve seen what it holds.';
 
   return (
-    <AlertDialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <AlertDialog open={open} onOpenChange={(next) => !next && requestClose()}>
       <AlertDialogContent
         className="bg-black border-4 border-white p-4 gap-3 sm:max-w-2xl"
         // ESC backs out of the question to the text it was asking about,
@@ -273,27 +324,18 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
               <p key={line} className="text-yellow-500">{line}</p>
             ))}
           </div>
+        ) : asking === 'close' ? (
+          <>
+            <ul className="text-white text-sm list-disc pl-5" data-transfer-discard>
+              {exportUnsaved && <li>Edits to the export that haven’t been copied or downloaded</li>}
+              {importUnsaved && <li>Text in the import box that hasn’t been imported</li>}
+            </ul>
+            <KeepAsking question="discardTransfer" checked={keepAsking} onToggle={() => setKeepAsking((prev) => !prev)} />
+          </>
         ) : asking !== null ? (
           <>
             {exportProblems && <Problems problems={exportProblems} className="text-yellow-500" />}
-            {/* The same row ConfirmDialog has, writing the same key the
-                confirmations list shows. */}
-            <button
-              type="button"
-              data-dont-ask
-              onClick={() => setKeepAsking((prev) => !prev)}
-              aria-pressed={keepAsking}
-              className="flex items-center gap-2 text-white text-sm font-bold self-start transition-opacity duration-200 hover:opacity-80"
-              title="Clear this to stop this particular question asking. Resetting the website to defaults brings it back."
-            >
-              <DotCheckbox checked={keepAsking} />
-              <span className="text-left">
-                Keep asking this
-                {INVALID_EXPORT_LABEL && (
-                  <span className="opacity-60 font-normal"> ({INVALID_EXPORT_LABEL})</span>
-                )}
-              </span>
-            </button>
+            <KeepAsking question="exportInvalid" checked={keepAsking} onToggle={() => setKeepAsking((prev) => !prev)} />
           </>
         ) : (
           <>
@@ -314,7 +356,6 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
               onChange={(e) => {
                 if (tab === 'export') {
                   setExportText(e.target.value);
-                  setExportEdited(true);
                 } else {
                   setImportText(e.target.value);
                   setResult(null);
@@ -331,8 +372,8 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
               className={`${FIELD} w-full p-2 resize-none`}
               style={{ height: 'min(45vh, 24rem)' }}
             />
-            {/* The placeholder is the name an empty box would download as
-                this second, and ENTER in the box is DOWNLOAD. */}
+            {/* The placeholder is the name an empty box downloads as, and
+                ENTER in the box is DOWNLOAD. */}
             {tab === 'export' && (
               <label className="flex items-center gap-2 text-white text-xs font-bold">
                 FILE NAME
@@ -346,7 +387,7 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
                     e.preventDefault();
                     exportVia('download');
                   }}
-                  placeholder={exportFileName('', now)}
+                  placeholder={exportFileName('', snapshotAt)}
                   spellCheck={false}
                   autoComplete="off"
                   className={`${FIELD} zoom-safe-text flex-1 min-w-0 px-2 py-1 font-normal text-ellipsis`}
@@ -366,13 +407,13 @@ export default function TransferDialog({ open, onClose, snapshot, onImport, askB
         )}
 
         <div className="flex flex-wrap gap-3 justify-end items-center">
-          {asking === 'replace' ? (
+          {asking === 'replace' || asking === 'close' ? (
             <>
               <button type="button" className={SECONDARY} onClick={() => setAsking(null)}>
                 BACK <span className="opacity-60 font-normal">(ESC)</span>
               </button>
-              <button type="button" ref={yesRef} className={DANGER} aria-keyshortcuts={keyLabel} onClick={replace}>
-                REPLACE AND RELOAD <span className="opacity-60 font-normal">({keyLabel})</span>
+              <button type="button" ref={yesRef} className={DANGER} aria-keyshortcuts={keyLabel} onClick={asking === 'replace' ? replace : discardAndClose}>
+                {asking === 'replace' ? 'REPLACE AND RELOAD' : 'DISCARD AND CLOSE'} <span className="opacity-60 font-normal">({keyLabel})</span>
               </button>
             </>
           ) : asking !== null ? (

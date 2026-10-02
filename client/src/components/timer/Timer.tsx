@@ -2656,10 +2656,11 @@ export default function Timer() {
         onClose={() => setIsTransferOpen(false)}
         snapshot={snapshotState}
         onImport={handleImportState}
-        // shouldAsk's rule for a half-tier question, which this is: off
-        // asks nothing, and otherwise it asks until silenced.
-        askBeforeInvalidExport={confirmMode !== 'none' && !suppressedKeys.includes('exportInvalid')}
-        onSilenceInvalidExport={() => setSuppressedKeys(setSuppressedKey('exportInvalid', true))}
+        // shouldAsk's rule for a half-tier question, which both of the
+        // dialog's own are: off asks nothing, and otherwise each asks until
+        // silenced.
+        asks={(key) => confirmMode !== 'none' && !suppressedKeys.includes(key)}
+        onSilence={(key) => setSuppressedKeys(setSuppressedKey(key, true))}
       />
     </div>
   );

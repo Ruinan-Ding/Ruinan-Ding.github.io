@@ -287,14 +287,19 @@ const HALF_QUESTIONS: [string, string][] = [
   ['correctPreset', 'Report a preset corrected to fit'],
   ['correctTime', 'Report a time corrected to fit'],
   ['duplicatePreset', 'Report a preset you already have'],
-  // Asked from inside the import/export dialog rather than through
-  // dialogKey: it is one of that dialog's own steps, not a ConfirmDialog.
+  // These two are asked from inside the import/export dialog rather than
+  // through dialogKey: they are that dialog's own steps, not a
+  // ConfirmDialog. TransferQuestion below names them.
   ['exportInvalid', 'Export JSON that fails its checks'],
+  ['discardTransfer', 'Close import/export with unsaved changes'],
   ['bulkSilence', 'Silence a whole section at once'],
   ['bulkRestore', 'Bring a whole section back at once'],
   ['fullConfirmations', 'Warn before confirming everything'],
   ['skipConfirmations', 'Warn before turning confirmations off'],
 ];
+
+// The import/export dialog's own questions, by their keys in the list.
+export type TransferQuestion = 'exportInvalid' | 'discardTransfer';
 
 // Full-tier rows that are not acts. A row here silences a rule rather
 // than a dialog: there is no act to describe because the question it

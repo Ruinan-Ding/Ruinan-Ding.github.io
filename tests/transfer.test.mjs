@@ -141,18 +141,26 @@ const before = await ev(`JSON.stringify(Object.entries(localStorage).sort())`);
 await paste('not json');
 check('invalid JSON is refused', /isn't valid JSON/.test(await errorsShown()), 'true');
 check('and stays on the text', await dialogTitle(), 'IMPORT / EXPORT');
+// Closing over pasted text throws it away, so it asks first.
 await press('Escape', 'Escape', 27);
+check('closing over pasted text asks first', await dialogTitle(), 'DISCARD CHANGES?');
+await press('`', 'Backquote', 192, '`');
+check('and saying yes closes', await dialogTitle(), 'null');
+const discard = async () => {
+  await press('Escape', 'Escape', 27);
+  await press('`', 'Backquote', 192, '`');
+};
 const rejected = async (name, file, error) => {
   await paste(JSON.stringify(file));
   check(`${name} is refused`, error.test(await errorsShown()), 'true');
   check(`${name} leaves the current state alone`, await ev(`JSON.stringify(Object.entries(localStorage).sort())`) === before, 'true');
-  await press('Escape', 'Escape', 27);
+  await discard();
 };
 await paste(JSON.stringify({ format: 'write-timer-state', version: 1, presets: [{ minutes: 75, seconds: 0 }], theme: 'blue' }));
 const rangeErrors = await errorsShown();
 check('out-of-range field is named', /presets\[0\]\.minutes must be at most 59/.test(rangeErrors), 'true');
 check('bad enum is named', /theme must be one of "dark", "light"/.test(rangeErrors), 'true');
-await press('Escape', 'Escape', 27);
+await discard();
 await rejected('unknown format', { format: 'other-timer', version: 1 }, /format must be "write-timer-state"/);
 await rejected('missing version', { format: 'write-timer-state' }, /version is missing/);
 await rejected('newer version', { format: 'write-timer-state', version: 2 }, /newer copy of this page/);
@@ -281,8 +289,8 @@ await press('Escape', 'Escape', 27);
 // 6. Both boxes take typing and are checked against the schema as it
 // goes. IMPORT stays greyed out until the text passes; an export that
 // fails can still leave, but asks first, with what's wrong, and that
-// question is a row in the confirmations list. Last, since an edited
-// export and a silenced question both outlive the dialog.
+// question is a row in the confirmations list. Near the end, since a
+// silenced question outlives the dialog.
 const EXPORT_BOX = `document.querySelector('[data-transfer-text="export"]')`;
 const IMPORT_BOX = `document.querySelector('[data-transfer-text="import"]')`;
 const footer = (pattern) => `[...document.querySelectorAll('[role="alertdialog"] button')].find(b=>${pattern}.test(b.textContent.trim()))`;
@@ -323,9 +331,13 @@ await ev(`(window.copied=null,'ok')`);
 await sleep(1500);
 await clickEl(footer(/^COPY$/), 'COPY once silenced');
 check('silenced, it copies without asking', `${await dialogTitle()}|${await ev(`window.copied ?? null`)}`, 'IMPORT / EXPORT|{ "format": ');
+// Copied, so closing loses nothing and doesn't ask; the edit goes with it.
 await press('Escape', 'Escape', 27);
+check('a copied edit closes without asking', await dialogTitle(), 'null');
 await clickEl(OPEN, 'import/export button');
-check('an edited export survives closing', await ev(`${EXPORT_BOX}.value`), '{ "format": ');
+check('reopened, the export is the page again', /"format": "write-timer-state"/.test(await ev(`${EXPORT_BOX}.value`)), 'true');
+check('with nothing to REVERT', await ev(`!!(${footer(/^REVERT$/)})`), 'false');
+await typeInto(EXPORT_BOX, '{ "format": ');
 await clickEl(footer(/^REVERT$/), 'REVERT');
 check('REVERT puts the page back', /"format": "write-timer-state"/.test(await ev(`${EXPORT_BOX}.value`)), 'true');
 check('which passes again', await errorsShown(), '');
@@ -340,7 +352,39 @@ check('and on a schema problem', await ev(`${IMPORT_BUTTON}.disabled`), 'true');
 check('which is named as it is typed', /theme must be one of/.test(await errorsShown()), 'true');
 await typeInto(IMPORT_BOX, JSON.stringify({ format: 'write-timer-state', version: 1 }));
 check('and lights once the text passes', `${await ev(`${IMPORT_BUTTON}.disabled`)}|${await errorsShown()}`, 'false|');
+
+// 7. Closing throws away what's typed and not saved, so it asks first:
+// an export edited since it was last copied or downloaded, and text in
+// the import box that LOAD FILE didn't put there. That question is a row
+// in the list too. Last, since silencing it outlives the dialog.
+const DISCARD_LIST = `document.querySelector('[data-transfer-discard]')?.textContent ?? ''`;
 await press('Escape', 'Escape', 27);
+check('closing over typed import text asks', await dialogTitle(), 'DISCARD CHANGES?');
+check('naming the import box alone', `${/import box/.test(await ev(DISCARD_LIST))}|${/export/.test(await ev(DISCARD_LIST))}`, 'true|false');
+check('with its row in the list named', /Keep asking this \(Close import\/export with unsaved changes\)/.test(await ev(`document.querySelector('[data-dont-ask]')?.textContent ?? ''`)), 'true');
+await press('Escape', 'Escape', 27);
+check('ESC backs out with the text kept', `${await dialogTitle()}|${/write-timer-state/.test(await ev(`${IMPORT_BOX}?.value ?? ''`))}`, 'IMPORT / EXPORT|true');
+await clickEl(dialogButton('EXPORT', true), 'EXPORT tab');
+await typeInto(EXPORT_BOX, '{}');
+await clickEl(footer(/^CLOSE/), 'CLOSE');
+check('CLOSE asks too, naming both', `${await dialogTitle()}|${/export[\s\S]*import box/.test(await ev(DISCARD_LIST))}`, 'DISCARD CHANGES?|true');
+await press('`', 'Backquote', 192, '`');
+check('DISCARD AND CLOSE closes', await dialogTitle(), 'null');
+await clickEl(OPEN, 'import/export button');
+check('reopened, the export edit is gone', /"format": "write-timer-state"/.test(await ev(`${EXPORT_BOX}.value`)), 'true');
+await clickEl(dialogButton('IMPORT', true), 'IMPORT tab');
+check('and the import box is empty', await ev(`${IMPORT_BOX}.value`), '');
+await typeInto(IMPORT_BOX, 'scratch');
+await press('Escape', 'Escape', 27);
+await clickEl(`document.querySelector('[data-dont-ask]')`, 'keep asking box');
+check('its Keep asking box clears', await ev(`document.querySelector('[data-dont-ask]').getAttribute('aria-pressed')`), 'false');
+await press('`', 'Backquote', 192, '`');
+check('closed, and silenced in the list', `${await dialogTitle()}|${JSON.parse(await ev(`localStorage.getItem('timerDontAskAgain') ?? '[]'`)).includes('discardTransfer')}`, 'null|true');
+await clickEl(OPEN, 'import/export button');
+await clickEl(dialogButton('IMPORT', true), 'IMPORT tab');
+await typeInto(IMPORT_BOX, 'scratch again');
+await press('Escape', 'Escape', 27);
+check('silenced, closing no longer asks', await dialogTitle(), 'null');
 
 for (const r of out) console.log(`${r.pass ? 'PASS' : 'FAIL'}  ${r.name.padEnd(40)} got=${r.got.slice(0, 60).padEnd(16)} want=${r.want.slice(0, 60)}`);
 console.log(`\n${out.filter((r) => r.pass).length}/${out.length} passed`);
