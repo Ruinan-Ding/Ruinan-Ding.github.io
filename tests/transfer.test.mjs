@@ -238,7 +238,7 @@ check('the restored run still tracks its own history row', restoredRunning?.time
 await press('Shift', 'ShiftLeft', 16);
 await press('s', 'KeyS', 83, 's');
 await press('`', 'Backquote', 192, '`');
-check('stopping the imported unfinished run marks its history yellow', (await exported())?.history[0].endedEarly, true);
+check('stopping the imported unfinished run marks its history as ended early', (await exported())?.history[0].endedEarly, true);
 
 // 5. A partial file: what it holds goes in, everything else is default.
 await paste(JSON.stringify({ format: 'write-timer-state', version: 1, presets: [{ minutes: 5, seconds: 0 }] }));

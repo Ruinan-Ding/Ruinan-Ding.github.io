@@ -40,8 +40,8 @@ Where it lives: `client/src/components/timer/TransferDialog.tsx` (the dialog and
 
 | # | Behaviour | Status |
 |---|---|---|
-| 2.1 | STOP, RESET or switching timers before a run first reaches red makes that history entry's border and time text yellow. Pausing and reloading keep the run active; a run that reached red keeps its normal colour even if time is added afterward. | WRITTEN |
-| 2.2 | The yellow colour and active-run tracking survive reload and import/export. Older history entries without outcome data stay white, and deleting the active entry cannot mark a different row yellow. | WRITTEN |
+| 2.1 | STOP, RESET or switching timers before a run first reaches red makes that history entry's border red while its time text stays white. Pausing and reloading keep the run active; a run that reached red keeps its normal colour even if time is added afterward. | WRITTEN |
+| 2.2 | The red outline and active-run tracking survive reload and import/export. Older history entries without outcome data stay white, and deleting the active entry cannot mark a different row as ended early. | WRITTEN |
 
 ## Waiting on the owner
 
@@ -67,7 +67,11 @@ described. Say which to change.
 
 ## What has actually been checked
 
-- **The history change, 3 Oct 2026**: type checks, word-count and format checks, and the build
+- **The red-outline revision, 3 Oct 2026**: type checks, word-count and format checks, and
+  the build pass. Windows Chrome passes all 11 affected browser suites: journey (268 checks),
+  transfer (122), clockgap, fill, header, joinright, layout, rows, samefill, spill and tipfit.
+  Journey checks the red border and normal time text in both themes, including after reload.
+- **The initial history change, 3 Oct 2026**: type checks, word-count and format checks, and the build
   pass. Windows Chrome passes all 27 browser suites, including journey (268 checks) and
   transfer (122). Journey checks both colours, early endings and cancelled
   confirmations, reloads, deleting the active row, zero and negative starts, and extending a

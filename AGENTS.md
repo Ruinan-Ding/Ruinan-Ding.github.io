@@ -179,7 +179,7 @@ behaviour from before then is described in `README.md` and the code's own commen
 
 **History** (3 Oct 2026):
 
-- **Yellow for a run ended before red**: *"in history entries, notice how each entry is boxed in white of the time it ran? if it ends prematurly (before it got to ring in red) i want you to make the box yellow"*. Asked which endings and which parts of the box, the owner chose *"All early endings (Recommended)"* and *"Border and time text"*: STOP, RESET and switching to another timer mark the old entry yellow if the run never reached red. Pausing and reloading continue the same run. Once a run reaches red, extending its time cannot make it early-ended later. The colour and active-run tracking survive reload and import/export; older entries without outcome data stay white.
+- **Red outline for a run ended before red, with white time text** (revised 3 Oct 2026): Originally requested as *"in history entries, notice how each entry is boxed in white of the time it ran? if it ends prematurly (before it got to ring in red) i want you to make the box yellow"*, with *"All early endings (Recommended)"*. The owner revised the appearance: *"actually, make it box outline red instead, and the time in it keep it white"*. STOP, RESET and switching to another timer give the old entry a red border if the run never reached red; its time keeps the normal white text. Pausing and reloading continue the same run. Once a run reaches red, extending its time cannot make it early-ended later. The colour and active-run tracking survive reload and import/export; older entries without outcome data stay white.
 
 The agent's own choices around these, which the owner has not ruled on, are listed under
 "Waiting on the owner" in `PUNCHLIST.md`.

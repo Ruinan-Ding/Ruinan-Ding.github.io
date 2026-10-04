@@ -164,9 +164,9 @@ const presets = () => ev(`[...document.querySelectorAll('[aria-label^="Remove pr
 const history = () => ev(`[...document.querySelectorAll('[aria-label^="Remove history entry "]')].map(b=>b.getAttribute('aria-label').slice(21))`);
 // Move away first: hovering a row still uses the existing inverted text,
 // and these checks are about the colour the entry keeps at rest.
-const yellowHistory = async () => {
+const earlyEndedHistory = async () => {
   await mouseAt(1390, 890, false);
-  return ev(`[...document.querySelectorAll('[aria-label^="Remove history entry "]')].map(b=>{const s=getComputedStyle(b.nextElementSibling);return s.color==='rgb(234, 179, 8)'&&s.borderTopColor==='rgb(234, 179, 8)'})`);
+  return ev(`[...document.querySelectorAll('[aria-label^="Remove history entry "]')].map(b=>{const s=getComputedStyle(b.nextElementSibling);return s.color===getComputedStyle(document.body).color&&s.borderTopColor==='rgb(239, 68, 68)'})`);
 };
 const rowButton = (removeLabel, label) => `(()=>{const r=document.querySelector(${JSON.stringify(`[aria-label="${removeLabel}"]`)});return r?[...r.parentElement.querySelectorAll('button')].find(b=>b!==r):null})()`;
 const totals = () => ev(`(()=>{const t=[...document.querySelectorAll('div')].find(d=>d.children.length===0&&d.textContent.trim()==='TOTAL');return t?[...t.nextElementSibling.children].map(c=>c.textContent.trim()).join('/'):null})()`);
@@ -747,7 +747,7 @@ for (const [w, h, mobile, name] of [[390, 844, true, 'phone'], [844, 390, true, 
 }
 
 // --------------------------------------------------------------- 20. history
-sec('20. Early-ended history keeps its yellow border and text');
+sec('20. Early-ended history keeps its red border and normal time text');
 await viewport(1400, 900);
 // Seed away from the app, whose pagehide would otherwise flush its own
 // timer state over the setup. The legacy row has no outcome to infer.
@@ -768,33 +768,33 @@ const seedHistory = async (seconds, extra = {}) => {
   await activate();
 };
 await seedHistory(600);
-check('legacy history stays white', JSON.stringify(await yellowHistory()), '[false]');
+check('legacy history stays white', JSON.stringify(await earlyEndedHistory()), '[false]');
 await KEY.tab();
-check('an active run stays white', JSON.stringify(await yellowHistory()), '[false,false]');
+check('an active run stays white', JSON.stringify(await earlyEndedHistory()), '[false,false]');
 await KEY.tab();
-check('pausing does not end the run', JSON.stringify(await yellowHistory()), '[false,false]');
+check('pausing does not end the run', JSON.stringify(await earlyEndedHistory()), '[false,false]');
 await KEY.tab();
 await KEY.s();
-check('early STOP makes border and text yellow', JSON.stringify(await yellowHistory()), '[true,false]');
+check('early STOP makes the border red and keeps the time white', JSON.stringify(await earlyEndedHistory()), '[true,false]');
 await reload();
-check('the yellow survives reload', JSON.stringify(await yellowHistory()), '[true,false]');
+check('the red outline and white time survive reload', JSON.stringify(await earlyEndedHistory()), '[true,false]');
 await activate();
 await KEY.tab();
 await KEY.r();
-check('early RESET marks only the old run', JSON.stringify(await yellowHistory()), '[false,true,true,false]');
+check('early RESET marks only the old run', JSON.stringify(await earlyEndedHistory()), '[false,true,true,false]');
 await clickEl(rowButton('Remove preset 5:00'), 'switch to a preset');
-check('an early preset switch marks the old run', JSON.stringify(await yellowHistory()), '[false,true,true,true,false]');
+check('an early preset switch marks the old run', JSON.stringify(await earlyEndedHistory()), '[false,true,true,true,false]');
 await clickEl(rowButton('Remove history entry 10:00'), 'switch to a history time');
-check('an early history switch marks the old run', JSON.stringify(await yellowHistory()), '[false,true,true,true,true,false]');
+check('an early history switch marks the old run', JSON.stringify(await earlyEndedHistory()), '[false,true,true,true,true,false]');
 const historyBeforeReload = await ev(`JSON.parse(localStorage.getItem('timerAppState')).activeHistory.id`);
 await reload();
 check('the reload continues the same history entry', await ev(`JSON.parse(localStorage.getItem('timerAppState')).activeHistory.id`), historyBeforeReload);
-check('the restored active run is still white', (await yellowHistory())[0], false);
+check('the restored active run is still white', (await earlyEndedHistory())[0], false);
 await activate();
 await KEY.s();
-check('stopping the restored run marks its original entry', (await yellowHistory())[0], true);
-await clickEl(byLabel('Switch to the light theme'), 'light theme for yellow history');
-check('yellow border and text survive the light theme', (await yellowHistory())[0], true);
+check('stopping the restored run marks its original entry', (await earlyEndedHistory())[0], true);
+await clickEl(byLabel('Switch to the light theme'), 'light theme for early-ended history');
+check('red border and normal time text survive the light theme', (await earlyEndedHistory())[0], true);
 await shot('20-early-history');
 
 await seedHistory(3);
@@ -806,16 +806,16 @@ check('extending the run puts it back above zero', await status(), 'RUNNING');
 await reload();
 await activate();
 await KEY.s();
-check('a run that reached red stays white after extension and reload', JSON.stringify(await yellowHistory()), '[false,false]');
+check('a run that reached red stays white after extension and reload', JSON.stringify(await earlyEndedHistory()), '[false,false]');
 
 await seedHistory(-60);
 await KEY.tab();
 await KEY.s();
-check('a negative start is already complete', JSON.stringify(await yellowHistory()), '[false,false]');
+check('a negative start is already complete', JSON.stringify(await earlyEndedHistory()), '[false,false]');
 await seedHistory(0);
 await KEY.tab();
 await KEY.s();
-check('a zero-start stopwatch reaches red before stopping', JSON.stringify(await yellowHistory()), '[false,false]');
+check('a zero-start stopwatch reaches red before stopping', JSON.stringify(await earlyEndedHistory()), '[false,false]');
 
 await seedHistory(600);
 await KEY.tab();
@@ -824,7 +824,7 @@ await sleep(900);
 await reload();
 await activate();
 await KEY.s();
-check('deleting the active row cannot make the legacy row yellow', JSON.stringify(await yellowHistory()), '[false]');
+check('deleting the active row cannot mark the legacy row as ended early', JSON.stringify(await earlyEndedHistory()), '[false]');
 await KEY.tab();
 await clickEl(byTitle('Delete every run — asks first'), 'clear history during a run');
 await KEY.s();
@@ -834,24 +834,24 @@ await seedHistory(600, {
   timerAppState: { seconds: 0, milliseconds: 0, isRunning: true, isPaused: true, hours: 0, minutes: 10, timerSeconds: 0, activeHistory: { id: 'legacy', reachedOvertime: false } },
 });
 await KEY.s();
-check('exactly zero before red still counts as an early ending', JSON.stringify(await yellowHistory()), '[true]');
+check('exactly zero before red still counts as an early ending', JSON.stringify(await earlyEndedHistory()), '[true]');
 await seedHistory(600, {
   timerAppState: { seconds: 600, isRunning: true, isPaused: true, hours: 0, minutes: 10, timerSeconds: 0, activeHistory: { id: 'legacy', reachedOvertime: 'no' } },
 });
 await KEY.s();
-check('corrupt tracking data keeps the legacy row white', JSON.stringify(await yellowHistory()), '[false]');
+check('corrupt tracking data keeps the legacy row white', JSON.stringify(await earlyEndedHistory()), '[false]');
 
 await seedHistory(600, { timerConfirmMode: 'half' });
 await KEY.tab();
 await KEY.s();
 await KEY.esc();
-check('cancelling STOP does not mark the run yellow', JSON.stringify(await yellowHistory()), '[false,false]');
+check('cancelling STOP does not mark the run as ended early', JSON.stringify(await earlyEndedHistory()), '[false,false]');
 await KEY.r();
 await KEY.esc();
-check('cancelling RESET does not mark the run yellow', JSON.stringify(await yellowHistory()), '[false,false]');
+check('cancelling RESET does not mark the run as ended early', JSON.stringify(await earlyEndedHistory()), '[false,false]');
 await clickEl(rowButton('Remove preset 5:00'), 'request a timer switch');
 await KEY.esc();
-check('cancelling a switch does not mark the run yellow', JSON.stringify(await yellowHistory()), '[false,false]');
+check('cancelling a switch does not mark the run as ended early', JSON.stringify(await earlyEndedHistory()), '[false,false]');
 await activate();
 await KEY.s();
 await answer('CONFIRM STOP');
@@ -862,7 +862,7 @@ await KEY.s();
 check('STOP asks before the countdown reaches red', await dialogTitle(), 'CONFIRM STOP');
 await sleep(3400);
 await answer('CONFIRM STOP');
-check('reaching red while confirmation is open counts as complete', JSON.stringify(await yellowHistory()), '[false,false]');
+check('reaching red while confirmation is open counts as complete', JSON.stringify(await earlyEndedHistory()), '[false,false]');
 
 // ---------------------------------------------------------------- 21. health
 sec('21. Page health across the whole session');
