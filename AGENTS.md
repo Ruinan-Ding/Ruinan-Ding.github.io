@@ -177,6 +177,10 @@ behaviour from before then is described in `README.md` and the code's own commen
   again, and at that into the list of checks"*. The question is `discardTransfer`. Closing
   throws away what was typed and not saved, and every opening starts from the page as it is.
 
+**History** (3 Oct 2026):
+
+- **Yellow for a run ended before red**: *"in history entries, notice how each entry is boxed in white of the time it ran? if it ends prematurly (before it got to ring in red) i want you to make the box yellow"*. Asked which endings and which parts of the box, the owner chose *"All early endings (Recommended)"* and *"Border and time text"*: STOP, RESET and switching to another timer mark the old entry yellow if the run never reached red. Pausing and reloading continue the same run. Once a run reaches red, extending its time cannot make it early-ended later. The colour and active-run tracking survive reload and import/export; older entries without outcome data stay white.
+
 The agent's own choices around these, which the owner has not ruled on, are listed under
 "Waiting on the owner" in `PUNCHLIST.md`.
 

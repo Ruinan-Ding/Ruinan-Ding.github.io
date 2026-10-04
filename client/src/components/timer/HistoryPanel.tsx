@@ -110,7 +110,7 @@ function HistoryRow({ entry, onSelect, onRequestRemove, onRemove, isRemoving, in
         // width budgeting 8px of border, so a thinner one here would leave
         // these boxes the same width but shorter and roomier inside than
         // the ones above. Label centred for the same reason it is there.
-        className={`border-4 border-white text-white font-bold hover:bg-white hover:text-black transition-colors duration-0 whitespace-nowrap overflow-hidden ${fizz.isRemoving ? 'animate-removeFizz' : ''}`}
+        className={`border-4 ${entry.endedEarly === true ? 'border-[#eab308] text-[#eab308]' : 'border-white text-white'} font-bold hover:bg-white hover:text-black transition-colors duration-0 whitespace-nowrap overflow-hidden ${fizz.isRemoving ? 'animate-removeFizz' : ''}`}
         style={LIST_ROW_BUTTON_STYLE}
       >
         {formatEntryLabel(entry)}

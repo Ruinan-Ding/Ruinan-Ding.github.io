@@ -92,13 +92,16 @@ await send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, dev
 // Every key off its default, so an export that drops or mangles one shows.
 const TEXT = 'first line "quoted"\nsecond line ✓ \\ back';
 const seeded = {
-  timerAppState: { seconds: 183, milliseconds: 420, isPaused: true, isRunning: true, hours: 0, minutes: 5, timerSeconds: 0 },
+  timerAppState: { seconds: 183, milliseconds: 420, isPaused: true, isRunning: true, hours: 0, minutes: 5, timerSeconds: 0, activeHistory: { id: 'h1', reachedOvertime: true } },
   timerConfiguredNegative: false,
   timerAppPresets: [
     { id: 'p1', hours: 0, minutes: 2, seconds: 30, negative: false, timestamp: 1 },
     { id: 'p2', hours: 1, minutes: 0, seconds: 0, negative: true, timestamp: 2 },
   ],
-  timerAppHistory: [{ id: 'h1', hours: 0, minutes: 5, seconds: 0, negative: false, timestamp: 1727600000000 }],
+  timerAppHistory: [
+    { id: 'h1', hours: 0, minutes: 5, seconds: 0, negative: false, timestamp: 1727600000000 },
+    { id: 'h2', hours: 0, minutes: 2, seconds: 0, negative: false, timestamp: 1727500000000, endedEarly: true },
+  ],
   timerSilentMode: true,
   timerVolume: 0.3,
   timerAlarmLoop: true,
@@ -125,7 +128,7 @@ const first = await exported();
 check('export opens and parses', first !== null, 'true');
 check('format and version', `${first?.format} ${first?.version}`, 'write-timer-state 1');
 check('points at the schema', first?.$schema, 'https://ruinan-ding.com/timer-state.schema.json');
-check('timer', JSON.stringify(first?.timer), JSON.stringify({ status: 'paused', remainingMs: 183420, configured: { hours: 0, minutes: 5, seconds: 0, negative: false } }));
+check('timer', JSON.stringify(first?.timer), JSON.stringify({ status: 'paused', remainingMs: 183420, configured: { hours: 0, minutes: 5, seconds: 0, negative: false }, activeHistory: seeded.timerAppState.activeHistory }));
 check('presets', JSON.stringify(first?.presets), JSON.stringify(seeded.timerAppPresets));
 check('history', JSON.stringify(first?.history), JSON.stringify(seeded.timerAppHistory));
 check('sound', JSON.stringify(first?.sound), JSON.stringify({ muted: true, volume: 0.3, alarmRepeats: true }));
@@ -172,6 +175,10 @@ await rejected('volume above maximum', { format: 'write-timer-state', version: 1
 await rejected('required entry field', { format: 'write-timer-state', version: 1, presets: [{ minutes: 1 }] }, /presets\[0\]\.seconds is missing/);
 await rejected('unsupported time zone type', { format: 'write-timer-state', version: 1, clock: { timeZone: 3 } }, /clock\.timeZone must be string/);
 await rejected('timestamp over maximum', { format: 'write-timer-state', version: 1, history: [{ minutes: 0, seconds: 1, timestamp: 8640000000000001 }] }, /history\[0\]\.timestamp must be at most 8640000000000000/);
+await rejected('early-ended flag type', { format: 'write-timer-state', version: 1, history: [{ minutes: 0, seconds: 1, endedEarly: 'yes' }] }, /history\[0\]\.endedEarly must be boolean/);
+await rejected('active history id type', { format: 'write-timer-state', version: 1, timer: { activeHistory: { id: 3, reachedOvertime: false } } }, /timer\.activeHistory\.id must be string/);
+await rejected('active history completion type', { format: 'write-timer-state', version: 1, timer: { activeHistory: { id: 'h1', reachedOvertime: 'no' } } }, /timer\.activeHistory\.reachedOvertime must be boolean/);
+await rejected('active history missing completion', { format: 'write-timer-state', version: 1, timer: { activeHistory: { id: 'h1' } } }, /timer\.activeHistory\.reachedOvertime is missing/);
 await rejected('unknown field', { format: 'write-timer-state', version: 1, sound: { volume: 0.5, loud: true } }, /sound\.loud isn't something this file can hold/);
 const tooManyPresets = Array.from({ length: 101 }, () => ({ minutes: 0, seconds: 1 }));
 await rejected('preset count over maximum', { format: 'write-timer-state', version: 1, presets: tooManyPresets }, /presets can hold at most 100/);
@@ -193,7 +200,7 @@ await seedAndLoad(`(localStorage.clear(), 'ok')`);
 check('cleared to the dark default', await ev(`document.documentElement.dataset.theme`), 'dark');
 await paste(JSON.stringify(first));
 check('a good file asks first', await dialogTitle(), 'REPLACE EVERYTHING?');
-check('saying what it holds', /2 presets[\s\S]*1 history row/.test(await ev(`document.querySelector('[data-transfer-summary]')?.textContent ?? ''`)), 'true');
+check('saying what it holds', /2 presets[\s\S]*2 history rows/.test(await ev(`document.querySelector('[data-transfer-summary]')?.textContent ?? ''`)), 'true');
 await press('Escape', 'Escape', 27);
 check('ESC backs out to the text', await dialogTitle(), 'IMPORT / EXPORT');
 check('with the text still there', (await ev(`document.querySelector('[data-transfer-text="import"]')?.value.length`)) > 100, 'true');
@@ -226,6 +233,12 @@ await press('`', 'Backquote', 192, '`');
 await sleep(2800);
 check('over a live run, unchallenged too', leavePrompts, 0);
 check('and imports paused', (await exported())?.timer.status, 'paused');
+const restoredRunning = await exported();
+check('the restored run still tracks its own history row', restoredRunning?.timer.activeHistory?.id, running?.history[0].id);
+await press('Shift', 'ShiftLeft', 16);
+await press('s', 'KeyS', 83, 's');
+await press('`', 'Backquote', 192, '`');
+check('stopping the imported unfinished run marks its history yellow', (await exported())?.history[0].endedEarly, true);
 
 // 5. A partial file: what it holds goes in, everything else is default.
 await paste(JSON.stringify({ format: 'write-timer-state', version: 1, presets: [{ minutes: 5, seconds: 0 }] }));
@@ -241,7 +254,7 @@ check('the rest at defaults', `${partial?.theme} ${partial?.history.length} ${pa
 await paste(JSON.stringify({
   format: 'write-timer-state',
   version: 1,
-  timer: { status: 'paused', remainingMs: 359999999 },
+  timer: { status: 'paused', remainingMs: 359999999, activeHistory: { id: 'duplicate', reachedOvertime: false } },
   clock: { timeZone: 'Mars/Olympus_Mons' },
   presets: [
     { id: 'duplicate', minutes: 59, seconds: 59, timestamp: 8640000000000000 },
@@ -257,6 +270,7 @@ check('upper timer bound survives import/export', bounded?.timer.remainingMs, 35
 check('unknown zone falls back to default', bounded?.clock.timeZone, 'America/New_York');
 const ids = [...bounded.presets, ...bounded.history].map((entry) => entry.id);
 check('duplicate identifiers are repaired across lists', new Set(ids).size, ids.length);
+check('the active run follows its history id through repair', bounded?.timer.activeHistory?.id, bounded?.history[0].id);
 check('presets preserve their upper time and timestamp bounds', `${bounded.presets[0].minutes}:${bounded.presets[0].seconds} ${bounded.presets[0].timestamp}`, '59:59 8640000000000000');
 await press('Escape', 'Escape', 27);
 

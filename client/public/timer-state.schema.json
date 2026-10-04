@@ -35,6 +35,16 @@
           "maximum": 359999999,
           "description": "Time on the clock in milliseconds, negative once it has run past zero. Defaults to the configured time."
         },
+        "activeHistory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "reachedOvertime"],
+          "description": "The history row belonging to this run. Omitted when no row is tracked, including older files. A missing or ambiguous history id is ignored.",
+          "properties": {
+            "id": { "type": "string", "description": "The active run's history entry id." },
+            "reachedOvertime": { "type": "boolean", "description": "Whether this run ever passed below zero, even if time was added afterward." }
+          }
+        },
         "configured": {
           "type": "object",
           "additionalProperties": false,
@@ -167,6 +177,10 @@
         "minutes": { "type": "integer", "minimum": 0, "maximum": 59 },
         "seconds": { "type": "integer", "minimum": 0, "maximum": 59 },
         "negative": { "type": "boolean", "default": false },
+        "endedEarly": {
+          "type": "boolean",
+          "description": "For history, true when STOP, RESET or switching ended the run before it first passed below zero. Omitted on older rows whose outcome is unknown; presets ignore it."
+        },
         "timestamp": {
           "type": "integer",
           "minimum": 0,

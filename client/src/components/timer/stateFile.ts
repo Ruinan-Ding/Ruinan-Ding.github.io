@@ -2,10 +2,10 @@ import { readBoolean, readJSON, readRaw } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
 import schemaJson from '../../../public/timer-state.schema.json';
 import { DEFAULT_TIME, DEFAULT_TIME_ZONE, DEFAULT_VOLUME, MAX_HISTORY, MAX_TOTAL_SECONDS, STORAGE_KEYS, TIME_ZONES } from './constants';
-import { readSavedHistory, readSavedPresets } from './entries';
+import { readActiveHistory, readSavedHistory, readSavedPresets } from './entries';
 import { formatSignedLabel, fromTotalSeconds, toTotalSeconds } from './format';
 import { readConfirmMode, readSuppressedKeys } from './suppressions';
-import type { ConfirmMode, TimeParts, TimerEntry } from './types';
+import type { ActiveHistoryRun, ConfirmMode, TimeParts, TimerEntry } from './types';
 import { COUNTER_MAX, countLabel, isWithinCap } from './wordCount';
 
 // The whole of what the page remembers as one JSON file, and back.
@@ -24,7 +24,7 @@ import { COUNTER_MAX, countLabel, isWithinCap } from './wordCount';
 export const STATE_FORMAT = 'write-timer-state';
 export const STATE_VERSION = 1;
 
-type Entry = { id: string; hours: number; minutes: number; seconds: number; negative: boolean; timestamp: number };
+type Entry = { id: string; hours: number; minutes: number; seconds: number; negative: boolean; timestamp: number; endedEarly?: boolean };
 
 export interface StateFile {
   $schema: string;
@@ -35,6 +35,7 @@ export interface StateFile {
     status: 'idle' | 'running' | 'paused';
     remainingMs: number;
     configured: TimeParts & { negative: boolean };
+    activeHistory?: ActiveHistoryRun;
   };
   presets: Entry[];
   history: Entry[];
@@ -65,6 +66,7 @@ export interface LiveTimer {
   isPaused: boolean;
   configured: TimeParts;
   negative: boolean;
+  activeHistory?: ActiveHistoryRun | null;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -80,6 +82,7 @@ const toEntry = (entry: TimerEntry): Entry => {
     ...fromTotalSeconds(total),
     negative: entry.negative === true,
     timestamp: Math.max(0, Math.round(entry.timestamp)),
+    ...(typeof entry.endedEarly === 'boolean' ? { endedEarly: entry.endedEarly } : {}),
   };
 };
 
@@ -89,6 +92,8 @@ export function exportState(live: LiveTimer): StateFile {
   const timeZone = readJSON<unknown>(STORAGE_KEYS.clockTimeZone, null);
   const collapsedAt = readJSON<unknown>(STORAGE_KEYS.wordCounterCollapsedAt, null);
   const isCollapsed = readBoolean(STORAGE_KEYS.wordCounterCollapsed, false);
+  const history = readSavedHistory().slice(0, MAX_HISTORY);
+  const activeHistory = live.isRunning ? readActiveHistory(live.activeHistory, history) : null;
   return {
     $schema: schemaJson.$id,
     format: STATE_FORMAT,
@@ -100,9 +105,10 @@ export function exportState(live: LiveTimer): StateFile {
       // the 99:59:59 cap that's past the range the import accepts.
       remainingMs: live.seconds * 1000 + Math.floor(live.milliseconds),
       configured: { ...fromTotalSeconds(configuredTotal), negative: live.negative },
+      ...(activeHistory ? { activeHistory: { ...activeHistory, reachedOvertime: activeHistory.reachedOvertime || live.seconds < 0 } } : {}),
     },
     presets: readSavedPresets().map(toEntry),
-    history: readSavedHistory().slice(0, MAX_HISTORY).map(toEntry),
+    history: history.map(toEntry),
     sound: {
       muted: readBoolean(STORAGE_KEYS.silentMode, false),
       volume: typeof volume === 'number' && Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : DEFAULT_VOLUME,
@@ -282,6 +288,28 @@ export function readStateFile(json: string): ReadResult {
   const summary: string[] = [];
   const warnings: string[] = [];
 
+  // Repair the ids before linking the timer to its row, so an id repeated
+  // across the two lists doesn't leave a valid active run pointing at the
+  // preset's id rather than the newly named history entry.
+  const seen = new Set<string>();
+  const toStored = (entry: Partial<Entry>): TimerEntry => {
+    let id = typeof entry.id === 'string' && entry.id !== '' && !seen.has(entry.id) ? entry.id : uniqueId();
+    while (seen.has(id)) id = uniqueId();
+    seen.add(id);
+    return {
+      id,
+      hours: entry.hours ?? 0,
+      minutes: entry.minutes ?? 0,
+      seconds: entry.seconds ?? 0,
+      negative: entry.negative === true,
+      timestamp: entry.timestamp ?? 0,
+      ...(typeof entry.endedEarly === 'boolean' ? { endedEarly: entry.endedEarly } : {}),
+    };
+  };
+  const presets = file.presets?.map(toStored);
+  const history = file.history?.map(toStored);
+  const activeHistory = readActiveHistory(file.timer?.activeHistory, file.history ?? []);
+
   if (file.timer) {
     const configured = file.timer.configured
       ? { hours: file.timer.configured.hours ?? 0, minutes: file.timer.configured.minutes ?? 0, seconds: file.timer.configured.seconds ?? 0 }
@@ -302,6 +330,12 @@ export function readStateFile(json: string): ReadResult {
       hours: configured.hours,
       minutes: configured.minutes,
       timerSeconds: configured.seconds,
+      ...(activeHistory && status !== 'idle' ? {
+        activeHistory: {
+          id: history![file.history!.findIndex((entry) => entry.id === activeHistory.id)].id,
+          reachedOvertime: activeHistory.reachedOvertime || seconds < 0,
+        },
+      } : {}),
     });
     put(STORAGE_KEYS.configuredNegative, negative);
     // Truncated toward zero, the way the digits read it.
@@ -314,30 +348,13 @@ export function readStateFile(json: string): ReadResult {
     );
   }
 
-  // Ids are what the lists key their rows and their flashes on, so a
-  // repeat or a gap gets a fresh one rather than two rows answering to
-  // the same name.
-  const seen = new Set<string>();
-  const toStored = (entry: Partial<Entry>): TimerEntry => {
-    let id = typeof entry.id === 'string' && entry.id !== '' && !seen.has(entry.id) ? entry.id : uniqueId();
-    while (seen.has(id)) id = uniqueId();
-    seen.add(id);
-    return {
-      id,
-      hours: entry.hours ?? 0,
-      minutes: entry.minutes ?? 0,
-      seconds: entry.seconds ?? 0,
-      negative: entry.negative === true,
-      timestamp: entry.timestamp ?? 0,
-    };
-  };
-  if (file.presets) {
-    put(STORAGE_KEYS.presets, file.presets.map(toStored));
-    summary.push(`${file.presets.length} preset${file.presets.length === 1 ? '' : 's'}`);
+  if (presets) {
+    put(STORAGE_KEYS.presets, presets);
+    summary.push(`${presets.length} preset${presets.length === 1 ? '' : 's'}`);
   }
-  if (file.history) {
-    put(STORAGE_KEYS.history, file.history.map(toStored));
-    summary.push(`${file.history.length} history row${file.history.length === 1 ? '' : 's'}`);
+  if (history) {
+    put(STORAGE_KEYS.history, history);
+    summary.push(`${history.length} history row${history.length === 1 ? '' : 's'}`);
   }
 
   put(STORAGE_KEYS.silentMode, file.sound?.muted);

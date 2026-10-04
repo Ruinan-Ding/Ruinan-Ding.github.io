@@ -36,6 +36,13 @@ Where it lives: `client/src/components/timer/TransferDialog.tsx` (the dialog and
 (`exportFileName`), `suppressions.ts` (the two rows, `TransferQuestion`), and `Timer.tsx` (`asks`,
 `onSilence`).
 
+## 2. History
+
+| # | Behaviour | Status |
+|---|---|---|
+| 2.1 | STOP, RESET or switching timers before a run first reaches red makes that history entry's border and time text yellow. Pausing and reloading keep the run active; a run that reached red keeps its normal colour even if time is added afterward. | WRITTEN |
+| 2.2 | The yellow colour and active-run tracking survive reload and import/export. Older history entries without outcome data stay white, and deleting the active entry cannot mark a different row yellow. | WRITTEN |
+
 ## Waiting on the owner
 
 Choices the agent made to keep going, which the owner has not ruled on. Each is built as
@@ -60,6 +67,11 @@ described. Say which to change.
 
 ## What has actually been checked
 
+- **The history change, 3 Oct 2026**: type checks, word-count and format checks, and the build
+  pass. Windows Chrome passes all 27 browser suites, including journey (268 checks) and
+  transfer (122). Journey checks both colours, early endings and cancelled
+  confirmations, reloads, deleting the active row, zero and negative starts, and extending a
+  run that reached red. Transfer checks the round trip and a restored run's history link.
 - **The browser suites, 2 Oct 2026, on Windows Chrome: all 27 pass**, among them transfer 111
   checks, journey 240 and modes 125. The transfer suite drives 1.4 to 1.9; journey downloads a
   real file under both kinds of name (1.1 to 1.3) and loads one back in.

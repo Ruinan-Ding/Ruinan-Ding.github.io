@@ -18,13 +18,13 @@ import TimeField from './TimeField';
 import TransferDialog from './TransferDialog';
 import WordCounter from './WordCounter';
 import { ALARM_BURST_COUNT, ALARM_TICK_MS, CLOCK_FONT_SIZE, DEFAULT_TIME, DEFAULT_VOLUME, FULLSCREEN_CLOCK_FONT_SIZE, HEADER_BUTTON_SIZE, HEADER_CORNER_RESERVE, HEADER_ICON_SIZE, HEADER_ICON_SIZE_LG, MAX_HISTORY, MAX_PRESETS, MAX_TOTAL_SECONDS, MIN_TOTAL_SECONDS, SIDEBAR_PADDING, SIDEBAR_WIDTH, STORAGE_KEYS, TICK_MS, TONES } from './constants';
-import { readSavedHistory, readSavedPresets } from './entries';
+import { readActiveHistory, readSavedHistory, readSavedPresets } from './entries';
 import { formatDateParts, formatEntryLabel, formatSignedLabel, formatTime, fromTotalSeconds, parsePresetDigits, presetDigitsFromParts, rawPresetDigits, signedParts, timeFormatter, toSignedTotal, toTotalSeconds } from './format';
 import { BELOW_DIGITS, compactControlButtonStyle, CONTROL_FILL, CONTROL_HINT, CONTROL_PAD_X, controlButtonStyle, HINT_CLEARANCE, KEY_LINE_HEIGHT, KEY_SCALE, STATUS_FONT_SIZE } from './controlSizes';
 import { boxCap, fitClamp, shrinkClamp } from './responsive';
 import { exportState } from './stateFile';
 import { isAcknowledgement, nextConfirmMode, readConfirmMode, readSuppressedKeys, setSuppressedKey, sectionKeys, setSuppressedKeys as writeSuppressedKeys, shouldAsk, suppressDialog } from './suppressions';
-import type { ConfirmMode, DialogState, FlashTarget, FullAct, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
+import type { ActiveHistoryRun, ConfirmMode, DialogState, FlashTarget, FullAct, TimeParts, TimerEntry, TimerStateKind, TimeUnit } from './types';
 import { useFlashOnToken } from './useFlashOnToken';
 import { useTimerKeys } from './useTimerKeys';
 import { useAlarm } from './useAlarm';
@@ -157,6 +157,20 @@ export default function Timer() {
   // degrades to.
   const [history, setHistory] = useState<TimerEntry[]>(readSavedHistory);
   const [presets, setPresets] = useState<TimerEntry[]>(readSavedPresets);
+  const [activeHistory, setActiveHistory] = useState<ActiveHistoryRun | null>(() =>
+    wasActive ? readActiveHistory(initial.activeHistory, history) : null
+  );
+  const activeHistoryRef = useRef(activeHistory);
+  activeHistoryRef.current = activeHistory;
+
+  // Reaching red is a fact about the whole run, not just its last time.
+  // Moving an overtime timer back above zero mustn't erase that fact.
+  const isHistoryOvertime = isRunning && seconds < 0;
+  useEffect(() => {
+    if (isHistoryOvertime && activeHistory && !activeHistory.reachedOvertime) {
+      setActiveHistory({ ...activeHistory, reachedOvertime: true });
+    }
+  }, [isHistoryOvertime, activeHistory]);
 
   const [dialog, setDialog] = useState<DialogState>({ type: null });
   // The import/export dialog. Its own flag rather than a DialogState: it
@@ -605,8 +619,8 @@ export default function Timer() {
   // literal, a new identity every render, which through usePersisted would
   // write on every 10ms tick.
   useEffect(() => {
-    writeJSON(STORAGE_KEYS.timerState, { seconds, isPaused, isRunning, hours, minutes, timerSeconds });
-  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds]);
+    writeJSON(STORAGE_KEYS.timerState, { seconds, isPaused, isRunning, hours, minutes, timerSeconds, activeHistory });
+  }, [seconds, isPaused, isRunning, hours, minutes, timerSeconds, activeHistory]);
   usePersisted(STORAGE_KEYS.history, history);
   usePersisted(STORAGE_KEYS.configuredNegative, isConfiguredNegative);
   usePersisted(STORAGE_KEYS.silentMode, isSilentMode);
@@ -737,6 +751,7 @@ export default function Timer() {
     isPaused,
     configured: { hours, minutes, seconds: timerSeconds },
     negative: isConfiguredNegative,
+    activeHistory: activeHistoryRef.current,
   });
   // Writes the imported file over the store and reloads onto it, the same
   // way the site RESET reloads onto an empty one, and for the same reason:
@@ -852,11 +867,23 @@ export default function Timer() {
 
   // The sign travels with the parts, or a count-up is written down as the
   // positive time of the same size and its row loads a countdown.
-  const recordHistory = (parts: TimeParts, negative = false) => {
+  const recordHistory = useCallback((parts: TimeParts, negative = false, startedSeconds = toSignedTotal(parts, negative)) => {
     const entry: TimerEntry = { id: uniqueId(), ...parts, negative, timestamp: Date.now() };
     setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
     setInsertedHistory((prev) => bumpFlash(prev, entry.id));
-  };
+    setActiveHistory({ id: entry.id, reachedOvertime: startedSeconds < 0 });
+  }, []);
+
+  // Called when the action applies, never when its question opens: the
+  // countdown can reach red while the owner is deciding. Read the live
+  // time too, so that crossing counts even before its effect has run.
+  const finishHistoryRun = useCallback(() => {
+    const run = activeHistoryRef.current;
+    if (run && !run.reachedOvertime && timeRef.current.seconds >= 0) {
+      setHistory((prev) => prev.map((entry) => entry.id === run.id ? { ...entry, endedEarly: true } : entry));
+    }
+    setActiveHistory(null);
+  }, []);
 
   const runTogglePause = () => {
     // The beep is a side effect, so it stays out of the state updater.
@@ -880,7 +907,7 @@ export default function Timer() {
       milliseconds: 0,
     }));
 
-    recordHistory(configured, isConfiguredNegative);
+    recordHistory(configured, isConfiguredNegative, timeRef.current.seconds <= 0 ? configuredTotalSeconds : timeRef.current.seconds);
     setIsRunning(true);
     setIsPaused(false);
     restartRunFade();
@@ -890,6 +917,7 @@ export default function Timer() {
   const handleStart = () => askFull('start', runStart);
 
   const stopToConfigured = () => {
+    finishHistoryRun();
     clearAlarmInterval();
     clearCountdownInterval();
     setTime({ seconds: configuredTotalSeconds, milliseconds: 0 });
@@ -927,6 +955,7 @@ export default function Timer() {
   };
 
   const handleConfirmReset = () => {
+    finishHistoryRun();
     playTone('reset');
     restartCountdown(configuredTotalSeconds);
     recordHistory(configured, isConfiguredNegative);
@@ -957,6 +986,7 @@ export default function Timer() {
   // The one switch sequence; start=false loads without running. Memoized
   // so handleSelectEntry can depend on it rather than on its internals.
   const applySwitch = useCallback((parts: TimeParts, start: boolean, negative = false) => {
+    finishHistoryRun();
     clearAlarmInterval();
     loadEntry(parts, negative);
     setIsPaused(false);
@@ -966,7 +996,7 @@ export default function Timer() {
       restartRunFade();
       if (!isSilentMode) beep(...TONES.start);
     }
-  }, [loadEntry, isSilentMode, beep]);
+  }, [loadEntry, isSilentMode, beep, finishHistoryRun, recordHistory]);
 
   // Running a picked time, from the list or from the add box. Both entry
   // points share this gate rather than each carrying a copy, so the two

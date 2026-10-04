@@ -8,6 +8,13 @@ export interface TimerEntry {
   // save written before it existed still reads back as positive.
   negative?: boolean;
   timestamp: number;
+  // History only: absent on older rows, whose outcome wasn't recorded.
+  endedEarly?: boolean;
+}
+
+export interface ActiveHistoryRun {
+  id: string;
+  reachedOvertime: boolean;
 }
 
 export type TimeUnit = 'hours' | 'minutes' | 'seconds';

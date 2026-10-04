@@ -1,7 +1,7 @@
 import { readJSON } from '@/lib/storage';
 import { uniqueId } from '@/lib/utils';
 import { DEFAULT_PRESETS, MAX_HOURS, STORAGE_KEYS } from './constants';
-import type { TimerEntry } from './types';
+import type { ActiveHistoryRun, TimerEntry } from './types';
 
 // Reading the two saved lists back, and the guards that make a corrupt or
 // hand-edited store a bad row rather than a broken app.
@@ -35,7 +35,21 @@ const normalizeEntry = (p: TimerEntry): TimerEntry => ({
   ...p,
   id: typeof p.id === 'string' && p.id !== '' ? p.id : uniqueId(),
   timestamp: typeof p.timestamp === 'number' && Math.abs(p.timestamp) <= MAX_TIMESTAMP ? p.timestamp : 0,
+  endedEarly: typeof p.endedEarly === 'boolean' ? p.endedEarly : undefined,
 });
+
+// Never guess the active row from its position: deleting it would make
+// the next row inherit the run. A missing or ambiguous id loses the link,
+// not the time, and an older save simply has no outcome to recover.
+export const readActiveHistory = (value: unknown, history: readonly { id?: string; endedEarly?: boolean }[]): ActiveHistoryRun | null => {
+  if (typeof value !== 'object' || value === null) return null;
+  const run = value as Partial<ActiveHistoryRun>;
+  if (typeof run.id !== 'string' || !run.id || typeof run.reachedOvertime !== 'boolean') return null;
+  const matches = history.filter((entry) => entry.id === run.id);
+  return matches.length === 1 && matches[0].endedEarly !== true
+    ? { id: run.id, reachedOvertime: run.reachedOvertime }
+    : null;
+};
 
 // Filtered, not cast: one bad row at a time rather than all-or-nothing,
 // since history has no defaults to fall back to.
