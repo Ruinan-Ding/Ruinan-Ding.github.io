@@ -45,6 +45,21 @@ ledger), `/ponytail-help`.
   - Read the code a change touches before changing it; most files open with a comment saying
     what was tried before and why it was dropped.
 
+## Claude Scrum delivery
+
+Use [SCRUM_WORKFLOW.md](SCRUM_WORKFLOW.md) for the cross-functional Claude team,
+BDD examples, TDD, peer review and Definition of Done. `/scrum <task>` is the
+project entry point; `.claude/agents/` supplies the senior specialist profiles.
+The human owner is Product Owner. Developers share responsibility for the
+Increment; specialties introduce no additional approval gates.
+
+Apply the workflow to development tasks, scaled to scope and runtime policy.
+Delegate independent work only when permitted, preserve the current dirty source
+and assign one writer per file. [SCRUM_BACKLOG.md](SCRUM_BACKLOG.md) holds goals,
+ordered work and handoffs; `PUNCHLIST.md` keeps its existing owner-observation
+statuses. SDD (specification-driven development) remains a future option. This
+workflow grants no commit, push or deployment authorization.
+
 ## What this is
 
 Write Timer (https://ruinan-ding.com): a countdown timer that keeps counting past zero, with
@@ -180,6 +195,10 @@ behaviour from before then is described in `README.md` and the code's own commen
 **History** (3 Oct 2026):
 
 - **Red outline for a run ended before red, with white time text** (revised 3 Oct 2026): Originally requested as *"in history entries, notice how each entry is boxed in white of the time it ran? if it ends prematurly (before it got to ring in red) i want you to make the box yellow"*, with *"All early endings (Recommended)"*. The owner revised the appearance: *"actually, make it box outline red instead, and the time in it keep it white"*. STOP, RESET and switching to another timer give the old entry a red border if the run never reached red; its time keeps the normal white text. Pausing and reloading continue the same run. Once a run reaches red, extending its time cannot make it early-ended later. The colour and active-run tracking survive reload and import/export; older entries without outcome data stay white.
+
+**Development workflow** (15 Oct 2026):
+
+- **Adapt the ChessPlusPlus Claude Scrum workflow to Write Timer**: *"carefully examine this @../ChessPlusPlus claude agentic workflow. it should be a full blown agile scrum team, with all of the senior agile developers in a high performing scrum team. make sure it refelects that. we use a tdd and bdd approach, with consideration for possible sdd later. make it similar"*. The owner confirmed the target: *"Adapt Write Timer using ChessPlusPlus as the reference"*. Use a cross-functional team with senior specialist responsibilities, BDD acceptance examples and TDD. The owner retains product decisions; SDD remains a future option.
 
 The agent's own choices around these, which the owner has not ruled on, are listed under
 "Waiting on the owner" in `PUNCHLIST.md`.

@@ -43,6 +43,12 @@ Where it lives: `client/src/components/timer/TransferDialog.tsx` (the dialog and
 | 2.1 | STOP, RESET or switching timers before a run first reaches red makes that history entry's border red while its time text stays white. Pausing and reloading keep the run active; a run that reached red keeps its normal colour even if time is added afterward. | WRITTEN |
 | 2.2 | The red outline and active-run tracking survive reload and import/export. Older history entries without outcome data stay white, and deleting the active entry cannot mark a different row as ended early. | WRITTEN |
 
+## 3. Development workflow
+
+| # | Behaviour | Status |
+|---|---|---|
+| 3.1 | Claude has the ChessPlusPlus-style Scrum workflow adapted to Write Timer: senior cross-functional profiles, BDD/TDD instructions, shared delivery/review and SDD as a future option. Configuration is verified; a real delivery story remains the practical trial. | WRITTEN |
+
 ## Waiting on the owner
 
 Choices the agent made to keep going, which the owner has not ruled on. Each is built as
@@ -67,6 +73,13 @@ described. Say which to change.
 
 ## What has actually been checked
 
+- **The Claude workflow, 15 Oct 2026**: YAML/JSON, inherited models, advisory tool
+  restrictions, skill validation, links and LF pass. Claude Code 2.1.300 discovers
+  nine profiles and the four project skills in an isolated copy; type and unit
+  checks pass. An independent planning walkthrough found no actionable workflow
+  defect. Browser/build checks were skipped for this workflow-only change. Native
+  team delivery, owner observation and Ponytail invocation in WSL were not tested;
+  that Claude installation reports no installed plugins. See WF-001 in the backlog.
 - **The red-outline revision, 3 Oct 2026**: type checks, word-count and format checks, and
   the build pass. Windows Chrome passes all 11 affected browser suites: journey (268 checks),
   transfer (122), clockgap, fill, header, joinright, layout, rows, samefill, spill and tipfit.

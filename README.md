@@ -50,6 +50,20 @@ Pass suite names to run a few (`pnpm run test:ui keys signed`), and set
 
 Built with React 19, TypeScript, Tailwind CSS 4, and the Web Audio API. Deploys to GitHub Pages via GitHub Actions on push to `main`.
 
+## Claude development workflow
+
+Use `/scrum <task>` in a fresh Claude Code session. The project supplies nine
+senior specialist profiles and enables experimental agent teams in-process,
+using the session's model and permissions. The owner is Product Owner; the team
+uses BDD examples, TDD and independent review, with staffing scaled to the work.
+
+[SCRUM_WORKFLOW.md](SCRUM_WORKFLOW.md) defines responsibilities, Scrum events,
+handoffs and Done. [SCRUM_BACKLOG.md](SCRUM_BACKLOG.md) tracks current goals and
+work; [PUNCHLIST.md](PUNCHLIST.md) still records what the owner has actually seen.
+SDD is a future option. Interactive Claude is needed for native teammates;
+ordinary subagents or sequential work cover other supported runtimes. Follow
+[AGENTS.md](AGENTS.md) for Ponytail setup and repo constraints.
+
 ## License
 
 MIT
