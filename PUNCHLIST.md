@@ -47,7 +47,9 @@ Where it lives: `client/src/components/timer/TransferDialog.tsx` (the dialog and
 
 | # | Behaviour | Status |
 |---|---|---|
-| 3.1 | Claude has the ChessPlusPlus-style Scrum workflow adapted to Write Timer: senior cross-functional profiles, BDD/TDD instructions, shared delivery/review and SDD as a future option. Configuration is verified; a real delivery story remains the practical trial. | WRITTEN |
+| 3.1 | Claude has the ChessPlusPlus-style Scrum team adapted to Write Timer: nine senior capabilities, shared delivery/review and an active SDD → BDD → TDD workflow. The owner retains product decisions and observation status. | WRITTEN |
+| 3.2 | Informal/vibe development requirements automatically become compact scoped specs, stable BDD criteria and test-first tasks; clear intent needs no extra approval and unresolved product rules remain explicit. | WRITTEN |
+| 3.3 | Use scoped context, small task packets, one spec source and proportionate staffing to reduce token overhead without dropping required checks or evidence. | WRITTEN |
 
 ## Waiting on the owner
 
@@ -73,6 +75,13 @@ described. Say which to change.
 
 ## What has actually been checked
 
+- **Compact SDD workflow, 17 Oct 2026**: skill/profile/link/LF validation, type and
+  unit checks pass. Native discovery retains nine profiles and four project skills;
+  Claude 2.1.285 reports agent listing 487 → 235 tokens. Operating text including
+  the translator is 36.4% smaller. Independent simulated clear/ambiguous/steering
+  cases pass. This measures instruction size and followability, not total task
+  cost, live-team delivery or owner acceptance. Browser/build checks were skipped
+  because app/test/CI source is unchanged. See WF-002 for evidence and limits.
 - **The Claude workflow, 15 Oct 2026**: YAML/JSON, inherited models, advisory tool
   restrictions, skill validation, links and LF pass. Claude Code 2.1.300 discovers
   nine profiles and the four project skills in an isolated copy; type and unit

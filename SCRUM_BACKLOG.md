@@ -1,6 +1,7 @@
 # Scrum backlog
 
-Updated 15 Oct 2026. The human owner orders this backlog and owns product
+Updated 17 Oct 2026. Read the active item only; completed records are historical.
+The human owner orders this backlog and owns product
 decisions. [SCRUM_WORKFLOW.md](SCRUM_WORKFLOW.md) defines delivery;
 [AGENTS.md](AGENTS.md) records accepted behavior and
 [PUNCHLIST.md](PUNCHLIST.md) retains owner-observation checkpoints.
@@ -16,6 +17,51 @@ a planning proposal, not an owner-approved new feature or release commitment.
 No Sprint dates, cadence or Sprint Goal have been agreed. The authorized workflow
 setup below is an unscheduled item. No Sprint, Daily Scrum, stakeholder Review or
 Retrospective is claimed to have occurred.
+
+## Active: WF-002 — Compact SDD/BDD/TDD delivery
+
+- **Source:** 17 Oct owner request quoted under Development workflow in AGENTS.md.
+- **Revision/status:** r1, Done for workflow configuration. Unscheduled item;
+  actual task-level token cost and live-team delivery remain a future trial.
+- **Outcome/scope:** automatically translate informal development intent into a
+  compact specification, BDD examples and TDD work; reduce repeated context and
+  staffing overhead while preserving the nine senior capabilities and repo rules.
+- **Non-goals:** app behavior, new spec/testing frameworks, model/permission
+  changes, live-team performance claims, commit/push/deploy. No open product decisions.
+- **Plan/ownership:** lead owns workflow, skill/translator, profiles and shared
+  records. Structural checks, native discovery and independent scenario evaluation;
+  type/unit checks, no unchanged app/browser/build rerun. No simulated feature is
+  an actual backlog request or owner decision.
+
+| Criterion | Ready Given / When / Then | Check / evidence |
+|---|---|---|
+| A1 | Given an informal or structured development request, when received normally or through `/scrum`, then the lead creates/reuses one scoped spec with stable BDD criterion IDs and test mapping. | Skill/routing inspection, native discovery and independent scenario evaluation pass. |
+| A2 | Given clear intent, when translating, then requested work proceeds without another spec approval; given missing product rules, only dependent criteria remain Draft. Planning-only scope stays planning-only. | Independent clear, ambiguous, plan-only and steering scenarios pass; no product changes executed. |
+| A3 | Given a behavior change or later steering, when implementing/reviewing, then tests precede production edits, current criteria trace to evidence, and affected spec/test/code drift is resolved. | Instruction/role evaluation; no app TDD execution claimed. |
+| A4 | Given a bounded task, when staffing/loading context, then only needed roles/context are used, shared rules/evidence remain intact, and all nine profiles stay available without model/permission changes. | Operating text 36.4% smaller including the translator; native agent listing 487 → 235 tokens. YAML/JSON, links and discovery pass. |
+
+**Evidence, 17 Oct:** `pnpm run check`, `pnpm test`, skill validation, profile
+frontmatter/tool/model preservation, links, LF and product-rule preservation pass.
+Claude Code 2.1.285 discovers all nine profiles and four project skills in an
+isolated copy. Same-version `/context` reports 487 → 235 agent-listing tokens
+(51.7% reduction); memory remains rounded to 3.9k. Operating files plus the new
+translator total 32,661 → 20,762 characters (36.4% reduction); this is text size,
+not a guarantee of total runtime token/cost savings. An independent agent's three
+simulated requests preserved clear intent, unresolved rules, planning scope and
+steering; no actionable instruction defect was found. No app/test/CI source
+changed, so browser/build checks were skipped. Native auto-selection on a real
+task, live-team TDD delivery and actual billable cost were not benchmarked.
+Cached Ponytail guidance was applied; no invocation is claimed. Private source
+snapshots/native output/manifest: `/tmp/write-timer-sdd-20261017-y4o3qg7z/RESULTS.md`.
+
+**Next:** use the next real owner-selected story to measure task-level token use,
+automatic translation and delivery behavior. Publication is authorized by the
+owner's follow-up, "push commit and merge"; the work is already on main.
+
+## Completed history
+
+WF-001 below is the 15 Oct setup snapshot, not current SDD policy. WF-002
+supersedes its future-SDD wording; do not reload old verification by default.
 
 ## Ordered work
 

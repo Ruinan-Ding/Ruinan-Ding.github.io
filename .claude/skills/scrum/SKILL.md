@@ -1,38 +1,23 @@
 ---
 name: scrum
-description: Deliver Write Timer development tasks with the project's cross-functional Scrum team, BDD acceptance examples and TDD. Use for features, fixes, engineering reviews and explicit refinement, planning, review or retrospective requests in this repository; not for using the timer or general Scrum questions.
+description: Translate informal, vibe-coding or structured Write Timer development requests into compact SDD specs, BDD examples and TDD delivery in the Scrum team. Use for features, fixes, refactors, reviews and Scrum events; not timer usage or general methodology questions.
 ---
 
-# Scrum delivery
+# Spec-driven delivery
 
-Read [AGENTS.md](../../../AGENTS.md),
-[SCRUM_WORKFLOW.md](../../../SCRUM_WORKFLOW.md) and the current
-[backlog](../../../SCRUM_BACKLOG.md). They own repo constraints, team
-responsibilities and delivery rules. The request is `$ARGUMENTS`; if empty,
-continue the active request/handoff rather than inventing work.
+Use `$ARGUMENTS`, otherwise the active request. Follow already-loaded AGENTS.md;
+load [workflow](../../../SCRUM_WORKFLOW.md) once and only the active
+[backlog item](../../../SCRUM_BACKLOG.md). Reuse unchanged context.
 
-The main conversation orchestrates. Assigned workers follow their role/task
-packet and return results to the lead; loading this skill does not make a worker
-another orchestrator or broaden its authorization.
+For new or revised intent, automatically use the
+[specification translator](references/specification.md), including ordinary
+informal requests without `/scrum`. Reuse an existing valid spec. Then map
+criteria to checks, Red → Green → Refactor, integrate, review drift and record
+results. Planning/review-only requests retain that scope; clear user intent
+needs no extra spec approval. Ask only for missing consequential product rules.
 
-1. Inspect the branch, dirty files, active story and affected code. Preserve
-   existing work and user priorities; identify the goal and missing product rules.
-2. Refine observable Given/When/Then examples with product, development and
-   quality input. Map examples to meaningful checks before implementation. Ask
-   the owner about missing decisions while continuing independent work.
-3. Use the relevant profiles in `.claude/agents/` and the workflow's ownership
-   contract. Delegate independent work only when runtime policy permits. Choose
-   native interactive teams, focused subagents or sequential work according to
-   actual dependencies and capacity; never activate every role just to fill seats.
-4. Follow Red → Green → Refactor for behavior changes. Integrate the UI/state
-   paths and obtain qualified independent review when available. Give reviewers
-   the actual diff/new files and source-bound check evidence. For docs/agent
-   configuration use structural checks, without inventing a failing timer test.
-   Preserve failing output and investigate flaky/baseline/environment failures.
-5. Complete the applicable Definition of Done checks and update the active story
-   and PUNCHLIST truthfully. State missing checks, reviews and owner observations.
-   At review identify one concrete improvement. Scrum events add no extra
-   permission gates; commits, pushes and deployment retain AGENTS.md's rules.
-
-SDD means specification-driven development in this workflow and remains a future
-option. Do not install a framework or create another product-rule authority.
+Use one lead and relevant perspectives by default. Delegate only bounded work
+that warrants another context, respecting runtime policy. Workers use their
+packet and assigned criteria; read missing shared constraints only, and return
+to the lead without restarting the process. Never sacrifice required evidence
+or claim independent review to save tokens.
