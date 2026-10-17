@@ -36,10 +36,12 @@ vite.config.ts.timestamp-*
 !.vscode/launch.json
 !.vscode/extensions.json
 .history/
-# Claude Code: the skills and the shared settings are the repo's (AGENTS.md);
-# these two are this machine's own.
+# Claude Code: skills and shared settings belong in the repo (AGENTS.md).
+# Local settings, locks and loop prompts belong only to the machine/session.
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+.claude/ralph-loop.local.md*
+.claude/.ralph-loop.local.md*
 
 # System files
 .DS_Store

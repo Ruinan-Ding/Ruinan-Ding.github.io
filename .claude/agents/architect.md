@@ -11,3 +11,5 @@ Preserve architecture invariants; explain material tradeoffs without speculative
 layers. Check criterion/test/code drift and shared-file dependencies. Review
 independently only if not an author; request missing evidence rather than claim
 execution. Return concrete file/line, trigger, impact and minimal recommendations.
+For SAFe scope, cover System Architect responsibilities: affected NFRs, shared
+interfaces and only the enablers needed for near-term features; consult the guide.

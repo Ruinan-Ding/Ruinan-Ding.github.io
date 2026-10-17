@@ -54,12 +54,17 @@ Built with React 19, TypeScript, Tailwind CSS 4, and the Web Audio API. Deploys 
 
 Describe a development task naturally or use `/scrum <task>`. Informal requirements
 automatically become a compact SDD specification, BDD acceptance examples and TDD
-work. Clear intent needs no extra spec approval; missing product decisions stay
+work in a SAFe-aligned workflow. Clear intent needs no extra spec approval; missing product decisions stay
 with the owner. A lead uses the needed senior capabilities, loading context and
 delegating only as useful. Nine profiles and native team support remain available.
+Feature/PI planning, dependencies, risks and economic ordering use an on-demand
+guide and existing roles; routine stories keep the small direct path. This is
+an adaptation for one product/team, not a claim that an ART is already operating.
 
 [SCRUM_WORKFLOW.md](SCRUM_WORKFLOW.md) defines the process and token budget;
 [SCRUM_BACKLOG.md](SCRUM_BACKLOG.md) holds active specs and work.
+The [Claude plugin guide](.claude/PLUGINS.md) lists project plugins, setup for WSL
+and Windows, and bounded usage; the heavier PR toolkit is opt-in.
 [PUNCHLIST.md](PUNCHLIST.md) retains owner-observation status.
 
 ## License

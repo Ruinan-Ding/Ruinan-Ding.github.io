@@ -1,23 +1,21 @@
 ---
 name: scrum
-description: Translate informal, vibe-coding or structured Write Timer development requests into compact SDD specs, BDD examples and TDD delivery in the Scrum team. Use for features, fixes, refactors, reviews and Scrum events; not timer usage or general methodology questions.
+description: Deliver Write Timer requests through token-efficient, SAFe-aligned SDD/BDD/TDD. Translate informal intent; handle features, fixes, reviews and PI/Scrum planning. Not timer usage or general methodology questions.
 ---
 
-# Spec-driven delivery
+# SAFe-aligned spec delivery
 
-Use `$ARGUMENTS`, otherwise the active request. Follow already-loaded AGENTS.md;
-load [workflow](../../../SCRUM_WORKFLOW.md) once and only the active
-[backlog item](../../../SCRUM_BACKLOG.md). Reuse unchanged context.
+Lead: use `$ARGUMENTS`, otherwise the active request. Follow already-loaded AGENTS.md;
+read [workflow](../../../SCRUM_WORKFLOW.md) once and the active
+[story](../../../SCRUM_BACKLOG.md) only. Reuse unchanged context.
 
-For new or revised intent, automatically use the
-[specification translator](references/specification.md), including ordinary
-informal requests without `/scrum`. Reuse an existing valid spec. Then map
-criteria to checks, Red → Green → Refactor, integrate, review drift and record
-results. Planning/review-only requests retain that scope; clear user intent
-needs no extra spec approval. Ask only for missing consequential product rules.
+Automatically translate new/changed intent through the
+[specification guide](references/specification.md), even without `/scrum`.
+Reuse valid specs; clear intent needs no extra approval. Preserve plan/review-only
+scope and ask for missing product rules. The workflow supplies TDD/review checks.
 
-Use one lead and relevant perspectives by default. Delegate only bounded work
-that warrants another context, respecting runtime policy. Workers use their
-packet and assigned criteria; read missing shared constraints only, and return
-to the lead without restarting the process. Never sacrifice required evidence
-or claim independent review to save tokens.
+Load [SAFe coordination](references/safe.md) for cross-story features/epics,
+PI/dependencies, economic ordering or coordinated releases, not routine stories.
+Use one lead; delegate bounded work only when justified and permitted.
+Workers follow their packet/criteria, fetch missing context only and report to
+the lead. Token saving never removes required checks or review honesty.

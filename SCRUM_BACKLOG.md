@@ -18,7 +18,107 @@ No Sprint dates, cadence or Sprint Goal have been agreed. The authorized workflo
 setup below is an unscheduled item. No Sprint, Daily Scrum, stakeholder Review or
 Retrospective is claimed to have occurred.
 
-## Active: WF-002 — Compact SDD/BDD/TDD delivery
+## Active: WF-004 — Focused Claude plugin support
+
+- **Source/revision:** owner's plugin request in AGENTS.md; r1, Done for
+  installation/configuration. Context7 retains Claude's normal user trust step.
+- **Outcome:** install relevant Claude plugins for the current SAFe/SDD/BDD/TDD
+  workflow, including Ralph, while limiting duplicate orchestration and context.
+- **Scope:** project plugin settings, WSL/Windows installations and prerequisites,
+  on-demand usage guidance and records. Preserve the existing dirty SAFe work.
+  No app/CI behavior changes or external messages. The owner's publication
+  follow-up below authorizes Git delivery and the existing deploy-on-main CI.
+- **Plan/ownership:** lead owns configuration/docs; inspect plugin sources/hooks,
+  install serially, validate both environments and exercise bounded hook/LSP checks
+  privately. Installation does not activate a development loop or grant Git authority.
+
+| ID | Ready Given / When / Then | Check / evidence |
+|---|---|---|
+| A1 | Given the two local Claude environments, when installed, then Ralph, focused reviews, TypeScript navigation, UI design and library documentation are project-scoped alongside Ponytail. | Both native inventories confirm all six plugins and intended defaults. TypeScript and Ralph checks pass in WSL/Windows. Context7 uses the public project MCP entry; native trust is pending. |
+| A2 | Given a normal story, when plugins are available, then the existing spec/BDD/TDD path remains authoritative; only relevant tools/review aspects load and Ralph uses a finite limit. | Settings/source and routing checks pass; isolated hooks verify idle behavior, session isolation, retry, completion and iteration cap. PR toolkit stays off until requested. |
+| A3 | Given reload or a fresh checkout, when setting up, then marketplace sources, install commands and environment limitations are explicit and no local loop state enters Git. | Sources/defaults, native component discovery, links/LF, ignore patterns and setup guide verified. No loop state was created in the repo. |
+
+**Evidence, 17 Oct:** `pnpm run check` and `pnpm test` pass. Both native plugin
+inventories match the shared defaults; all nine existing project profiles retain
+their inherited models. Sources/settings, links, LF, loop-state ignores,
+preservation of the prior dirty work and `git diff --check` pass. Five standalone
+plugin manifests validate (three upstream missing-version warnings). The standalone
+directory validator reports `No manifest found` for TypeScript LSP: it is an
+intentional `strict:false` marketplace entry, whose registered server is verified
+through native inventory and actual definition/type-error checks in both environments.
+Initial smoke-harness failures from WSL-to-Windows environment propagation and
+Windows URI normalization were corrected; the final hook and LSP checks pass.
+
+The bundled Context7 URL returned HTTP 401; the canonical public endpoint accepts
+anonymous initialization and lists both documentation tools. `.mcp.json` uses that
+endpoint; its duplicate plugin stays off. Both Claude installations report the
+project MCP server **Pending approval**; user trust in Claude is still required.
+The PR toolkit also stays off: CLI estimates ~1,600 idle tokens, versus ~42 for
+Ralph and ~59 for design. MCP/runtime costs are extra; no task-bill saving is claimed.
+
+WSL now has Ponytail 5.3.2; existing Windows Ponytail 4.8.4/user scope is preserved.
+TypeScript tooling is outside app dependencies; Windows jq and the npm user-PATH
+entry are installed. Installed Ponytail guidance was applied in Codex; no native
+slash-command invocation, model-driven plugin review or end-to-end Claude team run
+is claimed. Browser/build checks were skipped for unchanged app/test/CI sources.
+No independent reviewer was used for this plugin/configuration delta. Source:
+main at 7e74fe5 plus the preserved SAFe delta and this task; private source/manifest
+and results: `/tmp/write-timer-plugins-20261017-qy2hjnhj/RESULTS.md`.
+
+**Next:** restart Windows Claude for PATH changes, reload plugins, and approve
+Context7 through Claude's project-server trust prompt when using documentation.
+Use the next owner-selected story to measure actual token cost and delivery.
+No app behavior or owner-SEEN status changed.
+
+**Publication follow-up, 17 Oct:** owner: "commit push merge". Publish WF-003 and
+WF-004 together as the owner, preserving unrelated branches/work. The work is
+already on `main`; no separate branch merge is needed. Fetch/compare the remote,
+reuse the exact source-bound passing checks, commit and push with Windows Git,
+then verify CI and live assets. Post-publication results/source identity are kept
+in `/tmp/write-timer-plugins-20261017-qy2hjnhj/PUBLISH_RESULTS.md`.
+
+## Completed: WF-003 — Token-efficient SAFe alignment
+
+- **Source/revision:** owner's SAFe request recorded in AGENTS.md; r1, Done for
+  workflow configuration. Actual PI/team operation remains untried.
+- **Outcome:** connect intent, optional epics, features and story specs to PI/iteration
+  planning and integrated delivery, preserving SDD/BDD/TDD and owner authority.
+- **Scope/non-goals:** workflow, on-demand guidance, four role bodies, safe preview
+  cleanup instructions and records;
+  no app/CI behavior, extra profiles, model/permission changes or publication.
+- **Plan/ownership:** lead owns these files; structural/link/size checks, independent
+  scenario review and type/unit checks. Browser/build checks are unnecessary for
+  unchanged app/test/CI sources. No real ART or PI is being launched.
+
+| ID | Ready Given / When / Then | Check / evidence |
+|---|---|---|
+| A1 | Given planning/coordination work, when routed, then SAFe accountabilities, feature/story links, PI objectives, dependencies, risks and integrated review have concrete owners and outcomes. | Official-reference/instruction review and independent scenarios pass. |
+| A2 | Given a small direct request, when translated, then the existing compact SDD/BDD/TDD path works without extra hierarchy/ceremonies or loading the SAFe reference. | Independent small-story scenario passes; entry/core text 10,766 → 10,685 characters. |
+| A3 | Given the role setup, when loaded, then the same nine profiles, model/tool choices and settings remain available; SAFe responsibilities reuse existing roles. | Parsed frontmatter and settings match HEAD; skill validation and local links pass. |
+| A4 | Given unknown PI dates, values, risks or release authority, when planning, then proposals stay explicit, business decisions stay human and no meeting, ART, deployment or acceptance is invented. | Independent PI-planning and constrained release scenarios pass; no simulated work executed. |
+
+**Evidence, 17 Oct:** `pnpm run check`, `pnpm test`, both affected skill validators,
+profile/settings preservation, local links, LF, existing product/architecture-rule
+preservation and `git diff --check` pass. Independent instruction scenarios cover
+a direct appearance story, unscheduled PI planning with unknown capacity/value,
+and release timing under unchanged deploy-on-main CI. Review found an existing
+preview cleanup command that could stop unrelated servers; the instructions now
+retain and stop only the task-started PID/session. Read-only follow-up passes.
+
+Entry/core instructions are 0.8% smaller. The measured operating-file set grows
+20,762 → 28,094 characters, including the new 6,566-character on-demand SAFe guide;
+this is text size, not a measured runtime token saving. All nine profile headers
+and settings are unchanged, so native discovery was not rerun. App/test/CI source
+is unchanged; browser/build checks were skipped. Cached Ponytail guidance was
+applied; no plugin invocation is claimed. Source: main at 7e74fe5 plus this delta;
+private evidence/manifest: `/tmp/write-timer-safe-20261017-h9mlme_y/RESULTS.md`.
+
+**Next:** try the workflow on the next owner-selected story; agree any real PI
+cadence/capacity before activating it and measure task-level tokens alongside
+quality. No ART, stakeholder planning, live-team trial or owner-SEEN status is
+claimed. Publication was subsequently authorized by the follow-up under WF-004.
+
+## Completed: WF-002 — Compact SDD/BDD/TDD delivery
 
 - **Source:** 17 Oct owner request quoted under Development workflow in AGENTS.md.
 - **Revision/status:** r1, Done for workflow configuration. Unscheduled item;

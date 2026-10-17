@@ -50,6 +50,8 @@ Where it lives: `client/src/components/timer/TransferDialog.tsx` (the dialog and
 | 3.1 | Claude has the ChessPlusPlus-style Scrum team adapted to Write Timer: nine senior capabilities, shared delivery/review and an active SDD → BDD → TDD workflow. The owner retains product decisions and observation status. | WRITTEN |
 | 3.2 | Informal/vibe development requirements automatically become compact scoped specs, stable BDD criteria and test-first tasks; clear intent needs no extra approval and unresolved product rules remain explicit. | WRITTEN |
 | 3.3 | Use scoped context, small task packets, one spec source and proportionate staffing to reduce token overhead without dropping required checks or evidence. | WRITTEN |
+| 3.4 | SAFe-aligned feature/story and PI coordination reuses the nine profiles, with explicit dependencies, risks, integrated evidence and owner decisions; expanded guidance loads only when needed. | WRITTEN |
+| 3.5 | Relevant Claude plugins, including Ralph, are installed in WSL and Windows with focused usage, bounded iteration and setup instructions. The PR toolkit is opt-in; Context7 uses public MCP and awaits Claude's normal project-server trust approval. | WRITTEN |
 
 ## Waiting on the owner
 
@@ -75,6 +77,19 @@ described. Say which to change.
 
 ## What has actually been checked
 
+- **Claude plugins, 17 Oct 2026**: both native inventories, required binaries,
+  isolated Ralph hook checks and real TypeScript definition/type-error checks
+  pass in WSL and Windows. Type/unit, settings/link/LF and dirty-work preservation
+  checks pass. Context7's canonical public endpoint responds anonymously; native
+  project trust is still pending. The PR toolkit stays opt-in to avoid its idle
+  context. Browser/build checks were skipped for configuration/docs only. Actual
+  plugin-driven delivery/token cost and owner observation remain untried. See WF-004.
+- **SAFe alignment, 17 Oct 2026**: type/unit checks, skill validation, profile and
+  settings preservation, links and LF pass. Independent direct-story, PI-planning
+  and release scenarios pass. A preview-cleanup review finding was corrected and
+  rechecked. Entry/core text is 0.8% smaller; expanded SAFe guidance loads on demand.
+  Runtime token cost and real PI/team operation remain untried. Browser/build
+  checks were skipped for unchanged app/test/CI sources. See WF-003 for evidence.
 - **Compact SDD workflow, 17 Oct 2026**: skill/profile/link/LF validation, type and
   unit checks pass. Native discovery retains nine profiles and four project skills;
   Claude 2.1.285 reports agent listing 487 → 235 tokens. Operating text including

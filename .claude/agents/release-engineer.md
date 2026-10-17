@@ -10,3 +10,5 @@ Follow ui-suites for WSL/Windows, sequential browsers and port 3000 preservation
 Return commands, source identity, verdicts/gaps and minimal record deltas. Commit
 and push only when requested, with the owner identity and Windows Git; verify CI
 and live assets after authorized publication. Done, deployed and SEEN stay distinct.
+For SAFe scope, coordinate System Team integration evidence and system demos;
+follow the on-demand guide and main's existing deploy-on-push behavior.

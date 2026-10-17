@@ -1,8 +1,9 @@
-# SDD, BDD and TDD Scrum workflow
+# SAFe-aligned SDD, BDD and TDD workflow
 
 Use `/scrum <request>` or ordinary development language, including informal
-"vibe coding" requests. The lead translates intent into a compact specification,
-expresses acceptance with BDD examples, then implements through TDD.
+"vibe coding" requests. Translate intent into a compact spec, BDD examples and
+TDD work. This single-product setup adapts SAFe responsibilities; profiles are
+specialists within one team, not separate Agile Teams or an operating ART.
 [AGENTS.md](AGENTS.md) owns constraints and product decisions; user scope and
 runtime policy take precedence. Apply Ponytail for code/design work.
 
@@ -10,9 +11,11 @@ runtime policy take precedence. Apply Ponytail for code/design work.
 
 1. Inspect branch/dirty source and the active item in
    [SCRUM_BACKLOG.md](SCRUM_BACKLOG.md), not completed history.
+   Load [SAFe coordination](.claude/skills/scrum/references/safe.md) only for cross-story
+   features/epics, PI planning, cross-team dependencies, economics or coordinated releases.
+   A bounded story uses this core directly without extra hierarchy or ceremonies.
 2. For new/changed intent, use the [specification translator](.claude/skills/scrum/references/specification.md).
-   Reuse a supplied or unchanged spec. Record one canonical contract in the story;
-   do not create separate requirements, BDD and task documents for a small change.
+   Reuse unchanged specs; keep one contract per story, linking its tests/tasks.
 3. Map criterion IDs to meaningful checks before production edits. Product,
    development and quality perspectives refine the examples; one lead can cover
    them. Missing owner decisions block only dependent work.
@@ -64,6 +67,9 @@ and ownership of results. All profiles retain `model: inherit`.
   private log, returning the relevant excerpt. Return deltas, not repeated plans.
 - Reuse valid source-bound evidence; reassess changed inputs. Token saving never
   removes required checks, owner decisions or independent-review honesty.
+- [Plugin routing](.claude/PLUGINS.md) stays on demand. Use bounded Ralph runs
+  for Ready specs and focused review aspects; plugins retain this workflow's scope,
+  TDD, permissions and owner decisions. Do not add a second delivery orchestrator.
 
 ## Worker contract
 
@@ -78,6 +84,9 @@ Checks/evidence required; permitted side effects and environment limits:
 Return: changed paths, criterion results, findings/blockers, next action:
 ```
 
+For SAFe scope include only relevant parent/objective IDs and coordination rules;
+workers fetch missing sections, not the whole planning guide.
+
 One writer per file, including tests/docs; transfer ownership before editing.
 The lead integrates shared contracts/records. Preserve dirty work; a worktree
 must include the intended dirty source. Do not stash/reset/commit others' work
@@ -91,26 +100,20 @@ missing independent review. Later edits invalidate affected evidence, even at
 the same HEAD. On interruption save a short handoff: spec revision, paths/owners,
 failing checks and next action; inspect actual files/workers on resume.
 
-## Scrum artifacts and events
+## Planning and flow
 
-The backlog holds Product Goal, active specs, Sprint Goal/plan and impediments.
-The Increment's commitment is the shared Definition of Done below. The owner
-orders work; Developers select/adapt an achievable plan. Keep one active slice
-per writer and swarm on defects before expanding WIP. Scope changes revise the
-active spec and expose displaced work; only the Product Owner cancels a Sprint.
+One backlog holds goals, optional feature/PI links, story specs and impediments.
+The owner orders work; Developers select an achievable iteration plan, preserve
+its goal and expose displaced work. Keep one active slice per writer and swarm
+on defects before expanding WIP. The shared Done definition applies throughout.
 
-| Event | Concrete result |
-|---|---|
-| Refinement | Product/development/quality resolve examples, scope and dependencies. |
-| Planning | Agree Sprint dates, goal and capacity including verification. |
-| Daily Scrum | Developers inspect the goal and adapt the plan each working day, within 15 minutes. |
-| Review | Inspect a working Increment with available stakeholders; record actual feedback. |
-| Retrospective | Select one improvement with owner, measure and next review date. |
-
-Sprints last one month or less; agree cadence with the owner, never invent it.
-For a month, Planning/Review/Retrospective maxima are 8/4/3 hours; scale down.
-Do not manufacture meetings, attendance, velocity or wait out timeboxes. Until
-planning occurs, items are unscheduled. Keep updates and ceremonies outcome-focused.
+Refine examples continuously; plan goals/capacity before an iteration; inspect
+progress daily within 15 minutes; review working increments with stakeholders;
+retrospect with one improvement, owner and measure. Agree dates/cadence with the
+owner. Scrum Sprints are at most one month (month maxima: Planning 8h, Review 4h,
+Retro 3h). Only the PO cancels a Sprint. Until agreed, work stays unscheduled.
+Invent no events, attendance, commitments or velocity. PI coordination adds no
+approval gates; use the on-demand guide only when its wider scope is relevant.
 
 ## Definition of Done
 

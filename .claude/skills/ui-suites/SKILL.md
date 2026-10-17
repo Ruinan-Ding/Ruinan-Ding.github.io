@@ -39,6 +39,8 @@ and launches Windows Chrome from `tests/chrome.mjs`'s default path.
    `node node_modules/vite/bin/vite.js build --logLevel warn`
 2. **Serve in WSL, in the background** (a background command, with a long timeout):
    `node node_modules/vite/bin/vite.js preview --port 5199 --strictPort --host 0.0.0.0`
+   Keep the process PID or execution tool's session handle. If using a shell background
+   process, capture `$!` in that same invocation; do not find it later by a broad name match.
 3. **Wait until Windows itself can reach it.** The forwarding lags the server by a moment, and a
    runner that misses it tries to build with Windows Node and dies on the symlinks:
    `until cmd.exe /c "curl -s -o NUL -w %{http_code} http://localhost:5199/" 2>/dev/null | grep -q 200; do sleep 1; done`
@@ -46,11 +48,10 @@ and launches Windows Chrome from `tests/chrome.mjs`'s default path.
    `cmd.exe /c "cd /d C:\Users\DRuin\OneDrive\Documents\Ruinan-Ding.github.io && node tests\run.mjs transfer journey" 2>&1 | tr -d '\r'; echo "runner exit: ${PIPESTATUS[0]}"`
    The exit code after a pipe is `tr`'s, so read `PIPESTATUS`, or the verdict lines. The first
    line must be `using the server already on 5199`; `building` means step 3 was skipped.
-5. **Stop the server** once the last run is done:
-   `kill $(pgrep -f '[v]ite.js preview')`. The bracket keeps the pattern from matching the
-   shell running the command; a bare `pkill -f 'vite.js preview'` kills that shell too (exit
-   144). **Never force-kill every Windows `node.exe`**: that takes down the owner's own
-   processes along with the runner.
+5. **Stop only the preview this task started** once the last run is done: use its captured
+   PID or interrupt its recorded execution session. Leave a reused server running. A broad
+   process-name match can stop another task's preview, and **never force-kill every Windows
+   `node.exe`**: that takes down the owner's own processes along with the runner.
 
 To run one suite on its own and see every check, not just the verdict:
 `cmd.exe /c "cd /d C:\...\Ruinan-Ding.github.io\tests && node transfer.test.mjs 9811"`, where

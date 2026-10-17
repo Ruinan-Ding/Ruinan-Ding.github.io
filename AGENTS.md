@@ -8,9 +8,10 @@ app does and how to build it, and this covers the things that are easy to get wr
 **Invoke the `ponytail` plugin for all code work in this repo**: `/ponytail` (default level
 `full`). Source: the `DietrichGebert/ponytail` marketplace; install with
 `/plugin marketplace add DietrichGebert/ponytail`, then `/plugin install ponytail@ponytail`.
-`.claude/settings.json` enables it for this repo, and it is installed in the owner's Windows
-Claude Code (user scope, and project scope for this repo). It is **not** installed in the WSL
-Claude Code, so a session started from WSL has to install it or go without and say so.
+`.claude/settings.json` enables it for this repo. It is installed in Windows Claude Code
+(user and project scope) and WSL Claude Code (project scope). Fresh environments must
+install it; Codex sessions without Claude's plugin loader apply the installed skill and
+say that no native invocation occurred. [Plugin setup](.claude/PLUGINS.md) covers both environments.
 
 The plugin is the source of truth for what "lazy" means here. Don't restate its rules in this
 file; just run it. Its sibling skills: `/ponytail-review` (an over-engineering review of a diff),
@@ -48,12 +49,16 @@ ledger), `/ponytail-help`.
 ## Claude Scrum delivery
 
 For development requests, including informal/vibe requirements, automatically
-apply `/scrum`: [SDD → BDD → TDD workflow](SCRUM_WORKFLOW.md). The lead translates
+apply `/scrum`: [SAFe-aligned SDD → BDD → TDD workflow](SCRUM_WORKFLOW.md). The lead translates
 intent into a compact spec before the requested action; clear requirements need
 no extra approval. Read only the active [story](SCRUM_BACKLOG.md), affected code
 and needed profiles. Reuse loaded context; staff by need, not the nine-role roster.
 The human is Product Owner; preserve dirty source, one writer per file, runtime
 policy and existing authorization. `PUNCHLIST.md` retains owner-observation status.
+SAFe coordination loads only for feature/PI/dependency or release planning;
+reuse existing roles and the backlog, without fabricating an ART or PI cadence.
+Use the [plugin guide](.claude/PLUGINS.md) only for setup, bounded Ralph iteration
+or specialist plugin work; the PR toolkit is installed but off by default.
 
 ## What this is
 
@@ -193,7 +198,8 @@ behaviour from before then is described in `README.md` and the code's own commen
 
 **Development workflow** (15 Oct 2026; revised 17 Oct 2026):
 
-- **A compact SDD/BDD/TDD Scrum team, adapted from ChessPlusPlus**: Originally requested as *"carefully examine this @../ChessPlusPlus claude agentic workflow. it should be a full blown agile scrum team, with all of the senior agile developers in a high performing scrum team. make sure it refelects that. we use a tdd and bdd approach, with consideration for possible sdd later. make it similar"*, with target *"Adapt Write Timer using ChessPlusPlus as the reference"*. On 17 Oct the owner activated SDD and requested token efficiency: *"you need to optimize it for token saving. also implement sdd workflow to this now. but add a translation layer when user gives vibe coding requirements, its able to automatically convert that to sdd work flow. thats also bdd, tdd, in agile scrum team. make sure its all token efficient"*. Translate informal intent into a compact specification, BDD examples and TDD tasks automatically; retain senior capabilities with scoped context and proportionate staffing. The owner retains product decisions.
+- **A compact SAFe-aligned SDD/BDD/TDD team, adapted from ChessPlusPlus**: Originally requested as *"carefully examine this @../ChessPlusPlus claude agentic workflow. it should be a full blown agile scrum team, with all of the senior agile developers in a high performing scrum team. make sure it refelects that. we use a tdd and bdd approach, with consideration for possible sdd later. make it similar"*, with target *"Adapt Write Timer using ChessPlusPlus as the reference"*. On 17 Oct the owner activated SDD and requested token efficiency: *"you need to optimize it for token saving. also implement sdd workflow to this now. but add a translation layer when user gives vibe coding requirements, its able to automatically convert that to sdd work flow. thats also bdd, tdd, in agile scrum team. make sure its all token efficient"*. The owner then requested *"lets make it a SAFe level workflow while still keeping token effiency"*. Translate informal intent into a compact specification, BDD examples and TDD tasks automatically; apply SAFe coordination with scoped context and shared senior capabilities. The owner retains product decisions.
+- **Project-scoped Claude plugins** (17 Oct 2026): *"add all relevant claude plugins for this workflow. like ralph and whatever"*. Add plugins that support the current workflow, including Ralph, preserving the token-efficiency and owner-authority rules above.
 
 The agent's own choices around these, which the owner has not ruled on, are listed under
 "Waiting on the owner" in `PUNCHLIST.md`.

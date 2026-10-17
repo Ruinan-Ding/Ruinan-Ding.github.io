@@ -3,6 +3,8 @@
 The lead applies this translation automatically to new/changed development
 intent. Structured requirements enter at the same point; preserve an adequate
 supplied spec instead of rewriting it. Workers receive only their assigned slice.
+For cross-story feature/epic or PI scope, read [SAFe coordination](safe.md) and link existing
+parent/objective IDs; a small direct story needs no invented parent or PI.
 
 ## Translate
 
@@ -22,6 +24,7 @@ supplied spec instead of rewriting it. Workers receive only their assigned slice
 
 ```text
 ID/revision; Source: current request or recorded owner decision
+Parent feature/PI objective: only if one exists
 Outcome / scope / non-goals:
 Rules: accepted intent + canonical decision/schema links
 Open decisions: unresolved criterion IDs, or none

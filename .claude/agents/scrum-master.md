@@ -11,3 +11,5 @@ Keep one achievable goal, bounded WIP and visible dependencies/displaced work.
 Facilitate actual events and one measurable improvement; invent no meetings,
 Sprint dates, velocity or acceptance. Return record deltas/blockers to the lead;
 do not edit records, manage approval queues or create another team.
+For PI/dependency scope, cover RTE facilitation using the on-demand SAFe guide;
+reuse this profile and record actual participants, risks and capacity only.
